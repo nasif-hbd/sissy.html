@@ -52,11 +52,11 @@ const button = document.getElementById('magicButton');
 
 // Images to use
 const images = [
-  'storage/emulated/0/DCIM/Screenshots/1.jpg',
-  'storage/emulated/0/DCIM/Screenshots/2.jpg',
-  'storage/emulated/0/DCIM/Screenshots/3.jpg',
-  'storage/emulated/0/DCIM/Screenshots/4.jpg',
-  'storage/emulated/0/DCIM/Screenshots/5.jpg'
+        'https://github.com/user-attachments/assets',/7773ec0c-2a20-4790-add2-c44d2cf5e86f
+        'https://github.com/user-attachments/assets/a00f6218-754c-4132-a6d0-9066c3a0a724',
+        'https://github.com/user-attachments/assets/141c3bd2-a511-4509-961a-6c78dc578424',
+        'https://github.com/user-attachments/assets/ac66be3c-06ba-4a62-9348-a151e3d44749',
+        'https://github.com/user-attachments/assets/d803f794-21fa-4794-b0a5-341757faec2a',
 ];
 
 // Predefined angles for 5 images in degrees
