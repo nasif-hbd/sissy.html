@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="system">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Lexio — an English vocabulary learning app template with spaced repetition, reminders, progress tracking and Claude AI integration.">
+<meta name="theme-color" content="#111827">
+<title>Lexio — English Vocabulary Trainer</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="app" class="app" hidden>
+
+  <header class="topbar">
+    <div class="topbar__brand">
+      <span class="brand__mark">Lx</span>
+      <div>
+        <h1 class="brand__name">Lexio</h1>
+        <p class="brand__sub" id="brandSub">English vocabulary</p>
+      </div>
+    </div>
+    <div class="topbar__meta">
+      <div class="streak" id="streakChip" title="Current streak">
+        <span class="streak__flame">🔥</span><span id="streakCount">0</span>
+      </div>
+      <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle colour theme">◐</button>
+    </div>
+  </header>
+
+  <div class="goalbar" id="goalbar">
+    <div class="goalbar__track"><div class="goalbar__fill" id="goalFill"></div></div>
+    <span class="goalbar__label" id="goalLabel">0 / 20 reviews today</span>
+  </div>
+
+  <main class="views" id="views">
+
+    <!-- ───────────────────────── Learn ───────────────────────── -->
+    <section class="view" id="view-learn" data-view="learn">
+      <div class="stack">
+        <div class="queue-summary" id="queueSummary">
+          <div class="queue-summary__item"><b id="qDue">0</b><span>due</span></div>
+          <div class="queue-summary__item"><b id="qNew">0</b><span>new</span></div>
+          <div class="queue-summary__item"><b id="qLearning">0</b><span>learning</span></div>
+        </div>
+
+        <div class="card card--flash" id="flashcard" hidden>
+          <div class="card__head">
+            <span class="pill" id="cardState">new</span>
+            <span class="pill pill--ghost" id="cardPos"></span>
+            <button class="icon-btn icon-btn--sm" id="speakBtn" type="button" aria-label="Pronounce word">🔊</button>
+          </div>
+
+          <p class="term" id="cardTerm">—</p>
+          <p class="phonetic" id="cardPhonetic"></p>
+
+          <div class="card__back" id="cardBack" hidden>
+            <p class="definition" id="cardDefinition"></p>
+            <ul class="examples" id="cardExamples"></ul>
+            <div class="chips" id="cardSynonyms"></div>
+            <p class="mnemonic" id="cardMnemonic" hidden></p>
+            <div class="ai-slot" id="aiSlot" hidden>
+              <div class="ai-slot__head"><span class="pill pill--ai">AI</span><span id="aiSlotTitle">Deeper context</span></div>
+              <div class="ai-slot__body" id="aiSlotBody"></div>
+            </div>
+          </div>
+
+          <div class="card__actions">
+            <button class="btn btn--primary btn--wide" id="revealBtn" type="button">Show answer</button>
+            <div class="grades" id="grades" hidden>
+              <button class="btn btn--grade" data-grade="0"><b>Again</b><span id="etaAgain">1m</span></button>
+              <button class="btn btn--grade" data-grade="1"><b>Hard</b><span id="etaHard">—</span></button>
+              <button class="btn btn--grade" data-grade="2"><b>Good</b><span id="etaGood">—</span></button>
+              <button class="btn btn--grade" data-grade="3"><b>Easy</b><span id="etaEasy">—</span></button>
+            </div>
+          </div>
+
+          <div class="card__tools" id="cardTools" hidden>
+            <button class="btn btn--quiet btn--sm" id="explainBtn" type="button">✨ Explain like I'm new</button>
+            <button class="btn btn--quiet btn--sm" id="moreExamplesBtn" type="button">✨ More examples</button>
+            <button class="btn btn--quiet btn--sm" id="burySkipBtn" type="button">Skip</button>
+          </div>
+        </div>
+
+        <div class="empty" id="learnEmpty">
+          <p class="empty__emoji">🎉</p>
+          <h2>Queue clear</h2>
+          <p class="empty__text" id="learnEmptyText">Nothing is due right now. Add words, run a quiz, or come back later — we'll remind you.</p>
+          <button class="btn btn--primary" id="studyAheadBtn" type="button">Study ahead</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────────────────── Practice ───────────────────────── -->
+    <section class="view" id="view-practice" data-view="practice" hidden>
+      <div class="stack">
+        <div class="seg" role="tablist" id="practiceModes">
+          <button class="seg__btn is-active" data-mode="quiz" role="tab">Quiz</button>
+          <button class="seg__btn" data-mode="type" role="tab">Spell</button>
+          <button class="seg__btn" data-mode="coach" role="tab">Writing coach</button>
+        </div>
+
+        <div class="card" id="quizCard">
+          <p class="prompt" id="quizPrompt">Press start to begin.</p>
+          <div class="options" id="quizOptions"></div>
+          <p class="feedback" id="quizFeedback" hidden></p>
+          <button class="btn btn--primary btn--wide" id="quizStart" type="button">Start quiz</button>
+        </div>
+
+        <div class="card" id="typeCard" hidden>
+          <p class="prompt" id="typePrompt">Press start to begin.</p>
+          <input class="input" id="typeInput" type="text" autocomplete="off" autocapitalize="off"
+                 spellcheck="false" placeholder="Type the word…" disabled>
+          <p class="feedback" id="typeFeedback" hidden></p>
+          <button class="btn btn--primary btn--wide" id="typeStart" type="button">Start spelling drill</button>
+        </div>
+
+        <div class="card" id="coachCard" hidden>
+          <p class="prompt">Write a sentence using <b id="coachWord">—</b>.</p>
+          <textarea class="input input--area" id="coachInput" rows="3" placeholder="Your sentence…"></textarea>
+          <div class="row">
+            <button class="btn btn--primary" id="coachSubmit" type="button">✨ Get feedback</button>
+            <button class="btn btn--quiet" id="coachNew" type="button">Another word</button>
+          </div>
+          <div class="ai-stream" id="coachOutput" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────────────────── Words ───────────────────────── -->
+    <section class="view" id="view-words" data-view="words" hidden>
+      <div class="stack">
+        <div class="card card--tight">
+          <div class="row">
+            <input class="input" id="addWordInput" type="text" placeholder="Add a word, e.g. “resilient”" autocomplete="off">
+            <button class="btn btn--primary" id="addWordBtn" type="button">Add</button>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="addWithAI" checked>
+            <span>✨ Let Claude fill in definition, examples and a mnemonic</span>
+          </label>
+          <p class="hint" id="addWordHint"></p>
+        </div>
+
+        <div class="card card--tight">
+          <div class="row">
+            <input class="input" id="wordSearch" type="search" placeholder="Search your words…" autocomplete="off">
+            <select class="input input--select" id="wordFilter">
+              <option value="all">All</option>
+              <option value="new">New</option>
+              <option value="learning">Learning</option>
+              <option value="review">Review</option>
+              <option value="mastered">Mastered</option>
+              <option value="leech">Struggling</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="wordlist" id="wordList"></div>
+
+        <div class="card card--tight">
+          <h3 class="card__title">✨ Suggested for you</h3>
+          <p class="hint">Claude picks words that fit your level and the gaps in your deck.</p>
+          <div class="chips" id="suggestions"></div>
+          <button class="btn btn--quiet btn--sm" id="suggestBtn" type="button">Suggest 6 words</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────────────────── Progress ───────────────────────── -->
+    <section class="view" id="view-progress" data-view="progress" hidden>
+      <div class="stack">
+        <div class="tiles">
+          <div class="tile"><span class="tile__label">Streak</span><b class="tile__value" id="tStreak">0</b><span class="tile__foot" id="tStreakFoot">best 0</span></div>
+          <div class="tile"><span class="tile__label">Known words</span><b class="tile__value" id="tKnown">0</b><span class="tile__foot" id="tKnownFoot">of 0</span></div>
+          <div class="tile"><span class="tile__label">Accuracy 7d</span><b class="tile__value" id="tAccuracy">—</b><span class="tile__foot" id="tAccuracyFoot">last 7 days</span></div>
+          <div class="tile"><span class="tile__label">Reviews 7d</span><b class="tile__value" id="tReviews">0</b><span class="tile__foot" id="tReviewsFoot">≈0/day</span></div>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title">Daily activity</h3>
+          <div class="heatmap" id="heatmap" aria-label="Review activity over the last 12 weeks"></div>
+          <div class="heatmap__legend"><span>less</span><i data-l="0"></i><i data-l="1"></i><i data-l="2"></i><i data-l="3"></i><i data-l="4"></i><span>more</span></div>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title">Last 14 days</h3>
+          <div class="bars" id="bars"></div>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title">Deck mastery</h3>
+          <div class="mastery" id="mastery"></div>
+          <div class="legend" id="masteryLegend"></div>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title">Forecast</h3>
+          <p class="hint">Cards scheduled to come back over the next 7 days.</p>
+          <div class="bars bars--forecast" id="forecast"></div>
+        </div>
+
+        <div class="card">
+          <div class="row row--between">
+            <h3 class="card__title">✨ Weekly report</h3>
+            <button class="btn btn--quiet btn--sm" id="reportBtn" type="button">Generate</button>
+          </div>
+          <div class="ai-stream" id="reportOutput" hidden></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────────────────── Settings ───────────────────────── -->
+    <section class="view" id="view-settings" data-view="settings" hidden>
+      <div class="stack">
+
+        <div class="card">
+          <h3 class="card__title">Reminders</h3>
+          <p class="hint" id="notifyState">Checking notification permission…</p>
+          <div class="row">
+            <button class="btn btn--primary" id="notifyEnable" type="button">Enable reminders</button>
+            <button class="btn btn--quiet" id="notifyTest" type="button">Send test</button>
+          </div>
+          <label class="field">
+            <span>Reminder times</span>
+            <div class="times" id="reminderTimes"></div>
+          </label>
+          <div class="row">
+            <input class="input" id="newTime" type="time" value="20:00">
+            <button class="btn btn--quiet" id="addTimeBtn" type="button">Add time</button>
+          </div>
+          <label class="check">
+            <input type="checkbox" id="pushToggle">
+            <span>Also use server push (works when the app is closed — needs the proxy running)</span>
+          </label>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title">Learning</h3>
+          <label class="field">
+            <span>Daily goal — <b id="goalValue">20</b> reviews</span>
+            <input class="range" id="goalRange" type="range" min="5" max="120" step="5" value="20">
+          </label>
+          <label class="field">
+            <span>New words per day — <b id="newValue">10</b></span>
+            <input class="range" id="newRange" type="range" min="0" max="40" step="1" value="10">
+          </label>
+          <label class="field">
+            <span>Level</span>
+            <select class="input input--select" id="levelSelect">
+              <option value="A1">A1 — beginner</option>
+              <option value="A2">A2 — elementary</option>
+              <option value="B1">B1 — intermediate</option>
+              <option value="B2">B2 — upper intermediate</option>
+              <option value="C1">C1 — advanced</option>
+              <option value="C2">C2 — proficient</option>
+            </select>
+          </label>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title">AI</h3>
+          <label class="field">
+            <span>Mode</span>
+            <select class="input input--select" id="aiMode">
+              <option value="mock">Offline — built-in sample responses</option>
+              <option value="proxy">Proxy — your server calls the Claude API</option>
+            </select>
+          </label>
+          <label class="field" id="endpointField" hidden>
+            <span>Proxy base URL</span>
+            <input class="input" id="aiEndpoint" type="url" placeholder="http://localhost:8787">
+          </label>
+          <label class="field" id="modelField" hidden>
+            <span>Model</span>
+            <input class="input" id="aiModel" type="text" placeholder="claude-opus-5">
+          </label>
+          <p class="hint">The API key never touches the browser — the proxy in <code>server/</code> holds it. See the README to run it.</p>
+          <p class="hint" id="aiStatus"></p>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title">Your data</h3>
+          <p class="hint">Everything lives in this browser. Export before clearing site data.</p>
+          <div class="row">
+            <button class="btn btn--quiet" id="exportBtn" type="button">Export JSON</button>
+            <button class="btn btn--quiet" id="importBtn" type="button">Import JSON</button>
+            <button class="btn btn--danger" id="resetBtn" type="button">Reset</button>
+          </div>
+          <input type="file" id="importFile" accept="application/json" hidden>
+        </div>
+
+        <p class="footnote">Lexio — app template. Swap the seed deck, the palette and the prompts; the rest is wiring.</p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="tabbar" id="tabbar">
+    <button class="tab is-active" data-tab="learn"><span>◉</span>Learn</button>
+    <button class="tab" data-tab="practice"><span>◈</span>Practice</button>
+    <button class="tab" data-tab="words"><span>▤</span>Words</button>
+    <button class="tab" data-tab="progress"><span>▲</span>Progress</button>
+    <button class="tab" data-tab="settings"><span>⚙</span>Settings</button>
+  </nav>
+
+  <div class="toasts" id="toasts" aria-live="polite"></div>
+</div>
+
+<noscript><p style="padding:2rem;font:16px system-ui">Lexio needs JavaScript enabled.</p></noscript>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

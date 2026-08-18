@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lexio — English Vocabulary Trainer</title>
+<meta name="description" content="Lexio — learn English vocabulary with spaced repetition, reminders, progress tracking and AI help.">
+<!-- GitHub Pages serves this repo at /sissy.html/ ; the app lives in /vocab/.
+     Meta refresh first (works with JS disabled), script second (instant, and
+     replaces the history entry so Back doesn't bounce). -->
+<meta http-equiv="refresh" content="0; url=./vocab/">
+<link rel="canonical" href="https://nasif-hbd.github.io/sissy.html/vocab/">
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0; min-height: 100dvh;
+    display: grid; place-content: center; gap: 14px; justify-items: center;
+    background: #f6f7f9; color: #16181d;
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    text-align: center; padding: 24px;
+  }
+  @media (prefers-color-scheme: dark) { body { background: #0d0f14; color: #eef1f6; } }
+  .mark {
+    display: grid; place-items: center; width: 56px; height: 56px;
+    border-radius: 16px; background: #4f46e5; color: #fff; font-weight: 700; font-size: 20px;
+  }
+  h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
+  p { margin: 0; opacity: .65; font-size: 14px; }
+  a { color: #4f46e5; }
+  .go {
+    display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px;
+    margin-top: 6px; border-radius: 10px; background: #4f46e5; color: #fff;
+    text-decoration: none; font-weight: 600;
+  }
+</style>
+</head>
+<body>
+  <div class="mark">Lx</div>
+  <h1>Lexio</h1>
+  <p>English vocabulary trainer — opening…</p>
+  <a class="go" href="./vocab/">Open the app</a>
+  <p style="margin-top:18px"><a href="./sissy.html">…looking for the birthday page?</a></p>
+  <script>location.replace('./vocab/');</script>
+</body>
+</html>
