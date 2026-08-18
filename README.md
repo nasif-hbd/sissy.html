@@ -1,3 +1,16 @@
+# sissy.html
+
+| | |
+|---|---|
+| [`vocab/`](vocab/) | **Lexio** — English vocabulary app template: spaced repetition, reminders, progress tracking and Claude AI integration. No build step. [Read the docs](vocab/README.md). |
+| [`sissy.html`](sissy.html) | The original button-explosion birthday page. |
+
+---
+
+<details>
+<summary>Original README contents</summary>
+
+```html
 <html lang="en">
 <head>
 <meta charset="UTF-8">
@@ -88,3 +101,6 @@ button.addEventListener('click', function() {
 </script>
 </body>
 </html>
+```
+
+</details>

@@ -1,0 +1,20 @@
+{
+  "name": "lexio-proxy",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Key-holding proxy between the Lexio browser app and the Claude API.",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node proxy.mjs",
+    "dev": "node --watch proxy.mjs",
+    "vapid": "web-push generate-vapid-keys",
+    "smoke": "node smoke.mjs"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.117.1"
+  },
+  "optionalDependencies": {
+    "web-push": "^3.6.7"
+  }
+}
