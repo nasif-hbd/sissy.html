@@ -1,9 +1,15 @@
 # sissy.html
 
+**Live:** https://nasif-hbd.github.io/sissy.html/ → opens **Lexio**, the vocabulary app.
+
 | | |
 |---|---|
-| [`vocab/`](vocab/) | **Lexio** — English vocabulary app template: spaced repetition, reminders, progress tracking and Claude AI integration. No build step. [Read the docs](vocab/README.md). |
-| [`sissy.html`](sissy.html) | The original button-explosion birthday page. |
+| [`vocab/`](vocab/) | **Lexio** — English vocabulary app template: spaced repetition, reminders, progress tracking and Claude AI integration. No build step. [Read the docs](vocab/README.md) · [live](https://nasif-hbd.github.io/sissy.html/vocab/) |
+| [`sissy.html`](sissy.html) | The original button-explosion birthday page. [live](https://nasif-hbd.github.io/sissy.html/sissy.html) |
+| `index.html` | Redirects the site root to the app. |
+
+GitHub Pages builds this site from the **`main`** branch, so anything on another
+branch is not live until it is merged.
 
 ---
 
