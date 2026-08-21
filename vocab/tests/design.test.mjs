@@ -23,43 +23,76 @@ const js = fs.readdirSync(path.join(ROOT, 'js'))
   .filter((f) => f.endsWith('.js'))
   .map((f) => ({ file: `js/${f}`, source: read(`js/${f}`) }));
 
-/** Custom properties declared in a `:root…{ }` block. */
-function declaredIn(selectorFragment) {
-  const blocks = [...css.matchAll(/:root([^{]*)\{([^}]*)\}/g)]
-    .filter(([, sel]) => (selectorFragment ? sel.includes(selectorFragment) : sel.trim() === ''));
+/** Every `:root…{ }` block in the sheet, including those inside media queries. */
+function rootBlocks() {
+  return [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .map(([, selector, body]) => ({ selector: selector.trim(), body }))
+    .filter(({ selector }) => selector.includes(':root'));
+}
+
+/** Custom properties declared by the blocks whose selector `matches`. */
+function declaredWhere(matches) {
   const names = new Set();
-  for (const [, , body] of blocks) {
+  for (const { selector, body } of rootBlocks()) {
+    if (!matches(selector)) continue;
     for (const [, name] of body.matchAll(/(--[\w-]+)\s*:/g)) names.add(name);
   }
   return names;
 }
 
-const lightTokens = declaredIn('');
-const darkTokens = declaredIn('[data-theme="dark"]');
+const declaredIn = (theme) =>
+  declaredWhere((selector) => selector.includes(`[data-theme="${theme}"]`));
 
-test('the light palette declares a full set of tokens', () => {
-  assert.ok(lightTokens.size > 20, `only ${lightTokens.size} tokens found — did :root move?`);
-  for (const required of ['--paper', '--card', '--ink', '--rule', '--accent', '--edge', '--serif']) {
-    assert.ok(lightTokens.has(required), `missing ${required}`);
+// The default palette: bare `:root`, plus the paper block grouped with it.
+const baseTokens = declaredWhere((selector) =>
+  !selector.includes('[data-theme=') || selector.includes('[data-theme="paper"]'));
+/** Themes other than the default, read from the stylesheet itself. */
+const THEMES = [...new Set([...css.matchAll(/:root\[data-theme="(\w+)"\]/g)].map((m) => m[1]))]
+  .filter((name) => name !== 'auto' && name !== 'paper');
+
+/* Type and metric tokens are theme-independent; colour must be restated in
+   every theme or that theme silently inherits the default palette. */
+const STRUCTURAL = new Set([
+  '--serif', '--text', '--grotesk', '--mono', '--radius', '--tap', '--maxw', '--rail',
+]);
+
+test('the default palette declares a full set of tokens', () => {
+  assert.ok(baseTokens.size > 20, `only ${baseTokens.size} tokens found — did :root move?`);
+  for (const required of ['--paper', '--card', '--ink', '--rule', '--edge', '--serif',
+                          '--accent', '--danger', '--warn', '--ok', '--info']) {
+    assert.ok(baseTokens.has(required), `missing ${required}`);
   }
 });
 
-test('every colour token overridden for ink also exists on paper', () => {
-  const orphans = [...darkTokens].filter((t) => !lightTokens.has(t));
-  assert.deepEqual(orphans, [], `dark theme declares tokens the light theme never defines: ${orphans}`);
+test('the stylesheet carries the themes the app offers', () => {
+  const config = read('js/config.js');
+  const offered = [...config.matchAll(/\{ id: '(\w+)'/g)].map((m) => m[1]);
+  assert.ok(offered.length >= 3, 'expected at least three themes in config.js');
+  for (const id of offered) {
+    if (id === 'auto') continue;   // auto resolves to another palette
+    const declared = id === 'paper' || css.includes(`:root[data-theme="${id}"]`);
+    assert.ok(declared, `config offers "${id}" but styles.css has no palette for it`);
+  }
 });
 
-test('the ink theme restates every colour the paper theme sets', () => {
-  // Type and metric tokens are theme-independent; colour must be restated or
-  // the dark theme silently inherits a paper value.
-  const typographic = new Set(['--serif', '--text', '--grotesk', '--mono', '--radius', '--tap', '--maxw']);
-  const missing = [...lightTokens].filter((t) => !typographic.has(t) && !darkTokens.has(t));
-  assert.deepEqual(missing, [], `these are only defined for the light theme: ${missing}`);
+test('no theme invents a token the default palette lacks', () => {
+  for (const theme of THEMES) {
+    const orphans = [...declaredIn(theme)].filter((t) => !baseTokens.has(t));
+    assert.deepEqual(orphans, [], `"${theme}" declares tokens nothing else defines: ${orphans}`);
+  }
+});
+
+test('every theme restates every colour the default palette sets', () => {
+  for (const theme of THEMES) {
+    const declared = declaredIn(theme);
+    const missing = [...baseTokens].filter((t) => !STRUCTURAL.has(t) && !declared.has(t));
+    assert.deepEqual(missing, [], `"${theme}" would inherit these from the default: ${missing}`);
+  }
 });
 
 test('every var() referenced in the stylesheet resolves to a declared token', () => {
   const referenced = new Set([...css.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]));
-  const unresolved = [...referenced].filter((t) => !lightTokens.has(t));
+  const unresolved = [...referenced].filter((t) => !baseTokens.has(t) && !t.startsWith('--sw-'));
   assert.deepEqual(unresolved, [], `styles.css uses undeclared tokens: ${unresolved}`);
 });
 
@@ -67,7 +100,7 @@ test('every var() injected from JS resolves to a declared token', () => {
   const unresolved = [];
   for (const { file, source } of js) {
     for (const [, token] of source.matchAll(/var\((--[\w-]+)/g)) {
-      if (!lightTokens.has(token)) unresolved.push(`${file} → ${token}`);
+      if (!baseTokens.has(token)) unresolved.push(`${file} → ${token}`);
     }
   }
   assert.deepEqual(unresolved, [], `JS paints with undeclared tokens: ${unresolved}`);

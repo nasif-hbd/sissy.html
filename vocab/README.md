@@ -56,12 +56,11 @@ key.
 
 ## The look
 
-The app is styled as **a pocket lexicon** rather than a language app: white
-stock, black keylines, a red correction pen. Hairline rules and small caps
-instead of pill-shaped chrome, sharp corners with a hard offset shadow so cards
-read as printed card stock. There is no emoji anywhere — the marks are a
-printer's: **☞** for a memory hook, **†** for anything Claude wrote, **❦** on an
-empty queue.
+The app is styled as **a pocket lexicon** rather than a language app: printed
+stock, black keylines, a correction pen in the margin. Hairline rules and small
+caps instead of pill-shaped chrome, sharp corners with a hard offset shadow so
+cards read as printed card stock. There is no emoji anywhere — the marks are a
+printer's: **☞** for a memory hook, **❦** on an empty queue.
 
 Three decisions carry most of it:
 
@@ -81,22 +80,42 @@ Three decisions carry most of it:
   there is no icon font, no library and no extra request; a test fails if one is
   referenced without being drawn, or drawn without being used.
 
-Both themes are complete: *paper* (white stock, near-black type, red accent)
-and *ink* (graphite). Everything is a token in the two blocks at the top of
-`styles.css`; nothing below them hardcodes a colour, and a test fails if a token
-referenced from JS or CSS no longer resolves.
+### Themes
+
+Three complete palettes, plus an **Auto** that follows the device:
+
+| | | |
+|---|---|---|
+| **Paper** | white stock | orange |
+| **Linen** | warm off-white | deep teal |
+| **Ink** | black stock | blue |
+
+Brand accent is deliberately **separate from the semantic four** — `--danger`,
+`--warn`, `--ok`, `--info`. That's what lets a theme take orange without its
+brand colour colliding with the *Again* button, or take blue without merging
+into *Easy*. The grade row, the deck spine and the quiz feedback read the same
+in every theme; only the accent moves.
+
+Adding a fourth is two edits: a palette block in `styles.css` and an entry in
+`THEMES` in `js/config.js`. Tests enforce the contract — every theme must
+restate every colour the default sets, may not invent tokens nothing else
+defines, and cannot be offered in config without a palette to back it.
 
 ### Devices
 
 One layout, four shapes — nothing changes what a component *is*, only where it
 sits:
 
+The nav is a **left rail at every width** — one `--rail` token drives its width,
+the body offset and where toasts sit:
+
 | | |
 |---|---|
-| **Small phone** (≤380px) | tighter gutters, smaller headword, the theme control drops its word and keeps its icon |
-| **Phone / tablet portrait** | the reading column, tabs along the bottom |
-| **Desktop** (≥900px) | the tab bar becomes a left rail carrying the wordmark; the masthead falls back to a status line; the index sets in two columns |
-| **Landscape phone** | height is the scarce axis, so the masthead, card and queue counters all compress |
+| **Small phone** (≤380px) | 52px rail, icons only; tighter gutters; the theme control drops its word |
+| **Phone** | 64px rail, icons with labels under them |
+| **Tablet** (≥600px) | 76px rail, roomier column |
+| **Desktop** (≥900px) | 232px rail — labels beside icons, the wordmark at the top — and the index sets in two columns |
+| **Landscape phone** | the rail earns its keep: no bottom bar eating height, so the card keeps the screen |
 
 Hover styling is behind `(hover: hover) and (pointer: fine)`, so touch devices
 never inherit a stuck hover state. Every control clears a 44px target on touch
@@ -201,7 +220,8 @@ sample text so nobody mistakes it for a real definition.
 | The starter deck | `js/data/seed.js` |
 | Intervals, ease, leech threshold | `SRS` in `js/config.js` |
 | Default goal, level, reminder times | `DEFAULTS` in `js/config.js` |
-| Colours, spacing, radius | the two token blocks at the top of `styles.css` |
+| Colours, spacing, radius | the palette blocks at the top of `styles.css` |
+| Adding a theme | a palette in `styles.css` + an entry in `THEMES` (`js/config.js`) |
 | Typefaces | `@font-face` block in `styles.css` + the files in `fonts/` |
 | Tutor voice, output schemas | `server/prompts.mjs` |
 | Reminder wording | `reminderCopy()` in `js/notify.js` |
@@ -210,7 +230,7 @@ sample text so nobody mistakes it for a real definition.
 ## Testing
 
 ```bash
-cd vocab && node --test            # scheduler, tracking + design system: 23 tests, no deps
+cd vocab && node --test            # scheduler, tracking + design system: 24 tests, no deps
 cd server && npm run smoke         # every proxy route against a live server
 ```
 

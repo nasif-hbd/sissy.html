@@ -7,7 +7,7 @@
  *   stats.js  tracking         notify.js reminders
  *   ai.js     Claude calls     ui.js     rendering
  */
-import { APP, AI as AICFG } from './config.js';
+import { APP, AI as AICFG, THEMES } from './config.js';
 import { Store, refreshStreak, makeSrs, dayKey } from './store.js';
 import { schedule, buildQueue, bucket } from './srs.js';
 import { makeSessionTimer, reportPayload, weakest, summary } from './stats.js';
@@ -74,7 +74,7 @@ async function boot() {
   setInterval(() => { timer.flush(); timer.resume(); }, 60_000);
 
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
-    if (Store.state.settings.theme === 'system') applyTheme('system');
+    if (Store.state.settings.theme === 'auto') applyTheme('auto');
   });
 
   // Exposed deliberately: handy in the console, and the hook the browser tests
@@ -85,9 +85,43 @@ async function boot() {
 }
 
 /** Full redraw. Cheap enough to call on any change. */
-/** The stock the page is printed on: auto / paper / ink. */
+/** The stock the page is printed on. */
 function labelTheme(theme) {
-  $('#themeLabel').textContent = { system: 'Auto', light: 'Paper', dark: 'Ink' }[theme];
+  $('#themeLabel').textContent = THEMES.find((t) => t.id === theme)?.label ?? 'Auto';
+}
+
+function setTheme(id) {
+  Store.set('settings.theme', id);
+  applyTheme(id);
+  labelTheme(id);
+  markTheme(id);
+}
+
+/**
+ * Swatches in Settings: a strip of the theme's paper against its accent.
+ * Built once — re-rendering the buttons from inside their own click handler
+ * tears down the element mid-dispatch, and the event lands somewhere else.
+ */
+function renderThemes() {
+  $('#themePicker').replaceChildren(...THEMES.map((t) =>
+    el('button', {
+      class: 'swatch',
+      type: 'button',
+      title: t.note,
+      'data-theme-id': t.id,
+      style: `--sw-paper:${t.paper};--sw-accent:${t.accent}`,
+      onclick: () => setTheme(t.id),
+    }, el('span', { class: 'swatch__chip' }), t.label)));
+  markTheme(Store.state.settings.theme);
+}
+
+/** Selection is a class flip, never a rebuild. */
+function markTheme(id) {
+  for (const swatch of $$('#themePicker .swatch')) {
+    const active = swatch.dataset.themeId === id;
+    swatch.classList.toggle('is-active', active);
+    swatch.setAttribute('aria-pressed', String(active));
+  }
 }
 
 function render() {
@@ -109,11 +143,8 @@ function wireTabs() {
     });
   }
   $('#themeToggle').addEventListener('click', () => {
-    const order = ['system', 'light', 'dark'];
-    const next = order[(order.indexOf(Store.state.settings.theme) + 1) % order.length];
-    Store.set('settings.theme', next);
-    applyTheme(next);
-    labelTheme(next);
+    const ids = THEMES.map((t) => t.id);
+    setTheme(ids[(ids.indexOf(Store.state.settings.theme) + 1) % ids.length]);
   });
   labelTheme(Store.state.settings.theme);
 }
@@ -584,6 +615,8 @@ function wireSettings() {
       toast(err.message, 'bad');
     }
   });
+
+  renderThemes();
 
   // learning
   const goal = $('#goalRange');

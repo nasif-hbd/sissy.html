@@ -100,6 +100,9 @@ function migrate(s) {
   if (!s.days) s.days = {};
   if (!s.history) s.history = [];
   if (!s.settings?.ai) s.settings = { ...freshState().settings, ...(s.settings || {}) };
+  // themes were system/light/dark before they were named
+  const renamed = { system: 'auto', light: 'paper', dark: 'ink' };
+  if (renamed[s.settings?.theme]) s.settings.theme = renamed[s.settings.theme];
   s.version = APP.schemaVersion;
   return s;
 }

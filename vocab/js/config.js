@@ -40,9 +40,21 @@ export const DEFAULTS = {
   dailyGoal: 20,
   newPerDay: 10,
   level: 'B1',
-  theme: 'system',
+  theme: 'auto',
   reminderTimes: ['09:00', '20:00'],
 };
+
+/**
+ * The themes offered in Settings. `id` is what lands in `data-theme` on <html>
+ * and selects a palette in styles.css; `paper`/`accent` only draw the swatch.
+ * Add one here and in the stylesheet — nothing else needs to know.
+ */
+export const THEMES = [
+  { id: 'auto',  label: 'Auto',  paper: '#f6f7f8', accent: '#e2620a', note: 'follows the device' },
+  { id: 'paper', label: 'Paper', paper: '#ffffff', accent: '#e2620a', note: 'white, orange' },
+  { id: 'linen', label: 'Linen', paper: '#f2efe8', accent: '#0f6f70', note: 'off-white, teal' },
+  { id: 'ink',   label: 'Ink',   paper: '#12151a', accent: '#4d9dff', note: 'black, blue' },
+];
 
 /**
  * AI wiring.
