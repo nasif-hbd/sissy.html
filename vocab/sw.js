@@ -9,7 +9,7 @@
  * Bump CACHE when you change any shell file — the old cache is dropped on
  * activate.
  */
-const CACHE = 'lexio-v1';
+const CACHE = 'lexio-v2';
 const SHELL = [
   './',
   './index.html',
@@ -24,6 +24,10 @@ const SHELL = [
   './js/ai.js',
   './js/notify.js',
   './js/data/seed.js',
+  './fonts/fraunces.woff2',
+  './fonts/newsreader.woff2',
+  './fonts/newsreader-italic.woff2',
+  './fonts/space-grotesk.woff2',
 ];
 
 self.addEventListener('install', (event) => {
@@ -48,7 +52,7 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;   // never cache the AI proxy
+  if (url.origin !== self.location.origin) return;   // never cache the AI proxy   // never cache the AI proxy
   if (url.pathname.startsWith('/api/')) return;
 
   event.respondWith(

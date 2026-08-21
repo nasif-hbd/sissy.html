@@ -4,10 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="Lexio — an English vocabulary learning app template with spaced repetition, reminders, progress tracking and Claude AI integration.">
-<meta name="theme-color" content="#111827">
+<meta name="theme-color" content="#f1ebdf">
 <title>Lexio — English Vocabulary Trainer</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📖</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%2317150f'/><text x='50' y='72' font-size='62' text-anchor='middle' fill='%23f1ebdf' font-family='Georgia,serif' font-weight='bold'>Lx</text></svg>">
+<link rel="preload" href="fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/newsreader.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -19,14 +22,14 @@
       <span class="brand__mark">Lx</span>
       <div>
         <h1 class="brand__name">Lexio</h1>
-        <p class="brand__sub" id="brandSub">English vocabulary</p>
+        <p class="brand__sub" id="brandSub">A pocket lexicon</p>
       </div>
     </div>
     <div class="topbar__meta">
       <div class="streak" id="streakChip" title="Current streak">
-        <span class="streak__flame">🔥</span><span id="streakCount">0</span>
+        <span id="streakCount">0</span>
       </div>
-      <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle colour theme">◐</button>
+      <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle colour theme">Ink</button>
     </div>
   </header>
 
@@ -50,7 +53,8 @@
           <div class="card__head">
             <span class="pill" id="cardState">new</span>
             <span class="pill pill--ghost" id="cardPos"></span>
-            <button class="icon-btn icon-btn--sm" id="speakBtn" type="button" aria-label="Pronounce word">🔊</button>
+            <span class="pill pill--level" id="cardLevel"></span>
+            <button class="icon-btn icon-btn--sm" id="speakBtn" type="button" aria-label="Pronounce word">Say</button>
           </div>
 
           <p class="term" id="cardTerm">—</p>
@@ -62,7 +66,7 @@
             <div class="chips" id="cardSynonyms"></div>
             <p class="mnemonic" id="cardMnemonic" hidden></p>
             <div class="ai-slot" id="aiSlot" hidden>
-              <div class="ai-slot__head"><span class="pill pill--ai">AI</span><span id="aiSlotTitle">Deeper context</span></div>
+              <div class="ai-slot__head"><span class="pill pill--ai">†</span><span id="aiSlotTitle">Marginalia</span></div>
               <div class="ai-slot__body" id="aiSlotBody"></div>
             </div>
           </div>
@@ -78,16 +82,16 @@
           </div>
 
           <div class="card__tools" id="cardTools" hidden>
-            <button class="btn btn--quiet btn--sm" id="explainBtn" type="button">✨ Explain like I'm new</button>
-            <button class="btn btn--quiet btn--sm" id="moreExamplesBtn" type="button">✨ More examples</button>
+            <button class="btn btn--quiet btn--sm" id="explainBtn" type="button">† Gloss it</button>
+            <button class="btn btn--quiet btn--sm" id="moreExamplesBtn" type="button">† More usage</button>
             <button class="btn btn--quiet btn--sm" id="burySkipBtn" type="button">Skip</button>
           </div>
         </div>
 
         <div class="empty" id="learnEmpty">
-          <p class="empty__emoji">🎉</p>
+          <p class="empty__emoji">❦</p>
           <h2>Queue clear</h2>
-          <p class="empty__text" id="learnEmptyText">Nothing is due right now. Add words, run a quiz, or come back later — we'll remind you.</p>
+          <p class="empty__text" id="learnEmptyText">Nothing is due. Add an entry, drill what you know, or come back when we call for you.</p>
           <button class="btn btn--primary" id="studyAheadBtn" type="button">Study ahead</button>
         </div>
       </div>
@@ -118,11 +122,11 @@
         </div>
 
         <div class="card" id="coachCard" hidden>
-          <p class="prompt">Write a sentence using <b id="coachWord">—</b>.</p>
+          <p class="prompt">Compose a sentence using <b id="coachWord">—</b>.</p>
           <textarea class="input input--area" id="coachInput" rows="3" placeholder="Your sentence…"></textarea>
           <div class="row">
-            <button class="btn btn--primary" id="coachSubmit" type="button">✨ Get feedback</button>
-            <button class="btn btn--quiet" id="coachNew" type="button">Another word</button>
+            <button class="btn btn--primary" id="coachSubmit" type="button">† Have it marked</button>
+            <button class="btn btn--quiet" id="coachNew" type="button">Another entry</button>
           </div>
           <div class="ai-stream" id="coachOutput" hidden></div>
         </div>
@@ -134,19 +138,19 @@
       <div class="stack">
         <div class="card card--tight">
           <div class="row">
-            <input class="input" id="addWordInput" type="text" placeholder="Add a word, e.g. “resilient”" autocomplete="off">
+            <input class="input" id="addWordInput" type="text" placeholder="Set an entry, e.g. “resilient”" autocomplete="off">
             <button class="btn btn--primary" id="addWordBtn" type="button">Add</button>
           </div>
           <label class="check">
             <input type="checkbox" id="addWithAI" checked>
-            <span>✨ Let Claude fill in definition, examples and a mnemonic</span>
+            <span>† Let Claude set the entry — definition, usage and a memory hook</span>
           </label>
           <p class="hint" id="addWordHint"></p>
         </div>
 
         <div class="card card--tight">
           <div class="row">
-            <input class="input" id="wordSearch" type="search" placeholder="Search your words…" autocomplete="off">
+            <input class="input" id="wordSearch" type="search" placeholder="Search the index…" autocomplete="off">
             <select class="input input--select" id="wordFilter">
               <option value="all">All</option>
               <option value="new">New</option>
@@ -161,10 +165,10 @@
         <div class="wordlist" id="wordList"></div>
 
         <div class="card card--tight">
-          <h3 class="card__title">✨ Suggested for you</h3>
-          <p class="hint">Claude picks words that fit your level and the gaps in your deck.</p>
+          <h3 class="card__title">Suggested entries</h3>
+          <p class="hint">Claude reads your level and the gaps in your deck, then proposes what to set next.</p>
           <div class="chips" id="suggestions"></div>
-          <button class="btn btn--quiet btn--sm" id="suggestBtn" type="button">Suggest 6 words</button>
+          <button class="btn btn--quiet btn--sm" id="suggestBtn" type="button">Suggest six</button>
         </div>
       </div>
     </section>
@@ -174,37 +178,37 @@
       <div class="stack">
         <div class="tiles">
           <div class="tile"><span class="tile__label">Streak</span><b class="tile__value" id="tStreak">0</b><span class="tile__foot" id="tStreakFoot">best 0</span></div>
-          <div class="tile"><span class="tile__label">Known words</span><b class="tile__value" id="tKnown">0</b><span class="tile__foot" id="tKnownFoot">of 0</span></div>
-          <div class="tile"><span class="tile__label">Accuracy 7d</span><b class="tile__value" id="tAccuracy">—</b><span class="tile__foot" id="tAccuracyFoot">last 7 days</span></div>
-          <div class="tile"><span class="tile__label">Reviews 7d</span><b class="tile__value" id="tReviews">0</b><span class="tile__foot" id="tReviewsFoot">≈0/day</span></div>
+          <div class="tile"><span class="tile__label">Held</span><b class="tile__value" id="tKnown">0</b><span class="tile__foot" id="tKnownFoot">of 0</span></div>
+          <div class="tile"><span class="tile__label">Accuracy</span><b class="tile__value" id="tAccuracy">—</b><span class="tile__foot" id="tAccuracyFoot">last 7 days</span></div>
+          <div class="tile"><span class="tile__label">Reviews</span><b class="tile__value" id="tReviews">0</b><span class="tile__foot" id="tReviewsFoot">≈0/day</span></div>
         </div>
 
         <div class="card">
-          <h3 class="card__title">Daily activity</h3>
+          <h3 class="card__title">Days at the desk</h3>
           <div class="heatmap" id="heatmap" aria-label="Review activity over the last 12 weeks"></div>
           <div class="heatmap__legend"><span>less</span><i data-l="0"></i><i data-l="1"></i><i data-l="2"></i><i data-l="3"></i><i data-l="4"></i><span>more</span></div>
         </div>
 
         <div class="card">
-          <h3 class="card__title">Last 14 days</h3>
+          <h3 class="card__title">A fortnight</h3>
           <div class="bars" id="bars"></div>
         </div>
 
         <div class="card">
-          <h3 class="card__title">Deck mastery</h3>
+          <h3 class="card__title">State of the deck</h3>
           <div class="mastery" id="mastery"></div>
           <div class="legend" id="masteryLegend"></div>
         </div>
 
         <div class="card">
-          <h3 class="card__title">Forecast</h3>
+          <h3 class="card__title">What returns</h3>
           <p class="hint">Cards scheduled to come back over the next 7 days.</p>
           <div class="bars bars--forecast" id="forecast"></div>
         </div>
 
         <div class="card">
           <div class="row row--between">
-            <h3 class="card__title">✨ Weekly report</h3>
+            <h3 class="card__title">The week in review</h3>
             <button class="btn btn--quiet btn--sm" id="reportBtn" type="button">Generate</button>
           </div>
           <div class="ai-stream" id="reportOutput" hidden></div>
@@ -244,7 +248,7 @@
             <input class="range" id="goalRange" type="range" min="5" max="120" step="5" value="20">
           </label>
           <label class="field">
-            <span>New words per day — <b id="newValue">10</b></span>
+            <span>New entries per day — <b id="newValue">10</b></span>
             <input class="range" id="newRange" type="range" min="0" max="40" step="1" value="10">
           </label>
           <label class="field">
@@ -261,7 +265,7 @@
         </div>
 
         <div class="card">
-          <h3 class="card__title">AI</h3>
+          <h3 class="card__title">AI assistance</h3>
           <label class="field">
             <span>Mode</span>
             <select class="input input--select" id="aiMode">
@@ -282,7 +286,7 @@
         </div>
 
         <div class="card">
-          <h3 class="card__title">Your data</h3>
+          <h3 class="card__title">Your copy</h3>
           <p class="hint">Everything lives in this browser. Export before clearing site data.</p>
           <div class="row">
             <button class="btn btn--quiet" id="exportBtn" type="button">Export JSON</button>
@@ -292,17 +296,17 @@
           <input type="file" id="importFile" accept="application/json" hidden>
         </div>
 
-        <p class="footnote">Lexio — app template. Swap the seed deck, the palette and the prompts; the rest is wiring.</p>
+        <p class="footnote">Lexio — app template · set the deck, the palette and the prompts; the rest is wiring</p>
       </div>
     </section>
   </main>
 
   <nav class="tabbar" id="tabbar">
-    <button class="tab is-active" data-tab="learn"><span>◉</span>Learn</button>
-    <button class="tab" data-tab="practice"><span>◈</span>Practice</button>
-    <button class="tab" data-tab="words"><span>▤</span>Words</button>
-    <button class="tab" data-tab="progress"><span>▲</span>Progress</button>
-    <button class="tab" data-tab="settings"><span>⚙</span>Settings</button>
+    <button class="tab is-active" data-tab="learn">Study</button>
+    <button class="tab" data-tab="practice">Drill</button>
+    <button class="tab" data-tab="words">Index</button>
+    <button class="tab" data-tab="progress">Ledger</button>
+    <button class="tab" data-tab="settings">Setup</button>
   </nav>
 
   <div class="toasts" id="toasts" aria-live="polite"></div>

@@ -175,7 +175,11 @@ function mockQuiz(word, pool) {
     question: word.definition || `Which word means “${word.term}”?`,
     options,
     answerIndex: options.indexOf(word.term),
-    explanation: `“${word.term}” — ${word.definition || 'see the card for the full definition.'}`,
+    // The question already carries the definition, so the note adds context
+    // rather than repeating it.
+    explanation: word.synonyms?.length
+      ? `Close in sense to ${word.synonyms.slice(0, 2).join(' and ')}.`
+      : 'Sample explanation — connect the proxy for a real one.',
   };
 }
 

@@ -85,6 +85,11 @@ async function boot() {
 }
 
 /** Full redraw. Cheap enough to call on any change. */
+/** The stock the page is printed on: auto / paper / ink. */
+function labelTheme(theme) {
+  $('#themeToggle').textContent = { system: 'Auto', light: 'Paper', dark: 'Ink' }[theme];
+}
+
 function render() {
   const state = Store.state;
   renderHeader(state);
@@ -108,8 +113,9 @@ function wireTabs() {
     const next = order[(order.indexOf(Store.state.settings.theme) + 1) % order.length];
     Store.set('settings.theme', next);
     applyTheme(next);
-    toast(`Theme: ${next}`);
+    labelTheme(next);
   });
+  labelTheme(Store.state.settings.theme);
 }
 
 // ── learn ──────────────────────────────────────────────────────────────────
@@ -189,22 +195,22 @@ function gradeCard(grade) {
 
   const s = summary(Store.state);
   if (s.today.reviews === Store.state.settings.dailyGoal) {
-    toast(`Daily goal reached — ${s.today.reviews} reviews 🎉`);
-    Notifier.show('Goal met', `${s.today.reviews} reviews today. Streak: ${s.streak} days.`, { actions: false });
+    toast(`Day's quota met — ${s.today.reviews} reviews`);
+    Notifier.show('Quota met', `${s.today.reviews} reviews today. Streak: ${s.streak} days.`, { actions: false });
   }
 
   nextCard();
   renderHeader(Store.state);
 }
 
-/** ✨ buttons on the card back. */
+/** The dagger buttons on the back of a card. */
 async function aiCardHelp(kind) {
   const word = currentWord();
   if (!word) return;
   const slot = $('#aiSlot');
   const body = $('#aiSlotBody');
   slot.hidden = false;
-  $('#aiSlotTitle').textContent = kind === 'explain' ? 'In plainer words' : 'More examples';
+  $('#aiSlotTitle').textContent = kind === 'explain' ? 'Marginalia' : 'Further usage';
   body.textContent = '';
   body.classList.add('cursor');
 
@@ -277,8 +283,10 @@ async function nextQuiz() {
   $('#quizPrompt').textContent = item.question;
   $('#quizOptions').replaceChildren(...item.options.map((opt, i) =>
     el('button', { class: 'option', text: opt, onclick: () => answerQuiz(i) })));
-  $('#quizStart').disabled = false;
-  $('#quizStart').textContent = 'Skip';
+  const startBtn = $('#quizStart');
+  startBtn.disabled = false;
+  startBtn.textContent = 'Skip';
+  startBtn.classList.replace('btn--primary', 'btn--quiet');
 }
 
 function fallbackQuiz(word, pool) {
@@ -327,6 +335,7 @@ function nextSpell() {
   $('#typeInput').focus();
   $('#typeFeedback').hidden = true;
   $('#typeStart').textContent = 'Skip';
+  $('#typeStart').classList.replace('btn--primary', 'btn--quiet');
   speak(word.term);
 }
 
@@ -516,7 +525,7 @@ async function suggestWords() {
     toast(err.message, 'bad');
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Suggest 6 words';
+    btn.textContent = 'Suggest six';
   }
 }
 
