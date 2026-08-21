@@ -56,10 +56,10 @@ key.
 
 ## The look
 
-The app is styled as **a pocket lexicon** rather than a language app: paper
-stock instead of `#fff`, ink instead of `#000`, hairline rules and small caps
+The app is styled as **a pocket lexicon** rather than a language app: white
+stock, black keylines, a red correction pen. Hairline rules and small caps
 instead of pill-shaped chrome, sharp corners with a hard offset shadow so cards
-read as stacked card stock. There is no emoji anywhere — the marks are a
+read as printed card stock. There is no emoji anywhere — the marks are a
 printer's: **☞** for a memory hook, **†** for anything Claude wrote, **❦** on an
 empty queue.
 
@@ -76,10 +76,10 @@ Three decisions carry most of it:
 - **Charts are printed, not plotted.** Activity is a dot-density grid, the
   fortnight is ink columns on a ruled baseline, deck state is a segmented spine.
 
-Both themes are complete: *paper* (warm oatmeal, vermilion correction pen) and
-*ink* (night stock, cream type). Everything is a token in the two blocks at the
-top of `styles.css`; nothing below them hardcodes a colour, and the browser test
-suite fails if a token referenced from JS or CSS no longer resolves.
+Both themes are complete: *paper* (white stock, near-black type, red accent)
+and *ink* (graphite). Everything is a token in the two blocks at the top of
+`styles.css`; nothing below them hardcodes a colour, and a test fails if a token
+referenced from JS or CSS no longer resolves.
 
 ## The three headline features
 
