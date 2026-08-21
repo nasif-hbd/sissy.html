@@ -111,16 +111,16 @@ export const Notifier = {
 function reminderCopy({ pending, fresh, doneToday, dailyGoal }) {
   if (pending > 0) {
     return [
-      `${pending} word${pending === 1 ? '' : 's'} ready for review`,
+      `${pending} entr${pending === 1 ? 'y' : 'ies'} due for review`,
       doneToday > 0
-        ? `You have done ${doneToday} today. A few more and the day is banked.`
+        ? `${doneToday} done today — a few more and the day is banked.`
         : 'Two minutes now keeps the streak alive.',
     ];
   }
   if (fresh > 0) {
-    return ['Time to meet some new words', `${fresh} new word${fresh === 1 ? '' : 's'} are waiting in your deck.`];
+    return ['New entries to set', `${fresh} unread entr${fresh === 1 ? 'y is' : 'ies are'} waiting in your deck.`];
   }
-  return ['Keep the streak going', `${doneToday}/${dailyGoal} reviews today.`];
+  return ['Keep the streak going', `${doneToday} of ${dailyGoal} reviews today.`];
 }
 
 // ── Web Push (optional) ─────────────────────────────────────────────────────

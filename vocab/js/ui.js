@@ -53,7 +53,7 @@ export function renderHeader(state) {
   const s = summary(state);
   $('#streakCount').textContent = s.streak;
   $('#streakChip').classList.toggle('is-cold', s.streak === 0);
-  $('#brandSub').textContent = `${s.known} known · ${s.total} in deck`;
+  $('#brandSub').textContent = `${s.total} entries · ${s.known} held`;
 
   const goal = state.settings.dailyGoal;
   const done = s.today.reviews;
@@ -62,8 +62,8 @@ export function renderHeader(state) {
   fill.style.width = `${pct}%`;
   fill.classList.toggle('is-done', done >= goal);
   $('#goalLabel').textContent = done >= goal
-    ? `Goal met — ${done} reviews 🎉`
-    : `${done} / ${goal} reviews today`;
+    ? `Day's quota met · ${done} reviews`
+    : `${done} of ${goal} reviews today`;
 }
 
 // ── learn ──────────────────────────────────────────────────────────────────
@@ -83,6 +83,8 @@ export function renderCard(word, rec, { revealed = false } = {}) {
   $('#cardState').textContent = bucket(rec);
   $('#cardPos').textContent = word.pos || '';
   $('#cardPos').hidden = !word.pos;
+  $('#cardLevel').textContent = word.level || '';
+  $('#cardLevel').hidden = !word.level;
   $('#cardTerm').textContent = word.term;
   $('#cardPhonetic').textContent = word.phonetic || '';
 
@@ -96,7 +98,7 @@ export function renderCard(word, rec, { revealed = false } = {}) {
 
   const mn = $('#cardMnemonic');
   mn.hidden = !word.mnemonic;
-  mn.textContent = word.mnemonic ? `💡 ${word.mnemonic}` : '';
+  mn.textContent = word.mnemonic || '';
 
   $('#aiSlot').hidden = true;
   $('#aiSlotBody').textContent = '';
@@ -121,10 +123,10 @@ export function renderEmptyQueue(state) {
   const c = queueCounts(state);
   const total = Object.keys(state.words).length;
   $('#learnEmptyText').textContent = total === 0
-    ? 'Your deck is empty. Add a word in the Words tab to get started.'
+    ? 'The deck is empty. Set your first entry from the Index.'
     : c.new > 0
-      ? `Nothing is due. ${c.new} new word${c.new === 1 ? '' : 's'} are waiting whenever you want them.`
-      : 'Nothing is due right now. Study ahead, run a quiz, or come back when we remind you.';
+      ? `Nothing is due. ${c.new} unread entr${c.new === 1 ? 'y is' : 'ies are'} waiting whenever you want them.`
+      : 'Nothing is due. Read ahead, drill what you know, or come back when we call for you.';
 }
 
 /** Bold the target word inside an example sentence. */
@@ -158,7 +160,7 @@ export function renderWordList(state, { query = '', filter = 'all' }, handlers =
     .sort((a, b) => (state.srs[a.id]?.due || 0) - (state.srs[b.id]?.due || 0));
 
   if (!rows.length) {
-    list.replaceChildren(el('p', { class: 'hint', text: 'No words match. Try another filter.' }));
+    list.replaceChildren(el('p', { class: 'hint', text: 'No entries match this filter.' }));
     return;
   }
 
@@ -186,7 +188,7 @@ export function renderProgress(state) {
   $('#tStreak').textContent = s.streak;
   $('#tStreakFoot').textContent = `best ${s.longest}`;
   $('#tKnown').textContent = s.known;
-  $('#tKnownFoot').textContent = `of ${s.total} words`;
+  $('#tKnownFoot').textContent = `of ${s.total} entries`;
   $('#tAccuracy').textContent = s.accuracy7 == null ? '—' : `${Math.round(s.accuracy7 * 100)}%`;
   $('#tReviews').textContent = s.reviews7;
   $('#tReviewsFoot').textContent = `≈${s.perDay}/day · ${s.minutes7} min`;
@@ -209,9 +211,11 @@ export function renderProgress(state) {
   // mastery bar
   const m = masteryBreakdown(state);
   const total = Math.max(1, Object.values(m).reduce((a, b) => a + b, 0));
+  // Colours come from the stylesheet's tokens — keep these names in sync with
+  // the palette block at the top of styles.css.
   const order = [
-    ['mastered', 'var(--ok)'], ['review', 'var(--grade-3)'],
-    ['learning', 'var(--warn)'], ['leech', 'var(--bad)'], ['new', 'var(--text-faint)'],
+    ['mastered', 'var(--moss)'], ['review', 'var(--azure)'],
+    ['learning', 'var(--gold)'], ['leech', 'var(--accent)'], ['new', 'var(--rule-firm)'],
   ];
   $('#mastery').replaceChildren(...order.map(([k, colour]) =>
     el('i', { style: `width:${(m[k] / total) * 100}%;background:${colour}`, title: `${k}: ${m[k]}` })));

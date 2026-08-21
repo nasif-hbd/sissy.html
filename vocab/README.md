@@ -9,7 +9,8 @@ No build step, no framework, no bundler. Open `index.html` and it runs.
 ```
 vocab/
 ├── index.html          app shell
-├── styles.css          design tokens + every component
+├── styles.css          the design system: tokens, then every component
+├── fonts/              Fraunces · Newsreader · Space Grotesk (vendored)
 ├── sw.js               offline cache, push + notification handling
 ├── manifest.webmanifest installable PWA
 ├── js/
@@ -26,7 +27,7 @@ vocab/
 │   ├── proxy.mjs       Node server: Claude routes + push + static app
 │   ├── prompts.mjs     every prompt and output schema
 │   └── smoke.mjs       hits each route and prints the wire shapes
-└── tests/srs.test.mjs  scheduler + tracking tests (node --test)
+└── tests/             scheduler, tracking and design-system tests
 ```
 
 ## Quick start
@@ -52,6 +53,33 @@ ANTHROPIC_API_KEY=sk-ant-... npm start      # → http://localhost:8787
 Then open Settings → AI → **Proxy**, endpoint `http://localhost:8787`. The
 status line under it tells you whether the proxy answered and whether it has a
 key.
+
+## The look
+
+The app is styled as **a pocket lexicon** rather than a language app: paper
+stock instead of `#fff`, ink instead of `#000`, hairline rules and small caps
+instead of pill-shaped chrome, sharp corners with a hard offset shadow so cards
+read as stacked card stock. There is no emoji anywhere — the marks are a
+printer's: **☞** for a memory hook, **†** for anything Claude wrote, **❦** on an
+empty queue.
+
+Three decisions carry most of it:
+
+- **Type does the work.** Fraunces sets the headwords (its `SOFT` and `WONK`
+  axes give the slight eccentricity), Newsreader sets the readable matter and
+  its italic carries the example sentences, Space Grotesk holds the chrome.
+  All three are vendored in `fonts/` — no third-party request, no flash of
+  fallback text, and the typography survives offline.
+- **AI output is marginalia.** Anything Claude writes appears against a tinted
+  margin with a dagger, the way an annotation sits beside a printed entry —
+  never styled as the app's own voice.
+- **Charts are printed, not plotted.** Activity is a dot-density grid, the
+  fortnight is ink columns on a ruled baseline, deck state is a segmented spine.
+
+Both themes are complete: *paper* (warm oatmeal, vermilion correction pen) and
+*ink* (night stock, cream type). Everything is a token in the two blocks at the
+top of `styles.css`; nothing below them hardcodes a colour, and the browser test
+suite fails if a token referenced from JS or CSS no longer resolves.
 
 ## The three headline features
 
@@ -141,7 +169,8 @@ sample text so nobody mistakes it for a real definition.
 | The starter deck | `js/data/seed.js` |
 | Intervals, ease, leech threshold | `SRS` in `js/config.js` |
 | Default goal, level, reminder times | `DEFAULTS` in `js/config.js` |
-| Colours, spacing, radius | the token block at the top of `styles.css` |
+| Colours, spacing, radius | the two token blocks at the top of `styles.css` |
+| Typefaces | `@font-face` block in `styles.css` + the files in `fonts/` |
 | Tutor voice, output schemas | `server/prompts.mjs` |
 | Reminder wording | `reminderCopy()` in `js/notify.js` |
 | Persistence (→ IndexedDB, → a backend) | `read`/`write` in `js/store.js` |
@@ -149,7 +178,7 @@ sample text so nobody mistakes it for a real definition.
 ## Testing
 
 ```bash
-cd vocab && node --test            # scheduler + tracking, 14 tests, no deps
+cd vocab && node --test            # scheduler, tracking + design system: 21 tests, no deps
 cd server && npm run smoke         # every proxy route against a live server
 ```
 
