@@ -7,13 +7,36 @@
 <meta name="theme-color" content="#ffffff">
 <title>Lexio — English Vocabulary Trainer</title>
 <link rel="manifest" href="manifest.webmanifest">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' fill='%2310131a'/><text x='50' y='72' font-size='62' text-anchor='middle' fill='%23ffffff' font-family='Georgia,serif' font-weight='bold'>Lx</text></svg>">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='12' fill='%2310131a'/><path d='M20 14h24v36l-12-8-12 8z' fill='none' stroke='%23ffffff' stroke-width='3'/><path d='M32 14v20' stroke='%23cf2e2e' stroke-width='3'/></svg>">
 <link rel="preload" href="fonts/fraunces.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/newsreader.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preload" href="fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+
+<svg class="sprite" aria-hidden="true" hidden>
+    <symbol id="i-study" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14"/><path d="M7 10h8M7 13.5h5"/></symbol>
+    <symbol id="i-drill" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-index" viewBox="0 0 24 24"><path d="M4 6.5h1.5M4 12h1.5M4 17.5h1.5M8.5 6.5H20M8.5 12H20M8.5 17.5h7.5"/></symbol>
+    <symbol id="i-ledger" viewBox="0 0 24 24"><path d="M4 19.5h16"/><path d="M7.5 19.5V12M12 19.5V5.5M16.5 19.5V15"/></symbol>
+    <symbol id="i-setup" viewBox="0 0 24 24"><path d="M4 8.5h16M4 15.5h16"/><rect x="7" y="6" width="3.5" height="5"/><rect x="14" y="13" width="3.5" height="5"/></symbol>
+    <symbol id="i-speak" viewBox="0 0 24 24"><path d="M4.5 9.5h3L11.5 6v12L7.5 14.5h-3z"/><path d="M15 9.5a4 4 0 0 1 0 5"/><path d="M17.5 7a7.5 7.5 0 0 1 0 10"/></symbol>
+    <symbol id="i-theme" viewBox="0 0 24 24"><circle cx="12" cy="12" r="7.5"/><path d="M12 4.5a7.5 7.5 0 0 1 0 15z" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"/><path d="M14.5 14.5L19.5 19.5"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="M19.5 4.5L9 15l-1.5 4.5L12 18 19.5 4.5z"/><path d="M13.5 6.5l4 4"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 7.5v12"/><path d="M12 7.5C10 5.5 7 5.5 4 6v12c3-.5 6-.5 8 1.5 2-2 5-2 8-1.5V6c-3-.5-6-.5-8 1.5z"/></symbol>
+    <symbol id="i-skip" viewBox="0 0 24 24"><path d="M6 6l8 6-8 6z"/><path d="M17.5 6v12"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9L17.5 7"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v10.5M8 11l4 4 4-4"/><path d="M5 19.5h14"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 15.5V5M8 8.5l4-4 4 4"/><path d="M5 19.5h14"/></symbol>
+    <symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 17.5v-6a6 6 0 0 1 12 0v6"/><path d="M4 17.5h16"/><path d="M10 20.5h4"/></symbol>
+    <symbol id="i-dots" viewBox="0 0 24 24"><circle cx="12" cy="5.5" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.3" fill="currentColor" stroke="none"/><circle cx="12" cy="18.5" r="1.3" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M15.5 8.5l-2 5-5 2 2-5z"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
+</svg>
 
 <div id="app" class="app" hidden>
 
@@ -29,7 +52,7 @@
       <div class="streak" id="streakChip" title="Current streak">
         <span id="streakCount">0</span>
       </div>
-      <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle colour theme">Ink</button>
+      <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle colour theme"><svg class="ico" aria-hidden="true"><use href="#i-theme"/></svg><span id="themeLabel">Auto</span></button>
     </div>
   </header>
 
@@ -54,7 +77,7 @@
             <span class="pill" id="cardState">new</span>
             <span class="pill pill--ghost" id="cardPos"></span>
             <span class="pill pill--level" id="cardLevel"></span>
-            <button class="icon-btn icon-btn--sm" id="speakBtn" type="button" aria-label="Pronounce word">Say</button>
+            <button class="icon-btn icon-btn--sm" id="speakBtn" type="button" aria-label="Pronounce word"><svg class="ico" aria-hidden="true"><use href="#i-speak"/></svg></button>
           </div>
 
           <p class="term" id="cardTerm">—</p>
@@ -82,9 +105,9 @@
           </div>
 
           <div class="card__tools" id="cardTools" hidden>
-            <button class="btn btn--quiet btn--sm" id="explainBtn" type="button">† Gloss it</button>
-            <button class="btn btn--quiet btn--sm" id="moreExamplesBtn" type="button">† More usage</button>
-            <button class="btn btn--quiet btn--sm" id="burySkipBtn" type="button">Skip</button>
+            <button class="btn btn--quiet btn--sm" id="explainBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-pen"/></svg>Gloss it</button>
+            <button class="btn btn--quiet btn--sm" id="moreExamplesBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg>More usage</button>
+            <button class="btn btn--quiet btn--sm" id="burySkipBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-skip"/></svg>Skip</button>
           </div>
         </div>
 
@@ -125,7 +148,7 @@
           <p class="prompt">Compose a sentence using <b id="coachWord">—</b>.</p>
           <textarea class="input input--area" id="coachInput" rows="3" placeholder="Your sentence…"></textarea>
           <div class="row">
-            <button class="btn btn--primary" id="coachSubmit" type="button">† Have it marked</button>
+            <button class="btn btn--primary" id="coachSubmit" type="button"><svg class="ico" aria-hidden="true"><use href="#i-pen"/></svg>Have it marked</button>
             <button class="btn btn--quiet" id="coachNew" type="button">Another entry</button>
           </div>
           <div class="ai-stream" id="coachOutput" hidden></div>
@@ -139,18 +162,18 @@
         <div class="card card--tight">
           <div class="row">
             <input class="input" id="addWordInput" type="text" placeholder="Set an entry, e.g. “resilient”" autocomplete="off">
-            <button class="btn btn--primary" id="addWordBtn" type="button">Add</button>
+            <button class="btn btn--primary" id="addWordBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg>Add</button>
           </div>
           <label class="check">
             <input type="checkbox" id="addWithAI" checked>
-            <span>† Let Claude set the entry — definition, usage and a memory hook</span>
+            <span>Let Claude set the entry — definition, usage and a memory hook</span>
           </label>
           <p class="hint" id="addWordHint"></p>
         </div>
 
         <div class="card card--tight">
           <div class="row">
-            <input class="input" id="wordSearch" type="search" placeholder="Search the index…" autocomplete="off">
+            <label class="input-icon"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-search"/></svg><input class="input" id="wordSearch" type="search" placeholder="Search the index…" autocomplete="off"></label>
             <select class="input input--select" id="wordFilter">
               <option value="all">All</option>
               <option value="new">New</option>
@@ -168,7 +191,7 @@
           <h3 class="card__title">Suggested entries</h3>
           <p class="hint">Claude reads your level and the gaps in your deck, then proposes what to set next.</p>
           <div class="chips" id="suggestions"></div>
-          <button class="btn btn--quiet btn--sm" id="suggestBtn" type="button">Suggest six</button>
+          <button class="btn btn--quiet btn--sm" id="suggestBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-compass"/></svg><span id="suggestLabel">Suggest six</span></button>
         </div>
       </div>
     </section>
@@ -224,7 +247,7 @@
           <h3 class="card__title">Reminders</h3>
           <p class="hint" id="notifyState">Checking notification permission…</p>
           <div class="row">
-            <button class="btn btn--primary" id="notifyEnable" type="button">Enable reminders</button>
+            <button class="btn btn--primary" id="notifyEnable" type="button"><svg class="ico" aria-hidden="true"><use href="#i-bell"/></svg>Enable reminders</button>
             <button class="btn btn--quiet" id="notifyTest" type="button">Send test</button>
           </div>
           <label class="field">
@@ -289,9 +312,9 @@
           <h3 class="card__title">Your copy</h3>
           <p class="hint">Everything lives in this browser. Export before clearing site data.</p>
           <div class="row">
-            <button class="btn btn--quiet" id="exportBtn" type="button">Export JSON</button>
-            <button class="btn btn--quiet" id="importBtn" type="button">Import JSON</button>
-            <button class="btn btn--danger" id="resetBtn" type="button">Reset</button>
+            <button class="btn btn--quiet" id="exportBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-download"/></svg>Export</button>
+            <button class="btn btn--quiet" id="importBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-upload"/></svg>Import</button>
+            <button class="btn btn--danger" id="resetBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-trash"/></svg>Reset</button>
           </div>
           <input type="file" id="importFile" accept="application/json" hidden>
         </div>
@@ -302,11 +325,11 @@
   </main>
 
   <nav class="tabbar" id="tabbar">
-    <button class="tab is-active" data-tab="learn">Study</button>
-    <button class="tab" data-tab="practice">Drill</button>
-    <button class="tab" data-tab="words">Index</button>
-    <button class="tab" data-tab="progress">Ledger</button>
-    <button class="tab" data-tab="settings">Setup</button>
+    <button class="tab is-active" data-tab="learn"><svg class="ico" aria-hidden="true"><use href="#i-study"/></svg><span class="tab__label">Study</span></button>
+    <button class="tab" data-tab="practice"><svg class="ico" aria-hidden="true"><use href="#i-drill"/></svg><span class="tab__label">Drill</span></button>
+    <button class="tab" data-tab="words"><svg class="ico" aria-hidden="true"><use href="#i-index"/></svg><span class="tab__label">Index</span></button>
+    <button class="tab" data-tab="progress"><svg class="ico" aria-hidden="true"><use href="#i-ledger"/></svg><span class="tab__label">Ledger</span></button>
+    <button class="tab" data-tab="settings"><svg class="ico" aria-hidden="true"><use href="#i-setup"/></svg><span class="tab__label">Setup</span></button>
   </nav>
 
   <div class="toasts" id="toasts" aria-live="polite"></div>

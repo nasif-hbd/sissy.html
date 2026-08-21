@@ -84,6 +84,31 @@ test('the vendored typefaces are actually present', () => {
   }
 });
 
+test('every icon reference resolves to a symbol on the sheet', () => {
+  const html = read('index.html');
+  const symbols = new Set([...html.matchAll(/<symbol id="(i-[\w-]+)"/g)].map((m) => m[1]));
+  const jsRefs = js.flatMap(({ source }) =>
+    [...source.matchAll(/`#i-\$\{name\}`|icon\('([\w-]+)'/g)].map((m) => m[1]).filter(Boolean));
+  const used = new Set([
+    ...[...html.matchAll(/<use href="#(i-[\w-]+)"/g)].map((m) => m[1]),
+    ...jsRefs.map((n) => `i-${n}`),
+  ]);
+
+  const missing = [...used].filter((id) => !symbols.has(id));
+  assert.deepEqual(missing, [], `referenced but not drawn: ${missing}`);
+
+  const unused = [...symbols].filter((id) => !used.has(id));
+  assert.deepEqual(unused, [], `drawn but never used — drop them: ${unused}`);
+});
+
+test('every symbol declares the shared 24x24 grid', () => {
+  const html = read('index.html');
+  const odd = [...html.matchAll(/<symbol id="(i-[\w-]+)"([^>]*)>/g)]
+    .filter(([, , attrs]) => !attrs.includes('viewBox="0 0 24 24"'))
+    .map(([, id]) => id);
+  assert.deepEqual(odd, [], `these would render at the wrong scale: ${odd}`);
+});
+
 test('the interface carries no emoji — printer\'s marks only', () => {
   // Deliberately narrow: the design *does* use typographic marks from the
   // Dingbats and Misc Symbols blocks (☞ ❦ † ✕ ▌). What must never come back is

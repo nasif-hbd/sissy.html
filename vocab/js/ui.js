@@ -11,6 +11,18 @@ import { summary, heatmap, recentDays, masteryBreakdown, weakest } from './stats
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
+/** An icon from the sheet in index.html. SVG needs its own namespace. */
+export function icon(name, cls = 'ico') {
+  const NS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(NS, 'svg');
+  svg.setAttribute('class', cls);
+  svg.setAttribute('aria-hidden', 'true');
+  const use = document.createElementNS(NS, 'use');
+  use.setAttribute('href', `#i-${name}`);
+  svg.append(use);
+  return svg;
+}
+
 export function el(tag, props = {}, ...children) {
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(props)) {
@@ -175,9 +187,9 @@ export function renderWordList(state, { query = '', filter = 'all' }, handlers =
       el('div', { class: 'word__meta' },
         el('span', { class: 'word__due', text: rec?.state === 'new' ? 'new' : formatDelta(rec.due - Date.now()) }),
         el('button', {
-          class: 'btn btn--quiet btn--sm', text: '⋯', 'aria-label': `Options for ${w.term}`,
+          class: 'btn btn--quiet btn--sm', 'aria-label': `Options for ${w.term}`,
           onclick: () => handlers.onMenu?.(w),
-        })));
+        }, icon('dots'))));
   }));
 }
 
