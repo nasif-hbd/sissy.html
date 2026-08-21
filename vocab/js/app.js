@@ -14,7 +14,7 @@ import { makeSessionTimer, reportPayload, weakest, summary } from './stats.js';
 import { Notifier, Push } from './notify.js';
 import { AIClient } from './ai.js';
 import {
-  $, $$, el, toast, applyTheme, switchView, renderHeader, renderQueueSummary,
+  $, $$, el, icon, toast, applyTheme, switchView, renderHeader, renderQueueSummary,
   renderCard, renderEmptyQueue, renderWordList, renderProgress, renderSuggestions,
   practicePool,
 } from './ui.js';
@@ -87,7 +87,7 @@ async function boot() {
 /** Full redraw. Cheap enough to call on any change. */
 /** The stock the page is printed on: auto / paper / ink. */
 function labelTheme(theme) {
-  $('#themeToggle').textContent = { system: 'Auto', light: 'Paper', dark: 'Ink' }[theme];
+  $('#themeLabel').textContent = { system: 'Auto', light: 'Paper', dark: 'Ink' }[theme];
 }
 
 function render() {
@@ -307,8 +307,10 @@ function answerQuiz(index) {
 
   for (const [i, btn] of $$('#quizOptions .option').entries()) {
     btn.disabled = true;
-    if (i === q.answerIndex) btn.classList.add('is-correct');
-    else if (i === index) btn.classList.add('is-wrong');
+    // Mark the outcome with a glyph as well as colour — colour alone is not a
+    // signal everyone can read.
+    if (i === q.answerIndex) { btn.classList.add('is-correct'); btn.append(icon('check')); }
+    else if (i === index) { btn.classList.add('is-wrong'); btn.append(icon('close')); }
   }
 
   recordPractice(q.wordId, correct, 'quiz');
@@ -504,8 +506,9 @@ async function refreshWithAI(word) {
 
 async function suggestWords() {
   const btn = $('#suggestBtn');
+  const label = $('#suggestLabel');
   btn.disabled = true;
-  btn.textContent = 'Thinking…';
+  label.textContent = 'Thinking…';
   try {
     const items = await AIClient.suggest({
       level: Store.state.profile.level,
@@ -525,7 +528,7 @@ async function suggestWords() {
     toast(err.message, 'bad');
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Suggest six';
+    label.textContent = 'Suggest six';
   }
 }
 
@@ -666,14 +669,14 @@ function renderTimes() {
   $('#reminderTimes').replaceChildren(...times.map((t) =>
     el('span', { class: 'time-chip' }, t,
       el('button', {
-        'aria-label': `Remove ${t}`, text: '×',
+        'aria-label': `Remove ${t}`,
         onclick: () => {
           Store.commit((s) => {
             s.settings.reminders.times = s.settings.reminders.times.filter((x) => x !== t);
           });
           renderTimes();
         },
-      }))));
+      }, icon('close')))));
 }
 
 function refreshNotifyState() {

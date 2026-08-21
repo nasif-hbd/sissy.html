@@ -152,6 +152,18 @@ body::before {
 }
 
 button, input, select, textarea { font: inherit; color: inherit; }
+
+/* Icons.
+   One 24×24 grid, 1.5 stroke, square caps and mitred joins — the same
+   drawing language as the keylines and rules, so they read as part of the
+   page rather than borrowed from a library. Colour follows currentColor. */
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+.ico {
+  width: 20px; height: 20px; flex: none;
+  fill: none; stroke: currentColor;
+  stroke-width: 1.5; stroke-linecap: square; stroke-linejoin: miter;
+}
+.ico--sm { width: 16px; height: 16px; }
 h1, h2, h3, p, ul { margin: 0; }
 ul { padding: 0; list-style: none; }
 code { font-family: var(--mono); font-size: .84em; background: var(--paper-sunk); padding: .1em .35em; }
@@ -203,6 +215,7 @@ code { font-family: var(--mono); font-size: .84em; background: var(--paper-sunk)
 .streak__flame { display: none; }
 .streak::after {
   content: "day streak";
+  white-space: nowrap;
   font-family: var(--grotesk); font-size: 8px; letter-spacing: .16em;
   text-transform: uppercase; color: var(--ink-3); margin-top: 3px;
 }
@@ -210,15 +223,16 @@ code { font-family: var(--mono); font-size: .84em; background: var(--paper-sunk)
 .streak.is-cold { color: var(--ink-3); }
 
 .icon-btn {
-  display: grid; place-items: center;
-  min-width: 32px; height: 30px; padding: 0 7px;
+  display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+  min-width: 32px; height: 32px; padding: 0 9px;
   border: 1px solid var(--rule-firm); border-radius: var(--radius);
   background: transparent; color: var(--ink-2);
   font-family: var(--grotesk); font-size: 11px; letter-spacing: .1em;
   text-transform: uppercase; cursor: pointer;
 }
 .icon-btn:active { background: var(--ink); color: var(--paper); }
-.icon-btn--sm { height: 26px; font-size: 10px; }
+.icon-btn--sm { height: 28px; min-width: 30px; padding: 0 6px; }
+.icon-btn .ico { width: 16px; height: 16px; }
 
 /* ── goal rule ──────────────────────────────────────────────────────────── */
 .goalbar { display: flex; align-items: center; gap: 12px; padding: 12px 20px 0; }
@@ -366,6 +380,8 @@ code { font-family: var(--mono); font-size: .84em; background: var(--paper-sunk)
   cursor: pointer; box-shadow: var(--shadow-sm);
   transition: transform .07s ease, box-shadow .07s ease;
 }
+.btn .ico { width: 17px; height: 17px; }
+.btn--sm .ico { width: 15px; height: 15px; }
 .btn:active { transform: translate(2px, 2px); box-shadow: none; }
 .btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
 .btn--primary { background: var(--ink); color: var(--paper); border-color: var(--ink); }
@@ -405,6 +421,10 @@ code { font-family: var(--mono); font-size: .84em; background: var(--paper-sunk)
   font-family: var(--text); font-size: 16px;
 }
 .input::placeholder { color: var(--ink-3); font-style: italic; }
+.input-icon { position: relative; display: flex; align-items: center; flex: 1; min-width: 0; }
+.input-icon .ico { position: absolute; left: 13px; color: var(--ink-3); pointer-events: none; }
+.input-icon .input { padding-left: 39px; }
+.row > .input-icon { flex: 1; min-width: 0; }
 .input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 .input--area { padding: 11px 13px; resize: vertical; line-height: 1.55; }
 .input--select { appearance: none; font-family: var(--grotesk); font-size: 14px; }
@@ -416,11 +436,12 @@ code { font-family: var(--mono); font-size: .84em; background: var(--paper-sunk)
 .field b { font-family: var(--serif); font-size: 15px; text-transform: none; letter-spacing: 0; color: var(--ink); }
 .check {
   display: flex; gap: 10px; align-items: flex-start; cursor: pointer;
+  min-height: 34px; padding: 4px 0;
   font-family: var(--grotesk); font-size: 11.5px; line-height: 1.5; color: var(--ink-2);
 }
 .check input { margin-top: 3px; accent-color: var(--accent); width: 15px; height: 15px; }
 .range {
-  width: 100%; height: 20px; background: transparent;
+  width: 100%; height: 40px; background: transparent;
   -webkit-appearance: none; appearance: none; cursor: pointer;
 }
 .range::-webkit-slider-runnable-track { height: 3px; background: var(--rule-firm); }
@@ -439,7 +460,12 @@ code { font-family: var(--mono); font-size: .84em; background: var(--paper-sunk)
   border: 1px solid var(--edge); border-radius: var(--radius); background: var(--card);
   font-family: var(--mono); font-size: 12.5px; font-variant-numeric: tabular-nums;
 }
-.time-chip button { background: none; border: 0; color: var(--accent); cursor: pointer; font-size: 15px; line-height: 1; }
+.time-chip button {
+  display: grid; place-items: center;
+  width: 30px; height: 30px; margin: -6px -4px -6px 0;
+  background: none; border: 0; color: var(--accent); cursor: pointer;
+}
+.time-chip .ico { width: 13px; height: 13px; }
 
 /* ── practice ───────────────────────────────────────────────────────────── */
 .seg { display: flex; border: 1px solid var(--edge); background: var(--card); }
@@ -468,8 +494,10 @@ code { font-family: var(--mono); font-size: .84em; background: var(--paper-sunk)
   font-family: var(--mono); font-size: 12px; color: var(--ink-3);
 }
 .options { counter-reset: opt; }
-.option.is-correct { border-color: var(--moss); border-width: 1.5px; background: var(--moss-wash); color: var(--moss); }
-.option.is-wrong   { border-color: var(--accent); border-width: 1.5px; background: var(--accent-wash); color: var(--accent); text-decoration: line-through; }
+.option .ico { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; }
+.option.is-correct { border-color: var(--moss); border-width: 1.5px; background: var(--moss-wash); color: var(--moss); padding-right: 42px; }
+.option.is-wrong   { border-color: var(--accent); border-width: 1.5px; background: var(--accent-wash); color: var(--accent); text-decoration: line-through; padding-right: 42px; }
+.option.is-wrong .ico { text-decoration: none; }
 .option:disabled { cursor: default; }
 
 .feedback {
@@ -602,18 +630,19 @@ code { font-family: var(--mono); font-size: .84em; background: var(--paper-sunk)
 }
 .tab {
   position: relative;
-  display: flex; align-items: center; justify-content: center;
-  min-height: 54px; padding: 6px 2px 8px; border: 0; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 5px;
+  min-height: 58px; padding: 8px 2px; border: 0; cursor: pointer;
   background: transparent; color: var(--ink-3);
-  font-family: var(--grotesk); font-size: 9.5px; font-weight: 500;
-  text-transform: uppercase; letter-spacing: .13em;
+  font-family: var(--grotesk); font-size: 9px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: .12em;
 }
 .tab + .tab { border-left: 1px solid var(--rule); }
-.tab span { display: none; }          /* icons removed: the label is the mark */
+.tab .ico { width: 21px; height: 21px; }
 .tab.is-active {
   background: var(--card); color: var(--ink);
   box-shadow: inset 0 3px 0 var(--accent);
 }
+.tab.is-active .ico { stroke-width: 1.7; }
 
 /* ── toasts: a slip of paper ────────────────────────────────────────────── */
 .toasts {
@@ -637,10 +666,138 @@ code { font-family: var(--mono); font-size: .84em; background: var(--paper-sunk)
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
 }
+
+/* ===========================================================================
+   Devices
+
+   Four shapes, one layout: a phone column, a roomier tablet column, a desktop
+   with the tabs turned into a left rail, and a landscape phone where vertical
+   space is the scarce thing. Everything below only moves or resizes what is
+   already there — no component changes shape between breakpoints.
+=========================================================================== */
+
+/* ── small phones (iPhone SE and down) ──────────────────────────────────── */
+@media (max-width: 380px) {
+  body { font-size: 16px; }
+  .topbar, .goalbar { padding-left: 15px; padding-right: 15px; }
+  .views { padding: 15px 15px 24px; }
+  .card { padding: 16px; }
+  .term { font-size: 37px; }
+  .brand__name { font-size: 22px; }
+  .goalbar__label { font-size: 9px; letter-spacing: .1em; }
+  .grades { gap: 5px; }
+  .btn--grade { min-height: 54px; }
+  .tab { font-size: 8px; letter-spacing: .08em; gap: 4px; }
+  .tab .ico { width: 19px; height: 19px; }
+  .tile__value { font-size: 28px; }
+  .queue-summary__item b { font-size: 19px; }
+  /* at 320px the masthead has to give something up: the theme control keeps
+     its icon and drops its word, and the streak label shortens */
+  #themeLabel { display: none; }
+  .icon-btn { padding: 0 8px; }
+  .brand__sub { font-size: 8.5px; letter-spacing: .12em; }
+  .streak::after { content: "streak"; }
+}
+
+/* ── large phones and tablets in portrait ───────────────────────────────── */
 @media (min-width: 600px) {
   .tiles { grid-template-columns: repeat(4, 1fr); }
   .tile:nth-child(odd) { border-right: 0; }
   .tile:nth-child(-n+2) { border-bottom: 0; }
   .tile + .tile { border-left: 1px solid var(--rule); }
   .term { font-size: 54px; }
+  .views { padding: 22px 24px 32px; }
+  .topbar, .goalbar { padding-left: 24px; padding-right: 24px; }
+}
+
+@media (min-width: 760px) {
+  :root { --maxw: 720px; }
+  .card--flash { min-height: 390px; }
+  .bars { height: 148px; }
+  .definition { font-size: 19px; }
+}
+
+/* ── desktop: the tab bar becomes a rail ────────────────────────────────── */
+@media (min-width: 900px) {
+  body { padding-left: 236px; }
+  .app { padding-bottom: 44px; max-width: 760px; }
+
+  .tabbar {
+    left: 0; top: 0; bottom: 0; transform: none;
+    width: 236px; max-width: none; height: 100dvh;
+    display: flex; flex-direction: column; gap: 2px;
+    padding: 76px 16px calc(20px + env(safe-area-inset-bottom));
+    border-top: 0; border-right: 1.5px solid var(--edge);
+    background: var(--paper-sunk);
+  }
+  /* the rail carries the wordmark, so it is not lost above the fold */
+  .tabbar::before {
+    content: "LEXIO";
+    position: absolute; top: 30px; left: 30px;
+    font-family: var(--serif); font-size: 20px; font-weight: 600;
+    letter-spacing: -.01em; color: var(--ink);
+  }
+  .tab {
+    flex-direction: row; justify-content: flex-start; gap: 13px;
+    min-height: 44px; padding: 0 14px; font-size: 10.5px;
+    border-radius: var(--radius);
+  }
+  .tab + .tab { border-left: 0; }
+  .tab .ico { width: 19px; height: 19px; }
+  .tab.is-active { box-shadow: inset 3px 0 0 var(--accent); }
+
+  /* the rail already says LEXIO — the masthead drops to a status line */
+  .topbar { align-items: center; }
+  .topbar .brand__mark, .topbar .brand__name { display: none; }
+  .brand__sub { margin-top: 0; }
+
+  .toasts { left: auto; right: 28px; transform: none; bottom: 28px; width: min(34vw, 380px); }
+
+  /* the index reads as two columns of a printed word list */
+  /* minmax(0,1fr), not 1fr: a grid item's automatic minimum is its content,
+     so a long headword would otherwise push the column past the viewport. */
+  .wordlist { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 30px; }
+  .wordlist .word { min-width: 0; }
+  .heatmap { gap: 5px; }
+  .bars { height: 165px; }
+  .term { font-size: 58px; }
+}
+
+@media (min-width: 1240px) {
+  body { padding-left: 268px; }
+  .tabbar { width: 268px; padding-left: 22px; padding-right: 22px; }
+  .tabbar::before { left: 36px; }
+  .app { max-width: 840px; }
+  .views { padding: 26px 28px 40px; }
+}
+
+/* ── landscape phone: height is the scarce axis ─────────────────────────── */
+@media (max-height: 540px) and (orientation: landscape) and (max-width: 899px) {
+  .topbar { padding-top: calc(7px + env(safe-area-inset-top)); padding-bottom: 6px; }
+  .brand__sub { display: none; }
+  .goalbar { padding-top: 8px; }
+  .views { padding-top: 12px; }
+  .term { font-size: 34px; }
+  .card--flash { min-height: 0; }
+  .card { padding: 15px; }
+  .stack { gap: 12px; }
+  .app { padding-bottom: calc(58px + env(safe-area-inset-bottom)); }
+  .tab { min-height: 44px; gap: 3px; font-size: 8px; }
+  .tab .ico { width: 17px; height: 17px; }
+  .empty { padding: 22px 20px; }
+  /* the queue counters give up height so the card keeps it */
+  .queue-summary__item { padding: 6px; }
+  .queue-summary__item b { font-size: 16px; }
+}
+
+/* ── pointer devices get hover; touch devices must not inherit it ───────── */
+@media (hover: hover) and (pointer: fine) {
+  .btn:hover { border-color: var(--accent); color: var(--accent); }
+  .btn--primary:hover { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+  .btn--grade:hover { background: var(--paper-sunk); }
+  .tab:hover { color: var(--ink); }
+  .option:hover:not(:disabled) { border-color: var(--ink); }
+  .chip:hover { border-color: var(--ink); color: var(--ink); }
+  .word:hover .word__term { color: var(--accent); }
+  .icon-btn:hover { border-color: var(--ink); color: var(--ink); background: transparent; }
 }

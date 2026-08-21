@@ -75,11 +75,43 @@ Three decisions carry most of it:
   never styled as the app's own voice.
 - **Charts are printed, not plotted.** Activity is a dot-density grid, the
   fortnight is ink columns on a ruled baseline, deck state is a segmented spine.
+- **The icons are drawn for this app**, not borrowed: one 24×24 grid, a 1.5
+  stroke, square caps and mitred joins — the same drawing language as the
+  keylines. They live as `<symbol>`s in a sheet at the top of `index.html`, so
+  there is no icon font, no library and no extra request; a test fails if one is
+  referenced without being drawn, or drawn without being used.
 
 Both themes are complete: *paper* (white stock, near-black type, red accent)
 and *ink* (graphite). Everything is a token in the two blocks at the top of
 `styles.css`; nothing below them hardcodes a colour, and a test fails if a token
 referenced from JS or CSS no longer resolves.
+
+### Devices
+
+One layout, four shapes — nothing changes what a component *is*, only where it
+sits:
+
+| | |
+|---|---|
+| **Small phone** (≤380px) | tighter gutters, smaller headword, the theme control drops its word and keeps its icon |
+| **Phone / tablet portrait** | the reading column, tabs along the bottom |
+| **Desktop** (≥900px) | the tab bar becomes a left rail carrying the wordmark; the masthead falls back to a status line; the index sets in two columns |
+| **Landscape phone** | height is the scarce axis, so the masthead, card and queue counters all compress |
+
+Hover styling is behind `(hover: hover) and (pointer: fine)`, so touch devices
+never inherit a stuck hover state. Every control clears a 44px target on touch
+sizes, and quiz results are marked with a glyph as well as a colour.
+
+`tests/devices.mjs` drives all five views at eight viewport shapes — a 320px
+phone through a 1680px desktop, including landscape — and fails on horizontal
+overflow, a sub-30px tap target, or an icon that doesn't paint. It needs a
+browser, so it sits outside `node --test`:
+
+```bash
+npx playwright install chromium
+python3 -m http.server 8000          # serving vocab/
+node tests/devices.mjs http://localhost:8000
+```
 
 ## The three headline features
 
@@ -178,7 +210,7 @@ sample text so nobody mistakes it for a real definition.
 ## Testing
 
 ```bash
-cd vocab && node --test            # scheduler, tracking + design system: 21 tests, no deps
+cd vocab && node --test            # scheduler, tracking + design system: 23 tests, no deps
 cd server && npm run smoke         # every proxy route against a live server
 ```
 
