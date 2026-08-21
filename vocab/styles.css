@@ -43,42 +43,42 @@
    LEXIO — "Pocket Lexicon"
 
    The visual idea: this is not an app that happens to hold words, it is a
-   printed lexicon that happens to run in a browser. Everything below follows
-   from that — paper stock rather than #fff, ink rather than #000, hairline
-   rules and small caps instead of pill-shaped chrome, sharp corners with a
-   hard offset shadow so cards read as stacked card stock, and printer's marks
-   (☞ manicule, ❦ fleuron, † dagger) instead of emoji.
+   printed lexicon that happens to run in a browser — white stock, black
+   keylines, red correction pen. Hairline rules and small caps instead of
+   pill-shaped chrome, sharp corners with a hard offset shadow so cards read as
+   printed card stock, and printer's marks (☞ manicule, ❦ fleuron, † dagger)
+   instead of emoji.
 
    Re-theming: every colour, rule and radius is a token in the two blocks
    below. Nothing further down hardcodes a value.
 =========================================================================== */
 
-/* ── paper (light) ──────────────────────────────────────────────────────── */
+/* ── white stock (light) ────────────────────────────────────────────────── */
 :root {
-  --paper:      #f1ebdf;   /* the desk */
-  --paper-sunk: #e7dfd0;   /* recessed wells, inputs */
-  --card:       #fcf8f0;   /* card stock, brighter than the desk */
-  --ink:        #17150f;
-  --ink-2:      #55503f;
-  --ink-3:      #8d8672;
-  --rule:       #d7cdb9;
-  --rule-firm:  #b9ad95;
+  --paper:      #f5f6f7;   /* the desk — a shade off white so cards lift */
+  --paper-sunk: #eceef0;   /* recessed wells, inputs */
+  --card:       #ffffff;   /* card stock */
+  --ink:        #10131a;
+  --ink-2:      #4b525c;
+  --ink-3:      #878e99;
+  --rule:       #e6e8ec;
+  --rule-firm:  #ccd1d8;
 
-  --accent:     #bd3a22;   /* the correction pen */
-  --accent-ink: #fcf8f0;
-  --accent-wash:#f6e4de;
-  --azure:      #1f4d5c;   /* review blue-green */
-  --azure-wash: #dfe9eb;
-  --moss:       #4a6b39;
-  --moss-wash:  #e3ebdb;
-  --gold:       #a1731c;
-  --gold-wash:  #f4e9d3;
+  --accent:     #cf2e2e;   /* the correction pen */
+  --accent-ink: #ffffff;
+  --accent-wash:#fdeceb;
+  --azure:      #1d5b78;   /* review blue */
+  --azure-wash: #ecf3f7;
+  --moss:       #2f7d4f;
+  --moss-wash:  #eaf5ee;
+  --gold:       #8f6a12;
+  --gold-wash:  #f4f5f7;
 
-  --edge:       #17150f;   /* card border: full ink on paper */
-  --shadow:     4px 4px 0 rgb(23 21 15 / .11);
-  --shadow-sm:  2px 2px 0 rgb(23 21 15 / .10);
+  --edge:       #10131a;   /* card border: the black keyline that makes it print */
+  --shadow:     3px 3px 0 rgb(16 19 26 / .07);
+  --shadow-sm:  2px 2px 0 rgb(16 19 26 / .07);
   --grain-blend: multiply;
-  --grain-alpha: .30;
+  --grain-alpha: 0;        /* white stock takes no grain — it just reads dirty */
 
   --radius: 3px;
   --tap: 44px;
@@ -90,34 +90,34 @@
   --mono:    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
-/* ── night ink (dark) ───────────────────────────────────────────────────── */
+/* ── graphite (dark) ────────────────────────────────────────────────────── */
 :root[data-theme="dark"],
 :root[data-theme="system"].is-dark {
   color-scheme: dark;
-  --paper:      #14120e;
-  --paper-sunk: #1e1a15;
-  --card:       #1c1914;
-  --ink:        #ece2d0;
-  --ink-2:      #a89d86;
-  --ink-3:      #6d6554;
-  --rule:       #332d24;
-  --rule-firm:  #4a4235;
+  --paper:      #0e1013;
+  --paper-sunk: #1a1e23;
+  --card:       #15181c;
+  --ink:        #e9ebee;
+  --ink-2:      #a2a9b3;
+  --ink-3:      #6d757f;
+  --rule:       #252a31;
+  --rule-firm:  #3a414a;
 
-  --accent:     #e2664a;
-  --accent-ink: #14120e;
-  --accent-wash:#33201a;
-  --azure:      #74b3c2;
-  --azure-wash: #16292e;
-  --moss:       #8fb56f;
-  --moss-wash:  #1c2717;
-  --gold:       #d0a04d;
-  --gold-wash:  #2b2314;
+  --accent:     #f0574c;
+  --accent-ink: #0e1013;
+  --accent-wash:#2b1917;
+  --azure:      #6fb2d0;
+  --azure-wash: #142229;
+  --moss:       #5fbe86;
+  --moss-wash:  #10231a;
+  --gold:       #d3a54e;
+  --gold-wash:  #262010;
 
-  --edge:       #4a4235;   /* on dark stock a cream border glares — step it down */
-  --shadow:     4px 4px 0 rgb(0 0 0 / .45);
-  --shadow-sm:  2px 2px 0 rgb(0 0 0 / .4);
+  --edge:       #39414a;   /* a cream keyline glares on dark stock — step it down */
+  --shadow:     3px 3px 0 rgb(0 0 0 / .5);
+  --shadow-sm:  2px 2px 0 rgb(0 0 0 / .45);
   --grain-blend: screen;
-  --grain-alpha: .16;
+  --grain-alpha: .10;
 }
 :root[data-theme="system"] { color-scheme: light; }
 @media (prefers-color-scheme: dark) { :root[data-theme="system"] { color-scheme: dark; } }
