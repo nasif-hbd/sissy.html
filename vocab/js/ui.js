@@ -46,10 +46,13 @@ export function toast(message, kind = '') {
 export function applyTheme(theme) {
   const root = document.documentElement;
   root.dataset.theme = theme;
-  const dark = theme === 'dark' ||
-    (theme === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+  const dark = theme === 'ink' ||
+    (theme === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
   root.classList.toggle('is-dark', dark);
-  $('meta[name="theme-color"]')?.setAttribute('content', dark ? '#0d0f14' : '#f6f7f9');
+  // Read the browser chrome colour back out of the palette that just applied,
+  // so a new theme needs no second place to declare it.
+  const paper = getComputedStyle(root).getPropertyValue('--paper').trim();
+  $('meta[name="theme-color"]')?.setAttribute('content', paper || '#ffffff');
 }
 
 export function switchView(name) {
@@ -226,8 +229,8 @@ export function renderProgress(state) {
   // Colours come from the stylesheet's tokens — keep these names in sync with
   // the palette block at the top of styles.css.
   const order = [
-    ['mastered', 'var(--moss)'], ['review', 'var(--azure)'],
-    ['learning', 'var(--gold)'], ['leech', 'var(--accent)'], ['new', 'var(--rule-firm)'],
+    ['mastered', 'var(--ok)'], ['review', 'var(--info)'],
+    ['learning', 'var(--warn)'], ['leech', 'var(--danger)'], ['new', 'var(--rule-firm)'],
   ];
   $('#mastery').replaceChildren(...order.map(([k, colour]) =>
     el('i', { style: `width:${(m[k] / total) * 100}%;background:${colour}`, title: `${k}: ${m[k]}` })));
