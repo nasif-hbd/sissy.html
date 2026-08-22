@@ -142,6 +142,34 @@ const routes = {
     await streamText(reportPrompt({ stats: body.stats || {}, level: body.stats?.level }), res, pickModel(body));
   },
 
+  /**
+   * Translation. The browser can call Google's public endpoint itself, but
+   * routing it here gives you one place to rate-limit and, if you have one, to
+   * put an API key. Same response envelope as the AI routes.
+   */
+  'POST /api/translate': async (req, res, body) => {
+    const text = String(body.text || '').trim().slice(0, 200);
+    const to = String(body.to || '').trim();
+    if (!text || !/^[a-zA-Z-]{2,7}$/.test(to)) throw new HttpError(400, 'Need `text` and a language code.');
+
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=en&tl=${encodeURIComponent(to)}&dt=t&q=${encodeURIComponent(text)}`;
+
+    // The public endpoint 500s intermittently — often enough that a single
+    // attempt fails maybe one time in three. Three tries with a short backoff
+    // makes that a non-event; still failing after that is a real outage.
+    let upstream;
+    for (const wait of [0, 250, 600]) {
+      if (wait) await new Promise((r) => setTimeout(r, wait));
+      upstream = await fetch(url);
+      if (upstream.status < 500) break;
+    }
+    if (!upstream.ok) throw new HttpError(502, `Translation upstream said ${upstream.status}.`);
+    const payload = await upstream.json();
+    const translated = (payload?.[0] || []).map((seg) => seg?.[0] || '').join('').trim();
+    if (!translated) throw new HttpError(502, 'Translation upstream returned nothing.');
+    json(res, 200, { ok: true, data: { text: translated, to } });
+  },
+
   // ── push ────────────────────────────────────────────────────────────────
   'GET /api/push/public-key': async (req, res) => {
     json(res, 200, { publicKey: vapid.publicKey || null });

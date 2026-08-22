@@ -499,6 +499,34 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 .empty__text { font-size: 14.5px; color: var(--ink-3); max-width: 34ch; }
 .empty .btn { margin-top: 8px; }
 
+/* ── modules ────────────────────────────────────────────────────────────── */
+.modules { display: flex; flex-direction: column; gap: 10px; }
+.module {
+  display: flex; flex-direction: column; gap: 9px;
+  padding: 16px; background: var(--card);
+  border: 1px solid var(--edge); border-radius: var(--radius);
+  box-shadow: var(--shadow-sm);
+}
+.module__head { display: flex; align-items: center; gap: 9px; }
+.module__title { font-family: var(--sans); font-size: 16px; font-weight: 600; letter-spacing: -.015em; }
+.module__head .pill { margin-left: auto; }
+.module__blurb { font-size: 13.5px; line-height: 1.5; color: var(--ink-3); }
+.module__meter { height: 6px; border-radius: 999px; background: var(--paper-sunk); overflow: hidden; }
+.module__meter i { display: block; height: 100%; border-radius: 999px; background: var(--accent); transition: width .4s ease; }
+.module__foot { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.module__count {
+  font-family: var(--sans); font-size: 11.5px; color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
+/* the translated word sits under the definition, quieter than it */
+.translation {
+  font-size: 16px; line-height: 1.5; color: var(--accent);
+  padding: 9px 12px; border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+.translation[dir="rtl"] { text-align: right; }
+
 /* ── the rail ───────────────────────────────────────────────────────────── */
 .tabbar {
   position: fixed; left: 0; top: 0; bottom: 0; z-index: 30;
@@ -605,6 +633,7 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 
 @media (min-width: 900px) {
   :root { --rail: 234px; --maxw: 760px; }
+  .modules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .tabbar { gap: 3px; padding: 84px 14px calc(20px + env(safe-area-inset-bottom)); }
   .tabbar::before {
     content: "Lexio";
