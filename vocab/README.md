@@ -10,7 +10,7 @@ No build step, no framework, no bundler. Open `index.html` and it runs.
 vocab/
 ├── index.html          app shell
 ├── styles.css          the design system: tokens, then every component
-├── fonts/              Fraunces · Newsreader · Space Grotesk (vendored)
+├── fonts/              Space Grotesk (vendored, 22 KB)
 ├── sw.js               offline cache, push + notification handling
 ├── manifest.webmanifest installable PWA
 ├── js/
@@ -56,19 +56,18 @@ key.
 
 ## The look
 
-The app is styled as **a pocket lexicon** rather than a language app: printed
-stock, black keylines, a correction pen in the margin. Hairline rules and small
-caps instead of pill-shaped chrome, sharp corners with a hard offset shadow so
-cards read as printed card stock. There is no emoji anywhere — the marks are a
-printer's: **☞** for a memory hook, **❦** on an empty queue.
+Soft and quiet: white cards on a tinted desk, generous corner radii, shadows
+you notice only when they're gone, and a pastel wash behind anything that needs
+emphasis — the memory hook, an AI note, a right or wrong answer. The chrome
+stays out of the way so the word on the card is the loudest thing on screen.
+There is no emoji: every mark is a drawn icon from the sheet in `index.html`.
 
 Three decisions carry most of it:
 
-- **Type does the work.** Fraunces sets the headwords (its `SOFT` and `WONK`
-  axes give the slight eccentricity), Newsreader sets the readable matter and
-  its italic carries the example sentences, Space Grotesk holds the chrome.
-  All three are vendored in `fonts/` — no third-party request, no flash of
-  fallback text, and the typography survives offline.
+- **One vendored face.** Space Grotesk (22 KB, in `fonts/`) carries headings,
+  numbers and controls; body copy uses the system UI font, which is the
+  friendliest and fastest thing on any device. No third-party request, no flash
+  of fallback text, and it all still works offline.
 - **AI output is marginalia.** Anything Claude writes appears against a tinted
   margin with a dagger, the way an annotation sits beside a printed entry —
   never styled as the app's own voice.
@@ -86,9 +85,9 @@ Three complete palettes, plus an **Auto** that follows the device:
 
 | | | |
 |---|---|---|
-| **Paper** | white stock | orange |
-| **Linen** | warm off-white | deep teal |
-| **Ink** | black stock | blue |
+| **Paper** | white | orange |
+| **Linen** | warm off-white | teal |
+| **Ink** | black | blue |
 
 Brand accent is deliberately **separate from the semantic four** — `--danger`,
 `--warn`, `--ok`, `--info`. That's what lets a theme take orange without its

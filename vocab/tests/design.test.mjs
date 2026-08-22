@@ -53,12 +53,12 @@ const THEMES = [...new Set([...css.matchAll(/:root\[data-theme="(\w+)"\]/g)].map
 /* Type and metric tokens are theme-independent; colour must be restated in
    every theme or that theme silently inherits the default palette. */
 const STRUCTURAL = new Set([
-  '--serif', '--text', '--grotesk', '--mono', '--radius', '--tap', '--maxw', '--rail',
+  '--sans', '--text', '--mono', '--radius', '--radius-sm', '--tap', '--maxw', '--rail',
 ]);
 
 test('the default palette declares a full set of tokens', () => {
   assert.ok(baseTokens.size > 20, `only ${baseTokens.size} tokens found — did :root move?`);
-  for (const required of ['--paper', '--card', '--ink', '--rule', '--edge', '--serif',
+  for (const required of ['--paper', '--card', '--ink', '--rule', '--edge', '--sans',
                           '--accent', '--danger', '--warn', '--ok', '--info']) {
     assert.ok(baseTokens.has(required), `missing ${required}`);
   }
@@ -108,7 +108,7 @@ test('every var() injected from JS resolves to a declared token', () => {
 
 test('the vendored typefaces are actually present', () => {
   const sources = [...css.matchAll(/url\("(fonts\/[^"]+)"\)/g)].map((m) => m[1]);
-  assert.ok(sources.length >= 3, 'expected at least three @font-face sources');
+  assert.ok(sources.length >= 1, 'expected at least one @font-face source');
   for (const src of sources) {
     const file = path.join(ROOT, src);
     assert.ok(fs.existsSync(file), `${src} is declared but not committed`);

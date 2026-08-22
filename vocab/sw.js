@@ -9,7 +9,7 @@
  * Bump CACHE when you change any shell file — the old cache is dropped on
  * activate.
  */
-const CACHE = 'lexio-v2';
+const CACHE = 'lexio-v3';
 const SHELL = [
   './',
   './index.html',
@@ -24,9 +24,6 @@ const SHELL = [
   './js/ai.js',
   './js/notify.js',
   './js/data/seed.js',
-  './fonts/fraunces.woff2',
-  './fonts/newsreader.woff2',
-  './fonts/newsreader-italic.woff2',
   './fonts/space-grotesk.woff2',
 ];
 
@@ -52,25 +49,41 @@ self.addEventListener('fetch', (event) => {
   if (request.method !== 'GET') return;
 
   const url = new URL(request.url);
-  if (url.origin !== self.location.origin) return;   // never cache the AI proxy   // never cache the AI proxy
+  if (url.origin !== self.location.origin) return;   // never cache the AI proxy
   if (url.pathname.startsWith('/api/')) return;
 
+  /*
+   * Network-first for the app itself, cache as the fallback.
+   *
+   * This used to be cache-first, which is faster but means a deployed change
+   * is invisible until the second load — and if the worker never re-activates,
+   * indefinitely. For an app that ships often, a stale shell is a worse bug
+   * than a few hundred milliseconds; fonts and other immutable assets stay
+   * cache-first below, so the common case is still instant.
+   */
+  const immutable = /\.(woff2|png|jpg|svg|ico)$/.test(url.pathname);
+
+  if (immutable) {
+    event.respondWith(
+      caches.match(request).then((hit) => hit || fetchAndStore(request))
+    );
+    return;
+  }
+
   event.respondWith(
-    caches.match(request).then((hit) => {
-      const network = fetch(request)
-        .then((res) => {
-          if (res.ok) {
-            const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(request, copy));
-          }
-          return res;
-        })
-        .catch(() => hit);
-      // Cache-first with a background refresh — instant loads, fresh next time.
-      return hit || network;
-    })
+    fetchAndStore(request).catch(() => caches.match(request))
   );
 });
+
+function fetchAndStore(request) {
+  return fetch(request).then((res) => {
+    if (res.ok) {
+      const copy = res.clone();
+      caches.open(CACHE).then((c) => c.put(request, copy));
+    }
+    return res;
+  });
+}
 
 // ── notifications ──────────────────────────────────────────────────────────
 
