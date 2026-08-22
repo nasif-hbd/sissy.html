@@ -111,9 +111,8 @@ export function renderCard(word, rec, { revealed = false } = {}) {
   const syn = $('#cardSynonyms');
   syn.replaceChildren(...(word.synonyms || []).map((s) => el('span', { class: 'chip', text: s })));
 
-  const mn = $('#cardMnemonic');
-  mn.hidden = !word.mnemonic;
-  mn.textContent = word.mnemonic || '';
+  $('#cardMnemonicBox').hidden = !word.mnemonic;
+  $('#cardMnemonic').textContent = word.mnemonic || '';
 
   $('#aiSlot').hidden = true;
   $('#aiSlotBody').textContent = '';
