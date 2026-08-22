@@ -16,8 +16,10 @@ import { AIClient } from './ai.js';
 import {
   $, $$, el, icon, toast, applyTheme, switchView, renderHeader, renderQueueSummary,
   renderCard, renderEmptyQueue, renderWordList, renderProgress, renderSuggestions,
-  practicePool,
+  renderModules, practicePool,
 } from './ui.js';
+import { Catalog } from './catalog.js';
+import { Translate, LANGUAGES } from './translate.js';
 
 // ── session state ──────────────────────────────────────────────────────────
 const session = {
@@ -48,6 +50,7 @@ async function boot() {
   wireTabs();
   wireLearn();
   wirePractice();
+  wireModules();
   wireWords();
   wireProgress();
   wireSettings();
@@ -140,6 +143,7 @@ function wireTabs() {
       switchView(tab.dataset.tab);
       if (tab.dataset.tab === 'progress') renderProgress(Store.state);
       if (tab.dataset.tab === 'practice') ensurePracticeSeed();
+      if (tab.dataset.tab === 'modules') loadModules();
     });
   }
   $('#themeToggle').addEventListener('click', () => {
@@ -181,6 +185,25 @@ function nextCard() {
   renderQueueSummary(Store.state);
 }
 
+/** Fill the translation line under the definition, if a language is chosen. */
+async function showTranslation(word) {
+  const line = $('#cardTranslation');
+  if (!word || !Translate.active) { line.hidden = true; return; }
+
+  const info = Translate.info();
+  line.hidden = false;
+  line.textContent = '…';
+  line.dir = info?.rtl ? 'rtl' : 'ltr';
+  line.dataset.source = '';
+
+  const result = await Translate.word(word);
+  // The card may have moved on while the request was in flight.
+  if (session.currentId !== word.id) return;
+  if (!result) { line.hidden = true; return; }
+  line.textContent = result.text;
+  line.dataset.source = result.source;
+}
+
 function drawCurrentCard() {
   const state = Store.state;
   if (!session.currentId || !state.words[session.currentId]) {
@@ -190,6 +213,7 @@ function drawCurrentCard() {
   const word = currentWord();
   if (!word) { renderEmptyQueue(state); return; }
   renderCard(word, state.srs[word.id], { revealed: session.revealed });
+  if (session.revealed) showTranslation(word);
 }
 
 function currentWord() {
@@ -462,6 +486,67 @@ function wireWords() {
   $('#suggestBtn').addEventListener('click', suggestWords);
 }
 
+// ── modules ────────────────────────────────────────────────────────────────
+function wireModules() {
+  // nothing to bind up front: the list is built the first time the tab opens
+}
+
+/** Fetch the manifest, then each pack only to count what is already in the deck. */
+async function loadModules() {
+  const node = $('#moduleList');
+  try {
+    const manifest = await Catalog.modules();
+    const rows = await Promise.all(manifest.map(async (m) => {
+      const pack = await Catalog.pack(m.id);
+      return { ...m, have: Catalog.progress(pack, Store.state) };
+    }));
+    renderModules(rows, { onAdd: addFromModule });
+  } catch (err) {
+    node.replaceChildren(el('p', { class: 'hint', text: `Could not load the modules: ${err.message}` }));
+  }
+}
+
+/** Add the next `count` unlearned words of a module to the deck. */
+async function addFromModule(module, count) {
+  const pack = await Catalog.pack(module.id);
+  const fresh = pack.words.filter((entry) => !Store.state.words[entry.w]);
+  const take = fresh.slice(0, count === Infinity ? fresh.length : count);
+  if (!take.length) { toast('Every word of this module is already in your deck.'); return; }
+
+  Store.commit((state) => {
+    for (const entry of take) {
+      const word = makeModuleWord(entry, module.id);
+      state.words[word.id] = word;
+      state.srs[word.id] ??= makeSrs();
+    }
+  });
+
+  toast(`Added ${take.length} word${take.length === 1 ? '' : 's'} from ${module.title}.`);
+  refillQueue();
+  render();
+  loadModules();
+}
+
+function makeModuleWord(entry, moduleId) {
+  return {
+    id: entry.w,
+    term: entry.w,
+    phonetic: '',
+    pos: entry.p || '',
+    definition: entry.d || '',
+    examples: [],
+    synonyms: entry.s || [],
+    antonyms: [],
+    mnemonic: '',
+    tags: [moduleId],
+    level: { Easy: 'A2', Moderate: 'B1', Advanced: 'B2', 'God Level': 'C2' }[entry.x] || '',
+    tr: { bn: entry.bn || '', hi: entry.hi || '', 'zh-CN': entry.zh || '' },
+    source: `module:${moduleId}`,
+    module: moduleId,
+    addedAt: Date.now(),
+  };
+}
+
 function refreshWordList() {
   renderWordList(Store.state,
     { query: session.wordQuery, filter: session.wordFilter },
@@ -481,11 +566,15 @@ async function addWord() {
   hint.textContent = useAI ? 'Asking Claude for a definition…' : '';
 
   try {
-    const payload = useAI
-      ? await AIClient.enrichWord(term, { level: Store.state.profile.level })
-      : { term };
-    Store.addWord({ ...payload, term }, useAI ? `ai:${AIClient.mode}` : 'user');
-    toast(`Added “${term}”.`);
+    // 95,000 words ship with the app, so most additions never need the network.
+    const known = await Catalog.lookup(term).catch(() => null);
+    const payload = known
+      ? known
+      : useAI
+        ? await AIClient.enrichWord(term, { level: Store.state.profile.level })
+        : { term };
+    Store.addWord({ ...payload, term }, known ? 'dictionary' : useAI ? `ai:${AIClient.mode}` : 'user');
+    toast(known ? `Added “${term}” from the dictionary.` : `Added “${term}”.`);
     input.value = '';
     hint.textContent = '';
     refillQueue();
@@ -614,6 +703,17 @@ function wireSettings() {
       e.target.checked = false;
       toast(err.message, 'bad');
     }
+  });
+
+  const lang = $('#langSelect');
+  lang.replaceChildren(...LANGUAGES.map((l) =>
+    el('option', { value: l.id, selected: l.id === Translate.language },
+      l.id === 'off' ? l.english : `${l.label} · ${l.english}`)));
+  lang.value = Translate.language;
+  lang.addEventListener('change', (e) => {
+    Store.set('settings.language', e.target.value);
+    if (session.revealed) showTranslation(currentWord());
+    toast(e.target.value === 'off' ? 'Translation off.' : `Translating into ${Translate.info().english}.`);
   });
 
   renderThemes();

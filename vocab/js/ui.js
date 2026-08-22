@@ -103,7 +103,8 @@ export function renderCard(word, rec, { revealed = false } = {}) {
   $('#cardTerm').textContent = word.term;
   $('#cardPhonetic').textContent = word.phonetic || '';
 
-  $('#cardDefinition').textContent = word.definition || 'No definition yet — tap “Explain” for one.';
+  $('#cardDefinition').textContent = word.definition || 'No definition yet — tap “Gloss it” for one.';
+  $('#cardTranslation').hidden = true;   // filled in asynchronously by app.js
 
   const examples = $('#cardExamples');
   examples.replaceChildren(...(word.examples || []).map((ex) => el('li', {}, highlight(ex, word.term))));
@@ -254,6 +255,40 @@ export function renderSuggestions(items, onPick) {
     el('button', {
       class: 'chip', title: it.reason || '', onclick: () => onPick(it),
     }, `+ ${it.term}`)));
+}
+
+/**
+ * The Modules tab. Each module shows how much of it is already in the deck, so
+ * adding more is an obvious next step rather than a guess.
+ */
+export function renderModules(list, handlers = {}) {
+  const node = $('#moduleList');
+  if (!list.length) {
+    node.replaceChildren(el('p', { class: 'hint', text: 'No modules found.' }));
+    return;
+  }
+  node.replaceChildren(...list.map((m) => {
+    const pct = m.count ? Math.round((m.have / m.count) * 100) : 0;
+    return el('div', { class: 'module' },
+      el('div', { class: 'module__head' },
+        el('h3', { class: 'module__title', text: m.title }),
+        el('span', { class: 'pill pill--ghost', text: m.level || '' })),
+      el('p', { class: 'module__blurb', text: m.blurb }),
+      el('div', { class: 'module__meter' }, el('i', { style: `width:${pct}%` })),
+      el('div', { class: 'module__foot' },
+        el('span', { class: 'module__count', text: `${m.have} of ${m.count} added` }),
+        el('div', { class: 'row' },
+          el('button', {
+            class: 'btn btn--quiet btn--sm',
+            disabled: m.have >= m.count,
+            onclick: () => handlers.onAdd?.(m, 25),
+          }, icon('plus'), 'Add 25'),
+          el('button', {
+            class: 'btn btn--primary btn--sm',
+            disabled: m.have >= m.count,
+            onclick: () => handlers.onAdd?.(m, Infinity),
+          }, `Add all`))));
+  }));
 }
 
 /** Words to drill in Practice: prefer the ones being got wrong. */

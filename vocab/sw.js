@@ -25,6 +25,7 @@ const SHELL = [
   './js/notify.js',
   './js/data/seed.js',
   './fonts/space-grotesk.woff2',
+  './data/modules/index.json',
 ];
 
 self.addEventListener('install', (event) => {
@@ -61,7 +62,10 @@ self.addEventListener('fetch', (event) => {
    * than a few hundred milliseconds; fonts and other immutable assets stay
    * cache-first below, so the common case is still instant.
    */
-  const immutable = /\.(woff2|png|jpg|svg|ico)$/.test(url.pathname);
+  // Fonts, images and the generated vocabulary data never change in place —
+  // a rebuild writes new files — so those stay cache-first.
+  const immutable = /\.(woff2|png|jpg|svg|ico)$/.test(url.pathname)
+    || url.pathname.includes('/data/');
 
   if (immutable) {
     event.respondWith(

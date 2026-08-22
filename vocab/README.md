@@ -13,8 +13,15 @@ vocab/
 ├── fonts/              Space Grotesk (vendored, 22 KB)
 ├── sw.js               offline cache, push + notification handling
 ├── manifest.webmanifest installable PWA
+├── data/
+│   ├── modules/        eight study packs + their manifest
+│   └── dict/           95,000 words, sharded for lookup
+├── scripts/
+│   └── build-modules.mjs   rebuilds both from the source CSV
 ├── js/
 │   ├── app.js          controller — wires DOM to the modules below
+│   ├── catalog.js      module packs + dictionary lookup (lazy)
+│   ├── translate.js    six languages, dataset-first
 │   ├── config.js       every tunable constant lives here
 │   ├── store.js        persistence, schema, import/export
 │   ├── srs.js          SM-2 scheduler (pure functions)
@@ -131,6 +138,55 @@ python3 -m http.server 8000          # serving vocab/
 node tests/devices.mjs http://localhost:8000
 ```
 
+## Vocabulary
+
+The app ships with a **95,000-word dictionary** and **eight study modules**,
+both generated from a source CSV by `scripts/build-modules.mjs`:
+
+```bash
+node scripts/build-modules.mjs path/to/word_meanings_dataset.csv
+```
+
+| Module | | |
+|---|---|---|
+| **IELTS** | B2–C1 | academic vocabulary that carries marks in Writing Task 2 |
+| **SAT** | C1 | the judgement-and-degree words American college tests reuse |
+| **Admission (BD)** | B2–C1 | synonym/antonym drilling for Bangladeshi admission tests |
+| **Job & Workplace** | B1–C1 | interviews, email, contracts |
+| **Native & Everyday** | A2–B1 | the plain words that make speech sound unforced |
+| **Elite** | C2 | rare and literary |
+| **Science & Medicine** | B2–C1 | labs, bodies and papers |
+| **Compounds & Phrases** | B1–C1 | hyphenated and multi-word entries |
+
+Each is 400 words: a **curated core** for the subject — the words that genuinely
+belong on an IELTS or SAT list — topped up from the dataset by a score that
+rewards real synonyms, a usable definition and shipped translations. Nothing is
+hand-maintained after generation; re-run the script and the packs rebuild.
+
+Two things follow from shipping the whole dictionary:
+
+- **Adding a word rarely needs the network.** Type one in the Index and it is
+  looked up locally first; the AI is the fallback, not the default. Lookups
+  fetch a single shard (two letters deep, three where a bucket got fat, so no
+  shard exceeds ~160 KB) and nothing is loaded at boot.
+- **Bangla, Hindi and Mandarin are free and offline** — they come with the data.
+
+## Translation
+
+Six languages: **Bangla, Hindi, Spanish, Arabic, Mandarin, Russian**. Set one in
+Settings and every card carries the word in that language under its definition.
+
+Three sources, cheapest first: the dataset (instant, offline, no cost), the
+on-device cache (each word is translated once per device), then **Google
+Translate**. The page can call Google's public endpoint directly — it answers
+with CORS open — or route through the proxy's `/api/translate`, which is what
+you want in production: one place to rate-limit and to add a key.
+
+That endpoint 500s intermittently. Both paths retry three times with a short
+backoff, which took Spanish from roughly two failures in five to **8/8** in
+testing; every request also has a 7-second deadline, so a blocked network hides
+the line instead of leaving an ellipsis on the card.
+
 ## The three headline features
 
 ### 1 · Notifications
@@ -221,6 +277,8 @@ sample text so nobody mistakes it for a real definition.
 | Default goal, level, reminder times | `DEFAULTS` in `js/config.js` |
 | Colours, spacing, radius | the palette blocks at the top of `styles.css` |
 | Adding a theme | a palette in `styles.css` + an entry in `THEMES` (`js/config.js`) |
+| The modules and dictionary | edit `MODULES` in `scripts/build-modules.mjs`, re-run it |
+| Translation languages | `LANGUAGES` in `js/translate.js` |
 | Typefaces | `@font-face` block in `styles.css` + the files in `fonts/` |
 | Tutor voice, output schemas | `server/prompts.mjs` |
 | Reminder wording | `reminderCopy()` in `js/notify.js` |

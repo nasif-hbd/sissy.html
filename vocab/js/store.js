@@ -31,6 +31,7 @@ function freshState() {
     profile: { level: DEFAULTS.level },
     settings: {
       theme: DEFAULTS.theme,
+      language: 'off',
       dailyGoal: DEFAULTS.dailyGoal,
       newPerDay: DEFAULTS.newPerDay,
       speech: true,
@@ -61,6 +62,10 @@ export function makeWord(raw, source = 'seed') {
     mnemonic: raw.mnemonic || '',
     tags: Array.isArray(raw.tags) ? raw.tags : [],
     level: raw.level || '',
+    /* Translations that shipped with the word (Bangla, Hindi, Chinese come
+       with the dataset); anything else is fetched and cached by translate.js. */
+    tr: raw.tr && typeof raw.tr === 'object' ? raw.tr : undefined,
+    module: raw.module || undefined,
     source,
     addedAt: Date.now(),
   };

@@ -1,0 +1,66 @@
+[
+  {
+    "id": "ielts",
+    "title": "IELTS",
+    "blurb": "Academic vocabulary that carries marks in Writing Task 2 and Reading.",
+    "level": "B2–C1",
+    "count": 400,
+    "file": "ielts.json"
+  },
+  {
+    "id": "sat",
+    "title": "SAT",
+    "blurb": "The judgement-and-degree words American college tests keep coming back to.",
+    "level": "C1",
+    "count": 400,
+    "file": "sat.json"
+  },
+  {
+    "id": "admission-bd",
+    "title": "Admission (BD)",
+    "blurb": "Synonym-and-antonym drilling for Bangladeshi university admission tests.",
+    "level": "B2–C1",
+    "count": 400,
+    "file": "admission-bd.json"
+  },
+  {
+    "id": "job",
+    "title": "Job & Workplace",
+    "blurb": "Interviews, email, contracts and the language of getting things done.",
+    "level": "B1–C1",
+    "count": 400,
+    "file": "job.json"
+  },
+  {
+    "id": "native",
+    "title": "Native & Everyday",
+    "blurb": "The plain, high-frequency words that make speech sound unforced.",
+    "level": "A2–B1",
+    "count": 400,
+    "file": "native.json"
+  },
+  {
+    "id": "elite",
+    "title": "Elite",
+    "blurb": "Rare and literary words — the ones that make a reader stop.",
+    "level": "C2",
+    "count": 400,
+    "file": "elite.json"
+  },
+  {
+    "id": "science",
+    "title": "Science & Medicine",
+    "blurb": "The vocabulary of labs, bodies and papers — useful well beyond exams.",
+    "level": "B2–C1",
+    "count": 400,
+    "file": "science.json"
+  },
+  {
+    "id": "phrasal",
+    "title": "Compounds & Phrases",
+    "blurb": "Hyphenated and multi-word entries — the ones dictionaries hide at the back.",
+    "level": "B1–C1",
+    "count": 400,
+    "file": "phrasal.json"
+  }
+]
