@@ -30,7 +30,7 @@ const DEVICES = [
   { name: 'desktop',     w: 1680, h: 1050, dsf: 1 },
 ];
 
-const VIEWS = ['learn', 'practice', 'modules', 'words', 'progress', 'settings'];
+const VIEWS = ['home', 'learn', 'modules', 'words', 'progress', 'settings'];
 const TOUCH_WIDTH = 900;   // below this the layout is finger-driven
 
 const browser = await chromium.launch();

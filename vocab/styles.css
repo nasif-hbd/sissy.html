@@ -527,6 +527,58 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 }
 .translation[dir="rtl"] { text-align: right; }
 
+/* ── plain-language helpers ─────────────────────────────────────────────── */
+.lead { font-size: 17px; line-height: 1.45; }
+.helper {
+  font-size: 12.5px; line-height: 1.45; color: var(--ink-3);
+  padding: 2px 0;
+}
+
+/* ── a module opened: its sets of ten ───────────────────────────────────── */
+.sets { display: flex; flex-direction: column; gap: 8px; }
+.set {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 15px; cursor: pointer; text-align: left; width: 100%;
+  background: var(--card); border: 1px solid var(--edge); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm); font-family: inherit;
+}
+.set__num {
+  display: grid; place-items: center; flex: none;
+  width: 34px; height: 34px; border-radius: 50%;
+  background: var(--paper-sunk); color: var(--ink-2);
+  font-family: var(--sans); font-size: 13px; font-weight: 600;
+}
+.set.is-passed .set__num { background: var(--ok-soft); color: var(--ok); }
+.set.is-current .set__num { background: var(--accent); color: var(--accent-ink); }
+.set__body { flex: 1; min-width: 0; }
+.set__title { font-family: var(--sans); font-size: 14.5px; font-weight: 600; }
+.set__words { font-size: 12.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.set__score {
+  font-family: var(--sans); font-size: 13px; font-weight: 600;
+  font-variant-numeric: tabular-nums; color: var(--ink-3);
+}
+.set.is-passed .set__score { color: var(--ok); }
+
+/* ── a set being studied ────────────────────────────────────────────────── */
+.lesson__bar { display: flex; align-items: center; gap: 11px; }
+.lesson__meter { flex: 1; height: 6px; border-radius: 999px; background: var(--paper-sunk); overflow: hidden; }
+.lesson__meter i { display: block; height: 100%; border-radius: 999px; background: var(--accent); transition: width .3s ease; }
+.lesson__count {
+  font-family: var(--sans); font-size: 12px; font-weight: 600;
+  color: var(--ink-3); font-variant-numeric: tabular-nums;
+}
+
+.result__score {
+  font-family: var(--sans); font-size: 46px; font-weight: 600;
+  letter-spacing: -.03em; line-height: 1.1; color: var(--accent);
+}
+.result__line { font-size: 16px; margin-top: 2px; }
+.result__xp {
+  display: inline-block; margin: 12px 0 4px; padding: 6px 13px;
+  border-radius: 999px; background: var(--accent-soft); color: var(--accent);
+  font-family: var(--sans); font-size: 14px; font-weight: 600;
+}
+
 /* ── leaderboard ────────────────────────────────────────────────────────── */
 .board { display: flex; flex-direction: column; }
 .board__row {

@@ -14,6 +14,8 @@
 <body>
 
 <svg class="sprite" aria-hidden="true" hidden>
+    <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.5 10.5L12 4l8.5 6.5"/><path d="M5.5 9.5V20h13V9.5"/><path d="M9.5 20v-6h5v6"/></symbol>
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5.5L8 12l6.5 6.5"/></symbol>
     <symbol id="i-study" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14"/><path d="M7 10h8M7 13.5h5"/></symbol>
     <symbol id="i-drill" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.5"/><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-index" viewBox="0 0 24 24"><path d="M4 6.5h1.5M4 12h1.5M4 17.5h1.5M8.5 6.5H20M8.5 12H20M8.5 17.5h7.5"/></symbol>
@@ -46,7 +48,7 @@
       <span class="brand__mark">Lx</span>
       <div>
         <h1 class="brand__name">Lexio</h1>
-        <p class="brand__sub" id="brandSub">A pocket lexicon</p>
+        <p class="brand__sub" id="brandSub">Learn English words</p>
       </div>
     </div>
     <div class="topbar__meta">
@@ -64,9 +66,45 @@
 
   <main class="views" id="views">
 
-    <!-- ───────────────────────── Learn ───────────────────────── -->
-    <section class="view" id="view-learn" data-view="learn">
+    <!-- ───────────────────────── Home ───────────────────────── -->
+    <section class="view" id="view-home" data-view="home">
       <div class="stack">
+        <div class="card">
+          <h3 class="card__title">Today</h3>
+          <p class="lead" id="homeToday">Nothing done yet today.</p>
+          <div class="module__meter"><i id="homeGoalFill"></i></div>
+          <p class="hint" id="homeGoalHint"></p>
+          <button class="btn btn--primary btn--wide" id="homeStart">Start learning</button>
+          <div class="row">
+            <button class="btn btn--quiet" id="homePractice"><svg class="ico" aria-hidden="true"><use href="#i-drill"/></svg>Practise</button>
+            <button class="btn btn--quiet" id="homeModules">Browse modules</button>
+          </div>
+        </div>
+
+        <div class="card" id="homeContinueCard" hidden>
+          <h3 class="card__title">Carry on where you left off</h3>
+          <p class="hint" id="homeContinueText"></p>
+          <button class="btn btn--primary btn--wide" id="homeContinue">Continue</button>
+        </div>
+
+        <div class="tiles">
+          <div class="tile"><span class="tile__label">This week</span><b class="tile__value" id="homeWeek">0</b><span class="tile__foot" id="homeWeekFoot">reviews</span></div>
+          <div class="tile"><span class="tile__label">This month</span><b class="tile__value" id="homeMonth">0</b><span class="tile__foot" id="homeMonthFoot">reviews</span></div>
+          <div class="tile"><span class="tile__label">Streak</span><b class="tile__value" id="homeStreak">0</b><span class="tile__foot" id="homeStreakFoot">days in a row</span></div>
+          <div class="tile"><span class="tile__label">Words learned</span><b class="tile__value" id="homeLearned">0</b><span class="tile__foot" id="homeLearnedFoot">so far</span></div>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title">Last 7 days</h3>
+          <div class="bars" id="homeBars"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───────────────────────── Learn ───────────────────────── -->
+    <section class="view" id="view-learn" data-view="learn" hidden>
+      <div class="stack">
+        <p class="helper">Due = ready now · New = not seen yet · Learning = still settling in</p>
         <div class="queue-summary" id="queueSummary">
           <div class="queue-summary__item"><b id="qDue">0</b><span>due</span></div>
           <div class="queue-summary__item"><b id="qNew">0</b><span>new</span></div>
@@ -94,7 +132,7 @@
               <p id="cardMnemonic"></p>
             </div>
             <div class="ai-slot" id="aiSlot" hidden>
-              <div class="ai-slot__head"><span class="pill pill--ai">†</span><span id="aiSlotTitle">Marginalia</span></div>
+              <div class="ai-slot__head"><span class="pill pill--ai">†</span><span id="aiSlotTitle">AI note</span></div>
               <div class="ai-slot__body" id="aiSlotBody"></div>
             </div>
           </div>
@@ -110,8 +148,8 @@
           </div>
 
           <div class="card__tools" id="cardTools" hidden>
-            <button class="btn btn--quiet btn--sm" id="explainBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-pen"/></svg>Gloss it</button>
-            <button class="btn btn--quiet btn--sm" id="moreExamplesBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg>More usage</button>
+            <button class="btn btn--quiet btn--sm" id="explainBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-pen"/></svg>Explain simply</button>
+            <button class="btn btn--quiet btn--sm" id="moreExamplesBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg>More examples</button>
             <button class="btn btn--quiet btn--sm" id="burySkipBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-skip"/></svg>Skip</button>
           </div>
         </div>
@@ -150,11 +188,11 @@
         </div>
 
         <div class="card" id="coachCard" hidden>
-          <p class="prompt">Compose a sentence using <b id="coachWord">—</b>.</p>
+          <p class="prompt">Write a sentence using <b id="coachWord">—</b>.</p>
           <textarea class="input input--area" id="coachInput" rows="3" placeholder="Your sentence…"></textarea>
           <div class="row">
-            <button class="btn btn--primary" id="coachSubmit" type="button"><svg class="ico" aria-hidden="true"><use href="#i-pen"/></svg>Have it marked</button>
-            <button class="btn btn--quiet" id="coachNew" type="button">Another entry</button>
+            <button class="btn btn--primary" id="coachSubmit" type="button"><svg class="ico" aria-hidden="true"><use href="#i-pen"/></svg>Check my sentence</button>
+            <button class="btn btn--quiet" id="coachNew" type="button">Another word</button>
           </div>
           <div class="ai-stream" id="coachOutput" hidden></div>
         </div>
@@ -165,11 +203,75 @@
     <section class="view" id="view-modules" data-view="modules" hidden>
       <div class="stack">
         <div class="card card--tight">
-          <h3 class="card__title">Study modules</h3>
-          <p class="hint">Ready-made sets drawn from a 95,000-word dictionary. Add one and its
-             words join your deck, scheduled like everything else.</p>
+          <h3 class="card__title">Word modules</h3>
+          <p class="hint">Pick a subject, open it, and learn ten words at a time. Each set ends in a
+             short exam that earns you XP.</p>
         </div>
         <div class="modules" id="moduleList"></div>
+      </div>
+    </section>
+
+    <!-- ─────────────────── One module, opened ─────────────────── -->
+    <section class="view" id="view-module" data-view="module" hidden>
+      <div class="stack">
+        <button class="btn btn--quiet btn--sm" id="moduleBack"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg>All modules</button>
+        <div class="card">
+          <h3 class="card__title" id="moduleTitle">Module</h3>
+          <p class="hint" id="moduleBlurb"></p>
+          <div class="module__meter"><i id="moduleFill"></i></div>
+          <p class="hint" id="moduleProgress"></p>
+        </div>
+        <p class="board__head">Sets of ten words</p>
+        <div class="sets" id="moduleSets"></div>
+      </div>
+    </section>
+
+    <!-- ─────────────────── A set being studied ─────────────────── -->
+    <section class="view" id="view-lesson" data-view="lesson" hidden>
+      <div class="stack">
+        <div class="lesson__bar">
+          <button class="btn btn--quiet btn--sm" id="lessonQuit">Quit</button>
+          <div class="lesson__meter"><i id="lessonFill"></i></div>
+          <span class="lesson__count" id="lessonCount"></span>
+        </div>
+
+        <div class="card card--flash" id="lessonCard" hidden>
+          <span class="pill" id="lessonStage">Learn the word</span>
+          <p class="term" id="lessonTerm">—</p>
+          <p class="phonetic" id="lessonPos"></p>
+          <div id="lessonBack" hidden>
+            <p class="definition" id="lessonDef"></p>
+            <p class="translation" id="lessonTr" hidden></p>
+            <ul class="examples" id="lessonExamples"></ul>
+          </div>
+          <div class="card__actions">
+            <button class="btn btn--primary btn--wide" id="lessonShow">Show the meaning</button>
+            <button class="btn btn--primary btn--wide" id="lessonNext" hidden>Next word</button>
+          </div>
+        </div>
+
+        <div class="card" id="lessonExam" hidden>
+          <span class="pill pill--ghost" id="examKind">Meaning</span>
+          <p class="prompt" id="examPrompt"></p>
+          <div class="options" id="examOptions"></div>
+          <p class="feedback" id="examFeedback" hidden></p>
+          <button class="btn btn--primary btn--wide" id="examNext" hidden>Next question</button>
+        </div>
+
+        <div class="card" id="lessonResult" hidden>
+          <p class="result__score" id="resultScore">0%</p>
+          <p class="result__line" id="resultLine"></p>
+          <p class="result__xp" id="resultXp"></p>
+          <div id="resultWrongBox" hidden>
+            <p class="board__head">Worth another look</p>
+            <div class="chips" id="resultWrong"></div>
+          </div>
+          <div class="row">
+            <button class="btn btn--primary" id="resultNextSet">Next set</button>
+            <button class="btn btn--quiet" id="resultRetry">Try again</button>
+            <button class="btn btn--quiet" id="resultDone">Done</button>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -178,19 +280,19 @@
       <div class="stack">
         <div class="card card--tight">
           <div class="row">
-            <input class="input" id="addWordInput" type="text" placeholder="Set an entry, e.g. “resilient”" autocomplete="off">
+            <input class="input" id="addWordInput" type="text" placeholder="Add a word, e.g. “resilient”" autocomplete="off">
             <button class="btn btn--primary" id="addWordBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg>Add</button>
           </div>
           <label class="check">
             <input type="checkbox" id="addWithAI" checked>
-            <span>Let Claude set the entry — definition, usage and a memory hook</span>
+            <span>Let AI fill in the meaning, examples and a memory hint</span>
           </label>
           <p class="hint" id="addWordHint"></p>
         </div>
 
         <div class="card card--tight">
           <div class="row">
-            <label class="input-icon"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-search"/></svg><input class="input" id="wordSearch" type="search" placeholder="Search the index…" autocomplete="off"></label>
+            <label class="input-icon"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-search"/></svg><input class="input" id="wordSearch" type="search" placeholder="Search your words…" autocomplete="off"></label>
             <select class="input input--select" id="wordFilter">
               <option value="all">All</option>
               <option value="new">New</option>
@@ -205,10 +307,10 @@
         <div class="wordlist" id="wordList"></div>
 
         <div class="card card--tight">
-          <h3 class="card__title">Suggested entries</h3>
-          <p class="hint">Claude reads your level and the gaps in your deck, then proposes what to set next.</p>
+          <h3 class="card__title">Suggested words</h3>
+          <p class="hint">AI suggests words that suit your level and fill the gaps.</p>
           <div class="chips" id="suggestions"></div>
-          <button class="btn btn--quiet btn--sm" id="suggestBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-compass"/></svg><span id="suggestLabel">Suggest six</span></button>
+          <button class="btn btn--quiet btn--sm" id="suggestBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-compass"/></svg><span id="suggestLabel">Suggest words</span></button>
         </div>
       </div>
     </section>
@@ -234,38 +336,38 @@
 
         <div class="card">
           <h3 class="card__title">Leaderboard</h3>
-          <p class="hint">Where the XP came from, and the days you did best.</p>
+          <p class="hint">Which modules your points came from, and your best days.</p>
           <div class="board" id="boardModules"></div>
           <p class="board__head">Best days</p>
           <div class="board" id="boardDays"></div>
         </div>
 
         <div class="card">
-          <h3 class="card__title">Days at the desk</h3>
+          <h3 class="card__title">Daily activity</h3>
           <div class="heatmap" id="heatmap" aria-label="Review activity over the last 12 weeks"></div>
           <div class="heatmap__legend"><span>less</span><i data-l="0"></i><i data-l="1"></i><i data-l="2"></i><i data-l="3"></i><i data-l="4"></i><span>more</span></div>
         </div>
 
         <div class="card">
-          <h3 class="card__title">A fortnight</h3>
+          <h3 class="card__title">Last 14 days</h3>
           <div class="bars" id="bars"></div>
         </div>
 
         <div class="card">
-          <h3 class="card__title">State of the deck</h3>
+          <h3 class="card__title">Your words</h3>
           <div class="mastery" id="mastery"></div>
           <div class="legend" id="masteryLegend"></div>
         </div>
 
         <div class="card">
-          <h3 class="card__title">What returns</h3>
-          <p class="hint">Cards scheduled to come back over the next 7 days.</p>
+          <h3 class="card__title">Coming up</h3>
+          <p class="hint">Words due for review over the next 7 days.</p>
           <div class="bars bars--forecast" id="forecast"></div>
         </div>
 
         <div class="card">
           <div class="row row--between">
-            <h3 class="card__title">The week in review</h3>
+            <h3 class="card__title">Weekly summary</h3>
             <button class="btn btn--quiet btn--sm" id="reportBtn" type="button">Generate</button>
           </div>
           <div class="ai-stream" id="reportOutput" hidden></div>
@@ -323,7 +425,7 @@
             <input class="range" id="goalRange" type="range" min="5" max="120" step="5" value="20">
           </label>
           <label class="field">
-            <span>New entries per day — <b id="newValue">10</b></span>
+            <span>New words per day — <b id="newValue">10</b></span>
             <input class="range" id="newRange" type="range" min="0" max="40" step="1" value="10">
           </label>
           <label class="field">
@@ -361,7 +463,7 @@
         </div>
 
         <div class="card">
-          <h3 class="card__title">Your copy</h3>
+          <h3 class="card__title">Your data</h3>
           <p class="hint">Everything lives in this browser. Export before clearing site data.</p>
           <div class="row">
             <button class="btn btn--quiet" id="exportBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-download"/></svg>Export</button>
@@ -371,18 +473,18 @@
           <input type="file" id="importFile" accept="application/json" hidden>
         </div>
 
-        <p class="footnote">Lexio — app template · set the deck, the palette and the prompts; the rest is wiring</p>
+        <p class="footnote">Lexio — learn English words</p>
       </div>
     </section>
   </main>
 
   <nav class="tabbar" id="tabbar">
-    <button class="tab is-active" data-tab="learn"><svg class="ico" aria-hidden="true"><use href="#i-study"/></svg><span class="tab__label">Study</span></button>
-    <button class="tab" data-tab="practice"><svg class="ico" aria-hidden="true"><use href="#i-drill"/></svg><span class="tab__label">Drill</span></button>
+    <button class="tab is-active" data-tab="home"><svg class="ico" aria-hidden="true"><use href="#i-home"/></svg><span class="tab__label">Home</span></button>
+    <button class="tab" data-tab="learn"><svg class="ico" aria-hidden="true"><use href="#i-study"/></svg><span class="tab__label">Learn</span></button>
     <button class="tab" data-tab="modules"><svg class="ico" aria-hidden="true"><use href="#i-modules"/></svg><span class="tab__label">Modules</span></button>
-    <button class="tab" data-tab="words"><svg class="ico" aria-hidden="true"><use href="#i-index"/></svg><span class="tab__label">Index</span></button>
-    <button class="tab" data-tab="progress"><svg class="ico" aria-hidden="true"><use href="#i-ledger"/></svg><span class="tab__label">Ledger</span></button>
-    <button class="tab" data-tab="settings"><svg class="ico" aria-hidden="true"><use href="#i-setup"/></svg><span class="tab__label">Setup</span></button>
+    <button class="tab" data-tab="words"><svg class="ico" aria-hidden="true"><use href="#i-index"/></svg><span class="tab__label">Words</span></button>
+    <button class="tab" data-tab="progress"><svg class="ico" aria-hidden="true"><use href="#i-ledger"/></svg><span class="tab__label">Progress</span></button>
+    <button class="tab" data-tab="settings"><svg class="ico" aria-hidden="true"><use href="#i-setup"/></svg><span class="tab__label">Settings</span></button>
   </nav>
 
   <div class="toasts" id="toasts" aria-live="polite"></div>

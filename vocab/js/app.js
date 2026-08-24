@@ -8,18 +8,20 @@
  *   ai.js     Claude calls     ui.js     rendering
  */
 import { APP, AI as AICFG, THEMES } from './config.js';
-import { Store, refreshStreak, makeSrs, dayKey } from './store.js';
-import { schedule, buildQueue, bucket } from './srs.js';
-import { makeSessionTimer, reportPayload, weakest, summary } from './stats.js';
+import { Store, refreshStreak, makeSrs, dayKey, daysAgoKey } from './store.js';
+import { schedule, buildQueue, bucket, queueCounts } from './srs.js';
+import { makeSessionTimer, reportPayload, weakest, summary, window as windowStats, recentDays } from './stats.js';
 import { Notifier, Push } from './notify.js';
 import { AIClient } from './ai.js';
 import {
   $, $$, el, icon, toast, applyTheme, switchView, renderHeader, renderQueueSummary,
   renderCard, renderEmptyQueue, renderWordList, renderProgress, renderSuggestions,
-  renderModules, renderXp, practicePool,
+  renderModules, renderModuleDetail, renderHome, renderXp, practicePool,
 } from './ui.js';
 import { Catalog } from './catalog.js';
 import { AWARDS, award, claimDailyBonuses, standing, moduleStandings, bestDays } from './xp.js';
+import { chunk } from './exam.js';
+import { configureLesson, wireLesson, startLesson, setResults, currentLesson, SET_WORDS } from './lesson.js';
 import { Translate, LANGUAGES } from './translate.js';
 
 // ── session state ──────────────────────────────────────────────────────────
@@ -35,6 +37,9 @@ const session = {
   coachWordId: null,
   wordQuery: '',
   wordFilter: 'all',
+  module: null,      // the module currently open
+  sets: [],
+  continueSet: null,
 };
 
 const timer = makeSessionTimer((seconds) => Store.bumpDay({ seconds }));
@@ -51,7 +56,14 @@ async function boot() {
   wireTabs();
   wireLearn();
   wirePractice();
+  wireHome();
   wireModules();
+  wireLesson();
+  configureLesson({
+    onDone: () => { openModule(session.module) || switchView('modules'); render(); },
+    onNextSet: (module, index) => startSet(module, index),
+    onFinished: () => { render(); loadModules(); },
+  });
   wireWords();
   wireProgress();
   wireSettings();
@@ -64,6 +76,7 @@ async function boot() {
 
   const startView = location.hash.replace('#', '');
   if ($$('.tab').some((t) => t.dataset.tab === startView)) switchView(startView);
+  else switchView('home');
 
   await Notifier.registerServiceWorker();
   if (Store.state.settings.reminders.enabled) Notifier.start();
@@ -86,7 +99,7 @@ async function boot() {
 
   // Exposed deliberately: handy in the console, and the hook the browser tests
   // use to reach internals. Drop this line if you'd rather keep it sealed.
-  window.Lexio = { Store, Notifier, Push, AIClient, session, render };
+  window.Lexio = { Store, Notifier, Push, AIClient, session, render, lesson: currentLesson };
 
   console.info(`${APP.name} ready — ${Object.keys(Store.state.words).length} words in deck.`);
 }
@@ -139,6 +152,7 @@ function render() {
   refreshWordList();
   renderProgress(state);
   drawXp(state);
+  drawHome(state);
 }
 
 /** The level card and the leaderboard live in the Ledger view. */
@@ -166,6 +180,7 @@ function wireTabs() {
       if (tab.dataset.tab === 'progress') { renderProgress(Store.state); drawXp(Store.state); }
       if (tab.dataset.tab === 'practice') ensurePracticeSeed();
       if (tab.dataset.tab === 'modules') loadModules();
+      if (tab.dataset.tab === 'home') drawHome(Store.state);
     });
   }
   $('#themeToggle').addEventListener('click', () => {
@@ -518,9 +533,58 @@ function wireWords() {
   $('#suggestBtn').addEventListener('click', suggestWords);
 }
 
+// ── home ───────────────────────────────────────────────────────────────────
+function wireHome() {
+  $('#homeStart').addEventListener('click', () => { switchView('learn'); nextCard(); });
+  $('#homePractice').addEventListener('click', () => { switchView('practice'); ensurePracticeSeed(); });
+  $('#homeModules').addEventListener('click', () => { switchView('modules'); loadModules(); });
+  $('#homeContinue').addEventListener('click', () => {
+    const next = session.continueSet;
+    if (next) startSet(next.module, next.index);
+  });
+}
+
+/** Today first, then the week and the month — the tracking the home screen is for. */
+function drawHome(state) {
+  const s = summary(state);
+  const goal = state.settings.dailyGoal;
+  const doneToday = s.today.reviews;
+  const xpToday = state.xp?.byDay?.[dayKey()] || 0;
+  const week = windowStats(state, 7);
+  const month = windowStats(state, 30);
+  const counts = queueCounts(state);
+  const waiting = counts.due + counts.learning;
+
+  renderHome({
+    todayLine: doneToday
+      ? `${doneToday} review${doneToday === 1 ? '' : 's'} done today · ${xpToday} XP`
+      : 'Nothing done yet today.',
+    goalPct: goal ? Math.min(1, doneToday / goal) : 0,
+    goalHint: doneToday >= goal
+      ? 'Daily goal reached. Anything more is a bonus.'
+      : `${goal - doneToday} more to reach today's goal of ${goal}.`,
+    startLabel: waiting ? `Review ${waiting} word${waiting === 1 ? '' : 's'}` : 'Start learning',
+    week: { reviews: week.reviews, xp: xpInWindow(state, 7) },
+    month: { reviews: month.reviews, xp: xpInWindow(state, 30) },
+    streak: state.streak.current || 0,
+    learned: s.known,
+    total: s.total,
+    days: recentDays(state, 7),
+    continue: session.continueSet
+      ? { text: `${session.continueSet.module.title} — set ${session.continueSet.index + 1} of ${session.continueSet.total}` }
+      : null,
+  });
+}
+
+function xpInWindow(state, days) {
+  let total = 0;
+  for (let i = 0; i < days; i += 1) total += state.xp?.byDay?.[daysAgoKey(i)] || 0;
+  return total;
+}
+
 // ── modules ────────────────────────────────────────────────────────────────
 function wireModules() {
-  // nothing to bind up front: the list is built the first time the tab opens
+  $('#moduleBack').addEventListener('click', () => { switchView('modules'); loadModules(); });
 }
 
 /** Fetch the manifest, then each pack only to count what is already in the deck. */
@@ -533,12 +597,75 @@ async function loadModules() {
     moduleManifest = manifest;
     const rows = await Promise.all(manifest.map(async (m) => {
       const pack = await Catalog.pack(m.id);
-      return { ...m, have: Catalog.progress(pack, Store.state) };
+      const sets = chunk(pack.words, SET_WORDS);
+      const results = setResults(m.id);
+      return {
+        ...m,
+        sets: sets.length,
+        setsDone: sets.filter((_, i) => results[i]?.passed).length,
+      };
     }));
-    renderModules(rows, { onAdd: addFromModule });
+    renderModules(rows, { onOpen: openModule });
+    rememberContinue(rows);
   } catch (err) {
     node.replaceChildren(el('p', { class: 'hint', text: `Could not load the modules: ${err.message}` }));
   }
+}
+
+/** Open one module and show its sets. */
+async function openModule(module) {
+  if (!module) return false;
+  const entry = moduleManifest.find((m) => m.id === module.id) || module;
+  const pack = await Catalog.pack(entry.id);
+  const sets = chunk(pack.words.map(toWordRecord(entry.id)), SET_WORDS);
+  session.module = entry;
+  session.sets = sets;
+  renderModuleDetail({ ...entry, count: pack.words.length }, sets, setResults(entry.id), {
+    onStart: (index) => startSet(entry, index),
+  });
+  switchView('module');
+  return true;
+}
+
+/** Study set `index` of a module: its ten words, then the exam. */
+async function startSet(module, index) {
+  const pack = await Catalog.pack(module.id);
+  const words = chunk(pack.words.map(toWordRecord(module.id)), SET_WORDS);
+  if (index >= words.length) { openModule(module); return; }
+  const pool = pack.words.slice(0, 60).map(toWordRecord(module.id));
+  startLesson(module, index, words[index], pool);
+}
+
+/** Dataset entry → the word shape the rest of the app uses. */
+const toWordRecord = (moduleId) => (entry) => ({
+  id: entry.w,
+  term: entry.w,
+  phonetic: '',
+  pos: entry.p || '',
+  definition: entry.d || '',
+  examples: entry.e || [],
+  synonyms: entry.s || [],
+  antonyms: [],
+  mnemonic: '',
+  tags: [moduleId],
+  level: { Easy: 'A2', Moderate: 'B1', Advanced: 'B2', 'God Level': 'C2' }[entry.x] || '',
+  tr: { bn: entry.bn || '', hi: entry.hi || '', 'zh-CN': entry.zh || '' },
+  source: `module:${moduleId}`,
+  module: moduleId,
+});
+
+/** The first unfinished set, for the home screen's Continue button. */
+function rememberContinue(rows) {
+  for (const row of rows) {
+    const results = setResults(row.id);
+    if (!row.setsDone && !Object.keys(results).length) continue;
+    const next = Array.from({ length: row.sets }, (_, i) => i).find((i) => !results[i]?.passed);
+    if (next !== undefined) {
+      session.continueSet = { module: row, index: next, total: row.sets };
+      return;
+    }
+  }
+  session.continueSet = null;
 }
 
 /** Add the next `count` unlearned words of a module to the deck. */

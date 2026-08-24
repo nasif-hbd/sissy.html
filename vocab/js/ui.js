@@ -68,7 +68,7 @@ export function renderHeader(state) {
   const s = summary(state);
   $('#streakCount').textContent = s.streak;
   $('#streakChip').classList.toggle('is-cold', s.streak === 0);
-  $('#brandSub').textContent = `${s.total} entries · ${s.known} held`;
+  $('#brandSub').textContent = `${s.total} words · ${s.known} learned`;
 
   const goal = state.settings.dailyGoal;
   const done = s.today.reviews;
@@ -77,7 +77,7 @@ export function renderHeader(state) {
   fill.style.width = `${pct}%`;
   fill.classList.toggle('is-done', done >= goal);
   $('#goalLabel').textContent = done >= goal
-    ? `Day's quota met · ${done} reviews`
+    ? `Daily goal reached — ${done} reviews`
     : `${done} of ${goal} reviews today`;
 }
 
@@ -103,7 +103,7 @@ export function renderCard(word, rec, { revealed = false } = {}) {
   $('#cardTerm').textContent = word.term;
   $('#cardPhonetic').textContent = word.phonetic || '';
 
-  $('#cardDefinition').textContent = word.definition || 'No definition yet — tap “Gloss it” for one.';
+  $('#cardDefinition').textContent = word.definition || 'No definition yet — tap “Explain simply” for one.';
   $('#cardTranslation').hidden = true;   // filled in asynchronously by app.js
 
   const examples = $('#cardExamples');
@@ -138,10 +138,10 @@ export function renderEmptyQueue(state) {
   const c = queueCounts(state);
   const total = Object.keys(state.words).length;
   $('#learnEmptyText').textContent = total === 0
-    ? 'The deck is empty. Set your first entry from the Index.'
+    ? 'No words yet. Open Modules and start a set, or add a word from the Words tab.'
     : c.new > 0
-      ? `Nothing is due. ${c.new} unread entr${c.new === 1 ? 'y is' : 'ies are'} waiting whenever you want them.`
-      : 'Nothing is due. Read ahead, drill what you know, or come back when we call for you.';
+      ? `Nothing to review right now. ${c.new} new word${c.new === 1 ? ' is' : 's are'} ready whenever you want them.`
+      : 'Nothing to review right now. Come back later — we will remind you.';
 }
 
 /** Bold the target word inside an example sentence. */
@@ -175,7 +175,7 @@ export function renderWordList(state, { query = '', filter = 'all' }, handlers =
     .sort((a, b) => (state.srs[a.id]?.due || 0) - (state.srs[b.id]?.due || 0));
 
   if (!rows.length) {
-    list.replaceChildren(el('p', { class: 'hint', text: 'No entries match this filter.' }));
+    list.replaceChildren(el('p', { class: 'hint', text: 'No words match this filter.' }));
     return;
   }
 
@@ -203,7 +203,7 @@ export function renderProgress(state) {
   $('#tStreak').textContent = s.streak;
   $('#tStreakFoot').textContent = `best ${s.longest}`;
   $('#tKnown').textContent = s.known;
-  $('#tKnownFoot').textContent = `of ${s.total} entries`;
+  $('#tKnownFoot').textContent = `of ${s.total} words`;
   $('#tAccuracy').textContent = s.accuracy7 == null ? '—' : `${Math.round(s.accuracy7 * 100)}%`;
   $('#tReviews').textContent = s.reviews7;
   $('#tReviewsFoot').textContent = `≈${s.perDay}/day · ${s.minutes7} min`;
@@ -268,27 +268,70 @@ export function renderModules(list, handlers = {}) {
     return;
   }
   node.replaceChildren(...list.map((m) => {
-    const pct = m.count ? Math.round((m.have / m.count) * 100) : 0;
-    return el('div', { class: 'module' },
+    const pct = m.sets ? Math.round((m.setsDone / m.sets) * 100) : 0;
+    return el('button', { class: 'module', type: 'button', onclick: () => handlers.onOpen?.(m) },
       el('div', { class: 'module__head' },
         el('h3', { class: 'module__title', text: m.title }),
         el('span', { class: 'pill pill--ghost', text: m.level || '' })),
       el('p', { class: 'module__blurb', text: m.blurb }),
       el('div', { class: 'module__meter' }, el('i', { style: `width:${pct}%` })),
       el('div', { class: 'module__foot' },
-        el('span', { class: 'module__count', text: `${m.have} of ${m.count} added` }),
-        el('div', { class: 'row' },
-          el('button', {
-            class: 'btn btn--quiet btn--sm',
-            disabled: m.have >= m.count,
-            onclick: () => handlers.onAdd?.(m, 25),
-          }, icon('plus'), 'Add 25'),
-          el('button', {
-            class: 'btn btn--primary btn--sm',
-            disabled: m.have >= m.count,
-            onclick: () => handlers.onAdd?.(m, Infinity),
-          }, `Add all`))));
+        el('span', { class: 'module__count', text: `${m.setsDone} of ${m.sets} sets done` }),
+        el('span', { class: 'module__count', text: `${m.count} words` })));
   }));
+}
+
+/** One module opened: its sets of ten, in order, with the marks so far. */
+export function renderModuleDetail(module, sets, results, handlers = {}) {
+  $('#moduleTitle').textContent = module.title;
+  $('#moduleBlurb').textContent = module.blurb;
+
+  const done = sets.filter((_, i) => results[i]?.passed).length;
+  $('#moduleFill').style.width = `${Math.round((done / Math.max(1, sets.length)) * 100)}%`;
+  $('#moduleProgress').textContent = `${done} of ${sets.length} sets passed · ${module.count} words in total`;
+
+  const firstUnfinished = sets.findIndex((_, i) => !results[i]?.passed);
+  $('#moduleSets').replaceChildren(...sets.map((words, i) => {
+    const result = results[i];
+    const classes = ['set',
+      result?.passed ? 'is-passed' : '',
+      i === firstUnfinished ? 'is-current' : ''].filter(Boolean).join(' ');
+    return el('button', { class: classes, type: 'button', onclick: () => handlers.onStart?.(i) },
+      el('span', { class: 'set__num', text: String(i + 1) }),
+      el('div', { class: 'set__body' },
+        el('div', { class: 'set__title', text: `Set ${i + 1}` }),
+        el('div', { class: 'set__words', text: words.slice(0, 4).map((w) => w.term).join(', ') + '…' })),
+      el('span', { class: 'set__score', text: result ? `${result.best}%` : `${words.length} words` }));
+  }));
+}
+
+/** The home screen: today, then the wider picture. */
+export function renderHome(data) {
+  $('#homeToday').textContent = data.todayLine;
+  $('#homeGoalFill').style.width = `${Math.round(data.goalPct * 100)}%`;
+  $('#homeGoalHint').textContent = data.goalHint;
+  $('#homeStart').textContent = data.startLabel;
+
+  $('#homeWeek').textContent = data.week.reviews;
+  $('#homeWeekFoot').textContent = `reviews · ${data.week.xp} XP`;
+  $('#homeMonth').textContent = data.month.reviews;
+  $('#homeMonthFoot').textContent = `reviews · ${data.month.xp} XP`;
+  $('#homeStreak').textContent = data.streak;
+  $('#homeStreakFoot').textContent = data.streak === 1 ? 'day in a row' : 'days in a row';
+  $('#homeLearned').textContent = data.learned;
+  $('#homeLearnedFoot').textContent = `of ${data.total} words`;
+
+  const peak = Math.max(1, ...data.days.map((d) => d.reviews));
+  $('#homeBars').replaceChildren(...data.days.map((d) =>
+    el('div', { class: 'bar', title: `${d.key}: ${d.reviews} reviews` },
+      el('i', {
+        class: d.reviews ? '' : 'is-empty',
+        style: `height:${d.reviews ? Math.max(6, (d.reviews / peak) * 100) : 3}%`,
+      }),
+      el('span', { text: d.label }))));
+
+  $('#homeContinueCard').hidden = !data.continue;
+  if (data.continue) $('#homeContinueText').textContent = data.continue.text;
 }
 
 /** The level card and the two boards under it. */
@@ -313,7 +356,7 @@ export function renderXp(standing, modules, days, totalXp) {
         el('span', { class: 'board__xp', text: `${item.xp.toLocaleString()} XP` }))));
   };
 
-  rows($('#boardModules'), modules, 'Add a module and its XP will show up here.');
+  rows($('#boardModules'), modules, 'Finish a set and its points will show up here.');
   rows($('#boardDays'), days, 'Review some words and your best days will appear.');
 }
 

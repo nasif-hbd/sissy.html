@@ -22,6 +22,8 @@ vocab/
 │   ├── app.js          controller — wires DOM to the modules below
 │   ├── catalog.js      module packs + dictionary lookup (lazy)
 │   ├── xp.js           the points economy, levels and rankings
+│   ├── exam.js         question generation and marking
+│   ├── lesson.js       one set of ten: cards, then the exam
 │   ├── translate.js    six languages, dataset-first
 │   ├── config.js       every tunable constant lives here
 │   ├── store.js        persistence, schema, import/export
@@ -138,6 +140,38 @@ npx playwright install chromium
 python3 -m http.server 8000          # serving vocab/
 node tests/devices.mjs http://localhost:8000
 ```
+
+## How it works
+
+Six tabs, named for what they do: **Home, Learn, Modules, Words, Progress,
+Settings**. Practice sits behind a button on Home rather than taking a tab of
+its own.
+
+**Home** answers "what should I do now?" — today's reviews against the goal, a
+Continue button for the set you were part-way through, then this week, this
+month, the streak and the last seven days.
+
+**Modules → a module → a set of ten** is the main path. Opening a module lists
+its sets; opening a set walks the ten words one card at a time, then examines
+you on them:
+
+| Question | What it asks |
+|---|---|
+| **What it means** | the word is shown, pick the meaning |
+| **Which word** | the meaning is shown, pick the word |
+| **Fill the gap** | a real sentence with the word blanked out |
+
+Everything is generated from the words themselves — no network, no AI — so
+exams work offline and always cover the set you just studied. Wrong answers are
+drawn from the same set first, which makes the test harder and fairer than
+random unrelated words. *Fill the gap* needs a real example sentence, and only
+429 words in the source data carry one, so most sets are examined on meaning and
+recall.
+
+Passing is 70%. Marks pay **10 XP per correct answer, +25 for a pass, +50 for
+100%**, and the set's words join your review deck so spaced repetition takes
+over. Exam answers count as reviews, so the daily goal, the activity chart and
+the streak all move while you work through a module.
 
 ## Vocabulary
 
@@ -355,7 +389,7 @@ sample text so nobody mistakes it for a real definition.
 ## Testing
 
 ```bash
-cd vocab && node --test            # scheduler, tracking, design system, XP: 32 tests, no deps
+cd vocab && node --test            # scheduler, tracking, design, XP, exams: 45 tests, no deps
 cd server && npm run smoke         # every proxy route against a live server
 ```
 
