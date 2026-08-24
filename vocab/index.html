@@ -224,6 +224,23 @@
         </div>
 
         <div class="card">
+          <div class="row row--between">
+            <h3 class="card__title">Level <span id="xpLevel">1</span> · <span id="xpTitle">Beginner</span></h3>
+            <span class="pill" id="xpTotal">0 XP</span>
+          </div>
+          <div class="module__meter"><i id="xpFill"></i></div>
+          <p class="hint" id="xpNext">100 XP to the next level</p>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title">Leaderboard</h3>
+          <p class="hint">Where the XP came from, and the days you did best.</p>
+          <div class="board" id="boardModules"></div>
+          <p class="board__head">Best days</p>
+          <div class="board" id="boardDays"></div>
+        </div>
+
+        <div class="card">
           <h3 class="card__title">Days at the desk</h3>
           <div class="heatmap" id="heatmap" aria-label="Review activity over the last 12 weeks"></div>
           <div class="heatmap__legend"><span>less</span><i data-l="0"></i><i data-l="1"></i><i data-l="2"></i><i data-l="3"></i><i data-l="4"></i><span>more</span></div>

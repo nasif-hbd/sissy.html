@@ -527,6 +527,33 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 }
 .translation[dir="rtl"] { text-align: right; }
 
+/* ── leaderboard ────────────────────────────────────────────────────────── */
+.board { display: flex; flex-direction: column; }
+.board__row {
+  display: flex; align-items: center; gap: 11px;
+  padding: 10px 2px; border-bottom: 1px solid var(--rule);
+}
+.board__row:last-child { border-bottom: 0; }
+.board__rank {
+  display: grid; place-items: center; flex: none;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--paper-sunk); color: var(--ink-3);
+  font-family: var(--sans); font-size: 11.5px; font-weight: 600;
+}
+.board__row:first-child .board__rank { background: var(--accent); color: var(--accent-ink); }
+.board__row:nth-child(2) .board__rank { background: var(--accent-soft); color: var(--accent); }
+.board__name { flex: 1; min-width: 0; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.board__sub { font-size: 12px; color: var(--ink-3); }
+.board__xp {
+  font-family: var(--sans); font-size: 13.5px; font-weight: 600;
+  font-variant-numeric: tabular-nums; color: var(--accent);
+}
+.board__head {
+  font-family: var(--sans); font-size: 11px; font-weight: 600;
+  text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3);
+  margin-top: 6px;
+}
+
 /* ── the rail ───────────────────────────────────────────────────────────── */
 .tabbar {
   position: fixed; left: 0; top: 0; bottom: 0; z-index: 30;

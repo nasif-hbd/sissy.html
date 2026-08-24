@@ -291,6 +291,32 @@ export function renderModules(list, handlers = {}) {
   }));
 }
 
+/** The level card and the two boards under it. */
+export function renderXp(standing, modules, days, totalXp) {
+  $('#xpLevel').textContent = standing.level;
+  $('#xpTitle').textContent = standing.title;
+  $('#xpTotal').textContent = `${totalXp.toLocaleString()} XP`;
+  $('#xpFill').style.width = `${Math.round(standing.pct * 100)}%`;
+  $('#xpNext').textContent = `${standing.need - standing.into} XP to level ${standing.level + 1}`;
+
+  const rows = (node, items, empty) => {
+    if (!items.length) {
+      node.replaceChildren(el('p', { class: 'hint', text: empty }));
+      return;
+    }
+    node.replaceChildren(...items.map((item, i) =>
+      el('div', { class: 'board__row' },
+        el('span', { class: 'board__rank', text: String(i + 1) }),
+        el('div', { class: 'board__name' },
+          item.name,
+          el('div', { class: 'board__sub', text: item.sub })),
+        el('span', { class: 'board__xp', text: `${item.xp.toLocaleString()} XP` }))));
+  };
+
+  rows($('#boardModules'), modules, 'Add a module and its XP will show up here.');
+  rows($('#boardDays'), days, 'Review some words and your best days will appear.');
+}
+
 /** Words to drill in Practice: prefer the ones being got wrong. */
 export function practicePool(state, size = 12) {
   const weak = weakest(state, size).map((w) => state.words[w.id]).filter(Boolean);

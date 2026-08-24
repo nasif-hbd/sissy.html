@@ -21,6 +21,7 @@ vocab/
 ├── js/
 │   ├── app.js          controller — wires DOM to the modules below
 │   ├── catalog.js      module packs + dictionary lookup (lazy)
+│   ├── xp.js           the points economy, levels and rankings
 │   ├── translate.js    six languages, dataset-first
 │   ├── config.js       every tunable constant lives here
 │   ├── store.js        persistence, schema, import/export
@@ -159,9 +160,51 @@ node scripts/build-modules.mjs path/to/word_meanings_dataset.csv
 | **Compounds & Phrases** | B1–C1 | hyphenated and multi-word entries |
 
 Each is 400 words: a **curated core** for the subject — the words that genuinely
-belong on an IELTS or SAT list — topped up from the dataset by a score that
-rewards real synonyms, a usable definition and shipped translations. Nothing is
+belong on an IELTS or SAT list — topped up from the dataset by score. Nothing is
 hand-maintained after generation; re-run the script and the packs rebuild.
+
+### Filtering
+
+The raw data is a scrape, and it shows. Every rule below exists because the
+problem was counted first, and every rule's hits are tallied into
+`data/quality-report.json` so the filtering is auditable rather than a matter
+of trust.
+
+**Repaired** — `(informal)` and `(law)`-style leading labels stripped (3,178),
+`--Hippocrates` citation tails removed (1,005), definitions trimmed on a word
+boundary instead of mid-word (950), backtick quoting normalised (407), `; ; ;`
+runs collapsed (335), and 985 Bangla fields that were actually English
+("touchdown", "Odyssey") dropped for failing a script check.
+
+**Rejected** — 23,114 headwords that aren't plain words, 3,686 with nothing left
+after cleaning, 3,572 taxonomic entries ("any of various shrubs native to…"),
+2,426 circular definitions, 1,062 too short, 497 inflections of a word already
+present, and 199 blocked as crude or explicit — this is a students' app.
+
+**Harvested** — 429 usage examples were hiding after a semicolon inside the
+definition field and are now example sentences on the card.
+
+Two rules took a second pass to get right, and both are worth knowing about:
+
+- *Circular* first meant "the definition mentions the word", which threw away
+  **"validate — declare or make legally valid"**. It now fires only when the
+  headword's lemma appears **and** fewer than three other content words remain —
+  so `exempt — grant exemption or release to` goes and `validate` stays.
+- The **curated seeds bypassed cleaning entirely**, reading from the raw map, so
+  `(informal) small and of little importance` kept reappearing no matter what
+  the rules said. Seeds are looked up in the filtered pool now; 110 of them
+  fail the rules and are dropped.
+
+Audited end to end, module words carrying a defect went from ~950 in 3,200 to
+**0**.
+
+### Frequency without a frequency list
+
+The dataset has no frequency column, but it has a synonym graph: a word that
+many other entries point at as a synonym is a central, ordinary word, and one
+nobody points at is peripheral. That in-degree (median 1, 90th percentile 6, max
+300) is the closest thing the data has to a frequency list, and it is what
+separates *Native & Everyday* from *Elite*.
 
 Two things follow from shipping the whole dictionary:
 
@@ -186,6 +229,31 @@ That endpoint 500s intermittently. Both paths retry three times with a short
 backoff, which took Spanish from roughly two failures in five to **8/8** in
 testing; every request also has a 7-second deadline, so a blocked network hides
 the line instead of leaving an ellipsis on the card.
+
+## XP and the leaderboard
+
+Every action worth repeating pays, with the amounts set so the habit the app is
+trying to build — a short session every day — pays better than one long session
+a week:
+
+| | |
+|---|---|
+| Review, correct / wrong | 10 / 3 — being wrong still pays, the point is to keep the cards turning |
+| A new word graduating | 15 |
+| Quiz / spelling answer | 8 / 12 |
+| A sentence marked by the coach | 20 — writing is the hardest work, so it pays most |
+| Daily goal met | 50, once a day |
+| Streak | 5 × days, capped at 10, once a day |
+
+Levels cost `100 + 60 × (level − 1)` XP each, so the first few come quickly and
+then settle; titles run Beginner → Learner → Reader → Scholar → Linguist →
+Wordsmith → Lexicographer.
+
+The **leaderboard** ranks the two things a single learner can actually compete
+against: which modules their XP is coming from, and their own best days. XP is
+attributed to the module a word came from, so the board shows where the effort
+is really going. It is all on-device — there are no accounts and nothing is
+sent anywhere.
 
 ## The three headline features
 
@@ -287,7 +355,7 @@ sample text so nobody mistakes it for a real definition.
 ## Testing
 
 ```bash
-cd vocab && node --test            # scheduler, tracking + design system: 24 tests, no deps
+cd vocab && node --test            # scheduler, tracking, design system, XP: 32 tests, no deps
 cd server && npm run smoke         # every proxy route against a live server
 ```
 
