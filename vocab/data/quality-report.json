@@ -1,0 +1,62 @@
+{
+  "rows": 95000,
+  "kept": 60444,
+  "rejected": {
+    "definition too short": 1062,
+    "taxonomic entry": 3572,
+    "no definition after cleaning": 3686,
+    "headword not a plain word": 23114,
+    "circular definition": 2426,
+    "blocked term": 43,
+    "blocked in definition": 156,
+    "inflection of a word already present": 497
+  },
+  "repaired": {
+    "leading note stripped": 3196,
+    "citation removed": 1005,
+    "empty semicolon runs": 335,
+    "backtick quotes": 407,
+    "long definition trimmed": 911,
+    "bn: not in script": 985
+  },
+  "harvested": {
+    "example sentence": 429
+  },
+  "seedsDroppedByFilter": 110,
+  "modules": [
+    {
+      "id": "ielts",
+      "count": 400
+    },
+    {
+      "id": "sat",
+      "count": 400
+    },
+    {
+      "id": "admission-bd",
+      "count": 400
+    },
+    {
+      "id": "job",
+      "count": 400
+    },
+    {
+      "id": "native",
+      "count": 400
+    },
+    {
+      "id": "elite",
+      "count": 400
+    },
+    {
+      "id": "science",
+      "count": 400
+    },
+    {
+      "id": "phrasal",
+      "count": 400
+    }
+  ],
+  "dictionary": 95000,
+  "generatedAt": "2026-08-24"
+}

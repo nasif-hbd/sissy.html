@@ -49,58 +49,235 @@ const raw = fs.readFileSync(SRC, 'utf8').replace(/^﻿/, '');
 const [header, ...body] = parseCsv(raw);
 const col = Object.fromEntries(header.map((h, i) => [h.trim(), i]));
 
-const clean = (s) => (s || '').trim();
+const squash = (s) => (s || '').replace(/\s+/g, ' ').trim();
+
+/* ===========================================================================
+   Cleaning
+
+   Every rule below exists because the raw data measurably needed it. Counts
+   are tallied into `report` and written out with the packs, so the filtering
+   is auditable rather than a matter of trust.
+=========================================================================== */
+const report = { rows: 0, kept: 0, rejected: {}, repaired: {}, harvested: {} };
+const reject = (rule) => { report.rejected[rule] = (report.rejected[rule] || 0) + 1; return false; };
+const repaired = (rule) => { report.repaired[rule] = (report.repaired[rule] || 0) + 1; };
+const harvested = (rule) => { report.harvested[rule] = (report.harvested[rule] || 0) + 1; };
+
+/** Words a vocabulary app aimed at students should not be teaching. */
+const EXPLICIT = /\b(contraceptive|condom|sexual intercourse|copulat\w*|masturbat\w*|genitalia|erotic|pornograph\w*)\b/i;
+const BLOCKED = /\b(ass|asshole|arse|bastard|bitch|bollocks|bugger|cock|crap|cunt|dick|dildo|dyke|fag|faggot|fuck|jism|jizz|nigger|penis|piss|prick|prostitute|pussy|queer|semen|shit|slut|spic|tits|turd|twat|vagina|wanker|whore|wop)\b/i;
+
+const TAXONOMIC = /\b(genus|subgenus|family|subfamily|superfamily|order|suborder|phylum|class|tribe|any of (?:various|numerous|several)|type genus|widely distributed|native to|deciduous|evergreen|perennial|annual herb|shrubs?|herbs?|mollusks?|arthropods?|beetles?|moths?|orchids?|ferns?|grasses)\b/i;
+const CITATION = /[;,]?\s*[-–—]{1,2}\s*[A-Z][A-Za-z.'-]*(?:\s+[A-Z][A-Za-z.'-]*){0,2}\s*$/;  // "; --Hippocrates"
+/* Any leading bracketed label — a register note like "(informal)", a domain
+   like "(law)", a scope like "(of handwriting)". A definition almost never
+   opens with a parenthetical that carries the meaning itself. */
+const LEAD_NOTE = /^\([^)]{1,70}\)[\s,:-]*/;
+
+/**
+ * Tidy one definition, and hand back any usage example hiding inside it.
+ *
+ * 12,253 rows carry "definition; an example using the word" in a single field.
+ * That trailing clause is worth more as an example sentence than as definition
+ * noise, so it is lifted out rather than discarded.
+ */
+function cleanDefinition(rawDef, word) {
+  let d = squash(rawDef);
+  if (!d) return null;
+
+  if (CITATION.test(d)) { d = d.replace(CITATION, ''); repaired('citation removed'); }
+  if (/`/.test(d)) { d = d.replace(/`([^']*)'/g, '“$1”').replace(/`/g, '‘'); repaired('backtick quotes'); }
+  if (/;\s*;/.test(d)) { d = d.replace(/(?:\s*;)+/g, ';'); repaired('empty semicolon runs'); }
+
+  // Strip the note whatever is left behind — "not legible" is a fine
+  // definition, and the too-short rule catches anything that isn't.
+  const lead = d.match(LEAD_NOTE);
+  if (lead && d.length > lead[0].length) { d = d.slice(lead[0].length); repaired('leading note stripped'); }
+
+  // Split off trailing clauses; any clause that uses the word is an example.
+  const stem = word.replace(/(?:e?s|ed|ing|ly)$/, '');
+  const uses = (t) => stem.length > 2 && new RegExp(`\\b${stem}`, 'i').test(t);
+  const parts = d.split(/\s*;\s*/).map(squash).filter(Boolean);
+
+  const defParts = [];
+  const examples = [];
+  for (const part of parts) {
+    if (/^[-–—]{1,2}\s*[A-Z]/.test(part)) { repaired('citation removed'); continue; }
+    if (defParts.length && uses(part) && part.split(' ').length >= 4) {
+      examples.push(part.replace(/^["“]|["”]$/g, ''));
+      harvested('example sentence');
+    } else if (defParts.length < 2 && !uses(part)) {
+      defParts.push(part);
+    }
+  }
+
+  d = defParts.join('; ').replace(/^[,;:\s]+|[,;:\s]+$/g, '');
+  if (d.length > 180) {                       // cut on a word, never mid-word
+    d = d.slice(0, 180).replace(/\s+\S*$/, '') + '…';
+    repaired('long definition trimmed');
+  }
+  return { definition: d, examples: examples.slice(0, 2) };
+}
+
+/** Scripts each translation column must actually be written in. */
+const SCRIPTS = { bn: /[ঀ-৿]/, hi: /[ऀ-ॿ]/, zh: /[一-鿿]/ };
+
+function cleanTranslation(value, script) {
+  const t = squash(value);
+  if (!t || t === 'undefined' || t.length < 2 || /^[\^\-_.]+$/.test(t)) return '';
+  if (!SCRIPTS[script].test(t)) { repaired(`${script}: not in script`); return ''; }
+  return t.replace(/\s*[;,/]\s*/g, ' / ').slice(0, 60);
+}
+
+function cleanSynonyms(list, word) {
+  const out = [];
+  for (const raw of list) {
+    const s = squash(raw).toLowerCase();
+    if (!s || s === word) continue;
+    if (s.split(' ').length > 3) continue;         // phrases stop being useful
+    if (s.includes(word) || word.includes(s)) continue;   // same lemma
+    if (BLOCKED.test(s)) continue;
+    if (!out.includes(s)) out.push(s);
+  }
+  return out.slice(0, 4);
+}
+
 const records = body
-  .filter((r) => r.length > 3 && clean(r[col.word]))
-  .map((r) => ({
-    w: clean(r[col.word]).toLowerCase(),
-    p: clean(r[col.part_of_speech]),
-    d: clean(r[col.english_meaning]).replace(/\s+/g, ' ').slice(0, 190),
-    s: [1, 2, 3].map((n) => clean(r[col[`synonym_${n}`]])).filter(Boolean),
-    bn: clean(r[col.bangla_meaning]),
-    hi: clean(r[col.hindi_meaning]),
-    zh: clean(r[col.chinese_simplified]),
-    x: clean(r[col.difficulty]),
-  }));
+  .filter((r) => r.length > 3 && squash(r[col.word]))
+  .map((r) => {
+    report.rows += 1;
+    const word = squash(r[col.word]).toLowerCase();
+    const cleaned = cleanDefinition(r[col.english_meaning], word);
+    return {
+      w: word,
+      p: squash(r[col.part_of_speech]).toLowerCase(),
+      d: cleaned?.definition || '',
+      e: cleaned?.examples || [],
+      s: cleanSynonyms([1, 2, 3, 4, 5].map((n) => r[col[`synonym_${n}`]] || ''), word),
+      bn: cleanTranslation(r[col.bangla_meaning], 'bn'),
+      hi: cleanTranslation(r[col.hindi_meaning], 'hi'),
+      zh: cleanTranslation(r[col.chinese_simplified], 'zh'),
+      x: squash(r[col.difficulty]),
+    };
+  });
 
 console.log(`read ${records.length} rows`);
 
 // One entry per headword: keep the richest (most synonyms + translations).
 const byWord = new Map();
-const richness = (r) => r.s.length + (r.bn ? 2 : 0) + (r.hi ? 1 : 0) + (r.zh ? 1 : 0) + (r.d ? 1 : 0);
+const richness = (r) => r.s.length + (r.bn ? 2 : 0) + (r.hi ? 1 : 0) + (r.zh ? 1 : 0) + (r.d ? 1 : 0) + r.e.length;
 for (const r of records) {
   const seen = byWord.get(r.w);
   if (!seen || richness(r) > richness(seen)) byWord.set(r.w, r);
 }
 console.log(`${byWord.size} unique headwords`);
 
-// ── what makes an entry worth learning ────────────────────────────────────
-const TAXONOMIC = /\b(genus|family|subfamily|order|phylum|any of (?:various|numerous)|widely distributed|native to|deciduous|evergreen|perennial herb|small tree|shrubs?|mollusk|arthropod)\b/i;
-const PROPER = /^[A-Z]/;
+/* ===========================================================================
+   What is worth teaching
 
-function usable(r) {
-  if (!/^[a-z][a-z-]{2,15}$/.test(r.w)) return false;   // single lower-case token
-  if (!r.d || r.d.length < 12) return false;
-  if (TAXONOMIC.test(r.d)) return false;
-  if (PROPER.test(r.w)) return false;
+   Rejection is deliberately loud: each rule is counted, so a bad rule shows up
+   as an implausible number rather than as words quietly going missing.
+=========================================================================== */
+function teachable(r) {
+  if (!/^[a-z][a-z'-]{2,15}$/.test(r.w)) return reject('headword not a plain word');
+  if (/--|''/.test(r.w)) return reject('headword malformed');
+  if (BLOCKED.test(r.w)) return reject('blocked term');
+  if (!r.d) return reject('no definition after cleaning');
+  if (r.d.length < 12) return reject('definition too short');
+  if (BLOCKED.test(r.d) || EXPLICIT.test(r.d)) return reject('blocked in definition');
+  if (TAXONOMIC.test(r.d)) return reject('taxonomic entry');
+  if (!r.p) return reject('no part of speech');
+
+  // Circular only when the word carries the definition. "exempt: grant
+  // exemption or release to" leaves nothing once its own lemma is removed;
+  // "validate: declare or make legally valid" still says something, and
+  // rejecting that kind of entry threw away thousands of good words.
+  if (isCircular(r)) return reject('circular definition');
+
   return true;
 }
+
+const STOPWORDS = new Set(['that', 'with', 'from', 'this', 'they', 'them', 'their', 'have',
+  'been', 'being', 'which', 'when', 'what', 'used', 'especially', 'something', 'someone',
+  'having', 'other', 'into', 'than', 'also', 'such', 'more', 'most', 'able']);
+
+/**
+ * Circular only if the headword's own lemma appears AND little else does.
+ * A short definition is not the same thing as a circular one: "abolish — do
+ * away with" says plenty and never mentions abolish.
+ */
+function isCircular(r) {
+  // Two thirds of the word, not all-but-two: "cohesive" has to match
+  // "cohesion", which slicing at length-2 never would.
+  const lemma = r.w.slice(0, Math.max(4, Math.ceil(r.w.length * 0.62)));
+  const tokens = r.d.toLowerCase().match(/[a-z]{3,}/g) || [];
+  if (!tokens.some((t) => t.startsWith(lemma))) return false;
+  const kept = tokens.filter((t) => !t.startsWith(lemma) && !STOPWORDS.has(t));
+  return kept.length < 3;
+}
+
+/**
+ * Inflections of a word already in the pool are dead weight in a study pack —
+ * "belated" stays, but "abolished" goes when "abolish" is present.
+ */
+function isInflectionOfPool(r, pool) {
+  const m = r.w.match(/^(.+?)(ed|ing|es|s)$/);
+  if (!m) return false;
+  const [, root, suffix] = m;
+  const candidates = [root, root + 'e', root.replace(/([bcdfghjklmnpqrstvwxz])\1$/, '$1')];
+  for (const base of candidates) {
+    if (base.length < 3 || base === r.w) continue;
+    const parent = pool.get(base);
+    if (!parent) continue;
+    // only when they clearly share a sense
+    const words = (t) => new Set(t.toLowerCase().match(/[a-z]{4,}/g) || []);
+    const a = words(r.d), b = words(parent.d);
+    const overlap = [...a].filter((w) => b.has(w)).length;
+    if (overlap >= 2 || r.d === parent.d) return true;
+    if (suffix === 's' && overlap >= 1) return true;
+  }
+  return false;
+}
+
+const teachablePool = [...byWord.values()].filter(teachable);
+const poolIndex = new Map(teachablePool.map((r) => [r.w, r]));
+const pool = teachablePool.filter((r) => {
+  if (isInflectionOfPool(r, poolIndex)) return reject('inflection of a word already present');
+  return true;
+});
+report.kept = pool.length;
+console.log(`${pool.length} teachable entries (from ${byWord.size})`);
+
+/* ===========================================================================
+   Centrality as a frequency proxy
+
+   There is no frequency column, but there is a synonym graph: a word listed as
+   a synonym by many other entries is a central, ordinary word, and one nobody
+   points at is peripheral. That in-degree is the closest thing the data has to
+   a frequency list, and it is what separates "Native & Everyday" from "Elite".
+=========================================================================== */
+const degree = new Map();
+for (const r of byWord.values()) {
+  for (const s of r.s) degree.set(s, (degree.get(s) || 0) + 1);
+}
+const central = (w) => degree.get(w) || 0;
+const degrees = [...pool].map((r) => central(r.w)).sort((a, b) => a - b);
+const p = (q) => degrees[Math.floor(degrees.length * q)];
+console.log(`synonym centrality: median ${p(0.5)}, 90th ${p(0.9)}, max ${degrees.at(-1)}`);
 
 /** Higher is more worth a learner's time. */
 function score(r) {
   let n = 0;
-  n += Math.min(r.s.length, 3) * 2;          // synonyms mean a real sense
-  n += r.bn ? 3 : 0;                          // curated rows carry translations
+  n += Math.min(r.s.length, 3) * 2;
+  n += Math.min(central(r.w), 6);              // how central the word is
+  n += r.e.length * 3;                          // a real usage example is gold
+  n += r.bn ? 3 : 0;
   n += r.hi ? 2 : 0;
   n += r.zh ? 1 : 0;
   n += r.w.length >= 5 && r.w.length <= 12 ? 2 : 0;
-  n += /^(noun|verb|adjective|adverb)$/.test(r.p) ? 1 : 0;
-  if (r.d.length > 40 && r.d.length < 130) n += 1;
+  if (r.d.length > 30 && r.d.length < 130) n += 1;
   return n;
 }
-
-const pool = [...byWord.values()].filter(usable);
-console.log(`${pool.length} usable entries`);
 
 // ── the modules ───────────────────────────────────────────────────────────
 // `seeds` are the words that genuinely define the subject; `want` decides
@@ -241,7 +418,8 @@ const MODULES = [
       treat trust turn understand upset usual visit wait wake walk warm warn waste watch wave
       weak wear weigh welcome wet whisper whole wide wild win wipe wish wonder worry wrap
     `),
-    want: (r) => r.x === 'Easy' && (r.bn || r.hi),
+    // Central words: the ones other entries keep pointing at as synonyms.
+    want: (r) => central(r.w) >= 3 && ['Easy', 'Moderate'].includes(r.x),
   },
   {
     id: 'elite', title: 'Elite', blurb: 'Rare and literary words — the ones that make a reader stop.',
@@ -264,7 +442,8 @@ const MODULES = [
       vainglorious vatic verisimilitude vertiginous vicissitude vituperate voluble wanton winnow
       zeitgeist zephyr
     `),
-    want: (r) => r.x === 'God Level',
+    // Peripheral by construction: nobody reaches for these as a synonym.
+    want: (r) => r.x === 'God Level' && central(r.w) <= 1,
   },
   {
     id: 'science', title: 'Science & Medicine', blurb: 'The vocabulary of labs, bodies and papers — useful well beyond exams.',
@@ -290,9 +469,11 @@ const MODULES = [
     id: 'phrasal', title: 'Compounds & Phrases', blurb: 'Hyphenated and multi-word entries — the ones dictionaries hide at the back.',
     level: 'B1–C1',
     seeds: [],
-    // this pack deliberately takes what `usable()` rejects: the joined forms
+    // Hyphenated forms are excluded from the main pool by the headword rule,
+    // so this pack draws its own, held to the same cleaning.
     pool: () => [...byWord.values()].filter((r) =>
-      /^[a-z][a-z]+-[a-z][a-z-]+$/.test(r.w) && r.d.length > 15 && !TAXONOMIC.test(r.d)),
+      /^[a-z][a-z]+-[a-z][a-z-]+$/.test(r.w) && r.d.length > 15
+      && !TAXONOMIC.test(r.d) && !BLOCKED.test(`${r.w} ${r.d}`) && r.s.length > 0),
     want: () => true,
   },
 ];
@@ -304,6 +485,13 @@ fs.mkdirSync(OUT_DICT, { recursive: true });
 const manifest = [];
 const claimed = new Set();   // keep the packs from overlapping too much
 
+/* The curated cores were reading straight from the raw map, so seed words
+   skipped every cleaning rule — which is exactly how "(informal) small and of
+   little importance" kept turning up in a pack. Seeds are looked up in the
+   filtered pool now, and a seed that fails the rules is simply dropped. */
+const cleanIndex = new Map(pool.map((r) => [r.w, r]));
+let seedsDropped = 0;
+
 for (const mod of MODULES) {
   const source = mod.pool ? mod.pool() : pool;
   const picked = [];
@@ -313,7 +501,11 @@ for (const mod of MODULES) {
   };
 
   // 1. the curated core, in the order written
-  for (const w of mod.seeds) take(byWord.get(w));
+  for (const w of mod.seeds) {
+    const entry = cleanIndex.get(w) || (mod.pool ? source.find((r) => r.w === w) : null);
+    if (entry) take(entry);
+    else if (byWord.has(w)) seedsDropped += 1;
+  }
   const seedHits = picked.length;
 
   // 2. top up by score, preferring words no other module has taken
@@ -339,6 +531,8 @@ for (const mod of MODULES) {
 }
 
 fs.writeFileSync(path.join(OUT_MODULES, 'index.json'), JSON.stringify(manifest, null, 2));
+report.seedsDroppedByFilter = seedsDropped;
+console.log(`\n${seedsDropped} curated seed words dropped by the cleaning rules`);
 
 // ── the whole dataset, sharded for offline lookup ─────────────────────────
 // Sharded on the first two letters, and any bucket that still comes out fat is
@@ -377,7 +571,7 @@ for (const [key, group] of bucket(entries, 2)) {
 let total = 0;
 for (const [key, group] of shards) {
   const words = {};
-  for (const r of group) words[r.w] = { p: r.p, d: r.d, s: r.s, bn: r.bn, hi: r.hi, zh: r.zh };
+  for (const r of group) words[r.w] = { p: r.p, d: r.d, e: r.e, s: r.s, bn: r.bn, hi: r.hi, zh: r.zh };
   const json = JSON.stringify(words);
   fs.writeFileSync(path.join(OUT_DICT, `${key}.json`), json);
   total += json.length;
@@ -389,6 +583,22 @@ fs.writeFileSync(path.join(OUT_DICT, 'index.json'), JSON.stringify({
   /** prefixes that were split three letters deep */
   deep: deep.sort(),
 }));
+
+report.modules = manifest.map(({ id, count }) => ({ id, count }));
+report.dictionary = byWord.size;
+report.generatedAt = new Date().toISOString().slice(0, 10);
+fs.writeFileSync('data/quality-report.json', JSON.stringify(report, null, 2));
+
+console.log('\ncleaning');
+for (const [rule, n] of Object.entries(report.repaired).sort((a, b) => b[1] - a[1])) {
+  console.log(`  repaired  ${rule.padEnd(30)} ${String(n).padStart(6)}`);
+}
+for (const [rule, n] of Object.entries(report.harvested)) {
+  console.log(`  harvested ${rule.padEnd(30)} ${String(n).padStart(6)}`);
+}
+for (const [rule, n] of Object.entries(report.rejected).sort((a, b) => b[1] - a[1])) {
+  console.log(`  rejected  ${rule.padEnd(30)} ${String(n).padStart(6)}`);
+}
 
 const biggest = [...shards.entries()]
   .map(([k, v]) => [k, JSON.stringify(Object.fromEntries(v.map((r) => [r.w, r]))).length])

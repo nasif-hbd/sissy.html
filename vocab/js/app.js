@@ -16,9 +16,10 @@ import { AIClient } from './ai.js';
 import {
   $, $$, el, icon, toast, applyTheme, switchView, renderHeader, renderQueueSummary,
   renderCard, renderEmptyQueue, renderWordList, renderProgress, renderSuggestions,
-  renderModules, practicePool,
+  renderModules, renderXp, practicePool,
 } from './ui.js';
 import { Catalog } from './catalog.js';
+import { AWARDS, award, claimDailyBonuses, standing, moduleStandings, bestDays } from './xp.js';
 import { Translate, LANGUAGES } from './translate.js';
 
 // ── session state ──────────────────────────────────────────────────────────
@@ -67,6 +68,9 @@ async function boot() {
   await Notifier.registerServiceWorker();
   if (Store.state.settings.reminders.enabled) Notifier.start();
   refreshNotifyState();
+
+  // The leaderboard names modules, so fetch the manifest quietly at boot.
+  Catalog.modules().then((m) => { moduleManifest = m; drawXp(Store.state); }).catch(() => {});
 
   timer.resume();
   document.addEventListener('visibilitychange', () => {
@@ -134,6 +138,24 @@ function render() {
   drawCurrentCard();
   refreshWordList();
   renderProgress(state);
+  drawXp(state);
+}
+
+/** The level card and the leaderboard live in the Ledger view. */
+function drawXp(state) {
+  const total = state.xp?.total || 0;
+  const manifest = moduleManifest;
+  renderXp(
+    standing(total),
+    moduleStandings(state, manifest).filter((m) => m.xp || m.words).slice(0, 6)
+      .map((m) => ({ name: m.title, sub: `${m.words} word${m.words === 1 ? '' : 's'} in your deck`, xp: m.xp })),
+    bestDays(state, 5).map((d) => ({
+      name: new Date(`${d.day}T00:00:00`).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' }),
+      sub: `${state.days[d.day]?.reviews || 0} reviews`,
+      xp: d.xp,
+    })),
+    total,
+  );
 }
 
 // ── tabs ───────────────────────────────────────────────────────────────────
@@ -141,7 +163,7 @@ function wireTabs() {
   for (const tab of $$('.tab')) {
     tab.addEventListener('click', () => {
       switchView(tab.dataset.tab);
-      if (tab.dataset.tab === 'progress') renderProgress(Store.state);
+      if (tab.dataset.tab === 'progress') { renderProgress(Store.state); drawXp(Store.state); }
       if (tab.dataset.tab === 'practice') ensurePracticeSeed();
       if (tab.dataset.tab === 'modules') loadModules();
     });
@@ -235,6 +257,11 @@ function gradeCard(grade) {
 
   Store.commit((s) => { s.srs[word.id] = next; });
   Store.bumpDay({ reviews: 1, correct: grade > 0 ? 1 : 0, learned: wasNew ? 1 : 0 });
+
+  // Getting it wrong still pays: the point is to keep the cards turning.
+  award(grade > 0 ? AWARDS.reviewCorrect : AWARDS.reviewWrong, { module: word.module });
+  if (wasNew && grade > 0) award(AWARDS.wordLearned, { module: word.module });
+  claimDailyBonuses();
   Store.logReview({
     wordId: word.id, grade, correct: grade > 0, mode: 'flashcard',
     ms: Date.now() - session.shownAt,
@@ -422,6 +449,9 @@ function checkSpelling() {
 function recordPractice(wordId, correct, mode) {
   Store.bumpDay({ reviews: 1, correct: correct ? 1 : 0 });
   Store.logReview({ wordId, correct, grade: correct ? 2 : 0, mode });
+  if (correct) award(mode === 'spell' ? AWARDS.spellCorrect : AWARDS.quizCorrect,
+                     { module: Store.state.words[wordId]?.module });
+  claimDailyBonuses();
   if (!correct) {
     Store.commit((s) => {
       const rec = s.srs[wordId];
@@ -462,6 +492,8 @@ async function runCoach() {
     }, (t) => { out.textContent += t; });
     Store.logReview({ wordId: word.id, correct: true, grade: 2, mode: 'coach' });
     Store.bumpDay({ reviews: 1, correct: 1 });
+    award(AWARDS.sentenceCoached, { module: word.module });
+    claimDailyBonuses();
     renderHeader(Store.state);
   } catch (err) {
     out.textContent = `Could not reach the AI: ${err.message}`;
@@ -492,10 +524,13 @@ function wireModules() {
 }
 
 /** Fetch the manifest, then each pack only to count what is already in the deck. */
+let moduleManifest = [];
+
 async function loadModules() {
   const node = $('#moduleList');
   try {
     const manifest = await Catalog.modules();
+    moduleManifest = manifest;
     const rows = await Promise.all(manifest.map(async (m) => {
       const pack = await Catalog.pack(m.id);
       return { ...m, have: Catalog.progress(pack, Store.state) };
