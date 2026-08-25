@@ -86,6 +86,17 @@
           <button class="btn btn--primary btn--wide" id="homeContinue">Continue</button>
         </div>
 
+        <div class="card card--tight" id="homeLevelCard">
+          <div class="row row--between">
+            <div>
+              <h3 class="card__title">Your level</h3>
+              <p class="hint" id="homeLevelLine">Not checked yet</p>
+            </div>
+            <b class="level-badge" id="homeLevelBadge">?</b>
+          </div>
+          <button class="btn btn--quiet btn--wide" id="homeAssess">Check my level</button>
+        </div>
+
         <div class="tiles">
           <div class="tile"><span class="tile__label">This week</span><b class="tile__value" id="homeWeek">0</b><span class="tile__foot" id="homeWeekFoot">reviews</span></div>
           <div class="tile"><span class="tile__label">This month</span><b class="tile__value" id="homeMonth">0</b><span class="tile__foot" id="homeMonthFoot">reviews</span></div>
@@ -282,6 +293,85 @@
       </div>
     </section>
 
+    <!-- ──────────────── Level check ──────────────── -->
+    <section class="view" id="view-assess" data-view="assess" hidden>
+      <div class="stack">
+
+        <!-- before you start -->
+        <div class="card" id="assessIntro">
+          <h3 class="card__title">Check your level</h3>
+          <p class="lead">Sixteen questions. They get harder when you are right and easier when you
+             are wrong, so it finds your level instead of asking you to guess it.</p>
+          <p class="hint">Meaning, recall and synonym questions, drawn from the modules. About three
+             minutes. Nothing is added to your deck.</p>
+          <button class="btn btn--primary btn--wide" id="assessStart">Start the check</button>
+          <div id="assessLast" hidden>
+            <p class="board__head">Last time</p>
+            <p class="hint" id="assessLastLine"></p>
+            <button class="btn btn--quiet btn--sm btn--inline" id="assessShowLast">See that result</button>
+          </div>
+        </div>
+
+        <!-- the exam -->
+        <div class="card" id="assessExam" hidden>
+          <div class="lesson__bar">
+            <button class="btn btn--quiet btn--sm" id="assessQuit">Stop</button>
+            <div class="lesson__meter"><i id="assessFill"></i></div>
+            <span class="lesson__count" id="assessCount"></span>
+          </div>
+          <span class="pill pill--ghost" id="assessBand">Common</span>
+          <p class="prompt" id="assessPrompt"></p>
+          <div class="options" id="assessOptions"></div>
+          <p class="hint" id="assessNote">Pick the closest answer. A guess costs you nothing but the level.</p>
+        </div>
+
+        <!-- what came back -->
+        <div id="assessResult" hidden>
+          <div class="card">
+            <p class="board__head">Your level</p>
+            <p class="result__score" id="assessLevel">B1</p>
+            <p class="result__line" id="assessLevelLine"></p>
+            <p class="hint" id="assessKnown"></p>
+          </div>
+
+          <div class="card">
+            <h3 class="card__title">Where you are strong</h3>
+            <p class="hint">How you did at each level of difficulty.</p>
+            <div class="bands" id="assessBands"></div>
+          </div>
+
+          <div class="card">
+            <div class="row row--between">
+              <h3 class="card__title">What this means</h3>
+              <span class="pill pill--ghost" id="assessSource">Built-in</span>
+            </div>
+            <div class="ai-stream" id="assessAnalysis"></div>
+          </div>
+
+          <div class="card">
+            <h3 class="card__title">Your plan</h3>
+            <p class="hint" id="assessPace"></p>
+            <ul class="plan" id="assessChanges"></ul>
+            <button class="btn btn--primary btn--wide" id="assessApply">Use this plan</button>
+            <p class="hint" id="assessApplied" hidden></p>
+          </div>
+
+          <div class="card">
+            <h3 class="card__title">Start with these</h3>
+            <div class="picks" id="assessModules"></div>
+          </div>
+
+          <div class="card" id="assessRevisitCard" hidden>
+            <h3 class="card__title">Clear these first</h3>
+            <p class="hint">Words in your deck that keep coming back wrong.</p>
+            <div class="chips" id="assessRevisit"></div>
+          </div>
+
+          <button class="btn btn--quiet btn--wide" id="assessRetake">Take it again</button>
+        </div>
+      </div>
+    </section>
+
     <!-- ───────────────────────── Words ───────────────────────── -->
     <section class="view" id="view-words" data-view="words" hidden>
       <div class="stack">
@@ -337,6 +427,16 @@
             <span><b id="tStreak">0</b> best streak</span>
             <span><b id="tKnown">0</b> words held for the long term</span>
           </div>
+        </div>
+
+        <div class="card">
+          <div class="row row--between">
+            <h3 class="card__title">Measured level</h3>
+            <b class="level-badge" id="progressLevelBadge">?</b>
+          </div>
+          <p class="hint" id="progressLevelLine">You have not sat the level check yet.</p>
+          <div class="bands bands--mini" id="progressBands"></div>
+          <button class="btn btn--quiet btn--wide" id="progressAssess">Check my level</button>
         </div>
 
         <div class="card">

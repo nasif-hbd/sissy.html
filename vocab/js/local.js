@@ -192,6 +192,51 @@ function shuffle(list) {
   return out;
 }
 
+/**
+ * The capability read-out, written from the placement result.
+ *
+ * This is the built-in half of the assessment: it says what the exam measured,
+ * where the learner is strong and where they fall off, and how much of that to
+ * trust. Claude writes a warmer version of the same thing when connected; both
+ * are handed the identical plan, computed in advice.js.
+ */
+export function localAssess({ estimate } = {}) {
+  if (!estimate) return 'No placement result to read.';
+  const lines = [];
+  const acc = (b) => `${Math.round(b.accuracy * 100)}%`;
+
+  lines.push(estimate.reached
+    ? `You place at ${estimate.level}. You answered ${estimate.correct} of ${estimate.answered} right, across four levels of difficulty.`
+    : `No level came out clearly — ${estimate.correct} of ${estimate.answered} right is not enough to place you above the first band yet.`);
+
+  const judged = estimate.perBand.filter((b) => b.judged);
+  const held = judged.filter((b) => b.accuracy >= 0.7);
+  const lost = judged.filter((b) => b.accuracy < 0.7);
+
+  if (held.length) {
+    lines.push('', `Solid: ${held.map((b) => `${b.label.toLowerCase()} words (${acc(b)})`).join(', ')}.`);
+  }
+  if (lost.length) {
+    const first = lost[0];
+    lines.push(`Where it breaks down: ${first.label.toLowerCase()} words, ${acc(first)} of ${first.seen}. That is the edge to work on.`);
+  }
+
+  if (estimate.knownWords) {
+    lines.push('', `Of the ${estimate.knownWords.total.toLocaleString()} words in these modules, you would likely know about ${estimate.knownWords.known.toLocaleString()}. That is this app's vocabulary, not the whole language — it is an estimate from ${estimate.answered} questions, so treat it as a marker to beat rather than a measurement.`);
+  }
+
+  if (estimate.confidence !== 'good') {
+    lines.push('', estimate.confidence === 'rough'
+      ? 'Only one difficulty band got enough questions to judge, so the level is provisional. Sitting the exam again will sharpen it.'
+      : 'Two bands got enough questions to judge. Reasonably firm, but not final.');
+  }
+
+  // The plan card sits directly below this one and already states the pace, the
+  // modules and the words to revisit. Repeating them here just made the screen
+  // say everything twice, so this stops at the measurement.
+  return lines.join('\n');
+}
+
 /** The weekly write-up, from the numbers the app already tracks. */
 export function localReport(p = {}) {
   const lines = [];

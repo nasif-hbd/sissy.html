@@ -31,7 +31,39 @@ const DEVICES = [
 ];
 
 const VIEWS = ['home', 'learn', 'modules', 'words', 'progress', 'settings'];
+/**
+ * Views with no tab of their own. Each names the button that opens it, and the
+ * element that proves it arrived — the level check in particular renders a
+ * long band table and a plan list that only exist after a sitting.
+ */
+const DEEP_VIEWS = [
+  { view: 'assess', open: '#homeAssess', ready: '#assessIntro' },
+  { view: 'assess-result', open: '#homeAssess', ready: '#assessIntro', sit: true },
+];
 const TOUCH_WIDTH = 900;   // below this the layout is finger-driven
+
+/** Play a full level check so the result screen exists to be measured. */
+async function sitPlacement(page) {
+  await page.click('#assessStart');
+  await page.waitForSelector('#assessExam', { state: 'visible', timeout: 20000 });
+  for (let i = 0; i < 24; i += 1) {
+    let info = null;
+    for (let wait = 0; wait < 30 && !info; wait += 1) {
+      info = await page.evaluate(() => {
+        const run = window.Lexio?.placement?.();
+        return run?.question ? { ans: run.question.answerIndex } : null;
+      });
+      if (!info) {
+        if (await page.isVisible('#assessResult')) break;
+        await page.waitForTimeout(120);
+      }
+    }
+    if (!info) break;
+    await page.evaluate((n) => document.querySelectorAll('#assessOptions .option')[n]?.click(), info.ans);
+  }
+  await page.waitForSelector('#assessResult', { state: 'visible', timeout: 20000 });
+  await page.waitForTimeout(200);
+}
 
 const browser = await chromium.launch();
 const problems = [];
@@ -49,8 +81,20 @@ for (const device of DEVICES) {
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(300);
 
-  for (const view of VIEWS) {
-    await page.click(`.tab[data-tab="${view}"]`);
+  const stops = [
+    ...VIEWS.map((view) => ({ view, tab: view })),
+    ...DEEP_VIEWS,
+  ];
+
+  for (const { view, tab, open, ready, sit } of stops) {
+    if (tab) await page.click(`.tab[data-tab="${tab}"]`);
+    else {
+      await page.click('.tab[data-tab="home"]');
+      await page.waitForTimeout(120);
+      await page.click(open);
+      await page.waitForSelector(ready, { state: 'visible' });
+      if (sit) await sitPlacement(page);
+    }
     await page.waitForTimeout(150);
 
     const overflow = await page.evaluate(() => {
@@ -104,4 +148,4 @@ if (problems.length) {
   console.error(`\n${problems.length} problem(s):\n - ${problems.join('\n - ')}\n`);
   process.exit(1);
 }
-console.log(`clean across ${DEVICES.length} device shapes × ${VIEWS.length} views`);
+console.log(`clean across ${DEVICES.length} device shapes × ${VIEWS.length + DEEP_VIEWS.length} views`);

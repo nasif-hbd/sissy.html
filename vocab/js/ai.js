@@ -15,7 +15,7 @@
  */
 import { AI } from './config.js';
 import { Store } from './store.js';
-import { localWord, localExplain, localCoach, localSuggest, localReport } from './local.js';
+import { localWord, localExplain, localCoach, localSuggest, localReport, localAssess } from './local.js';
 
 const cfg = () => Store.state.settings.ai;
 
@@ -97,6 +97,16 @@ export const AIClient = {
     if (!this.isLive) return replay(localCoach(term, sentence), onToken);
     return stream(this.url(AI.routes.coach),
       { term, definition, sentence, level, model: cfg().model }, onToken);
+  },
+
+  /**
+   * The capability read-out after a placement exam. The plan itself is computed
+   * in advice.js and passed in — Claude explains it, it does not invent it, so
+   * the recommendation is the same whichever half is answering.
+   */
+  async assess(payload, onToken) {
+    if (!this.isLive) return replay(localAssess(payload), onToken);
+    return stream(this.url(AI.routes.assess), { ...payload, model: cfg().model }, onToken);
   },
 
   /** Weekly progress write-up from the tracking snapshot. */

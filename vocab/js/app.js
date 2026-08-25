@@ -17,12 +17,17 @@ import {
   $, $$, el, icon, toast, applyTheme, switchView, renderHeader, renderQueueSummary,
   renderCard, renderEmptyQueue, renderWordList, renderProgress, renderSuggestions,
   renderModules, renderModuleDetail, renderHome, renderXp, practicePool, actionSheet,
+  renderPlacementQuestion, renderPlacementResult, renderLevelSummary,
 } from './ui.js';
 import { Catalog } from './catalog.js';
 import { AWARDS, award, claimDailyBonuses, standing, moduleStandings, bestDays } from './xp.js';
 import { chunk } from './exam.js';
 import { configureLesson, wireLesson, startLesson, setResults, currentLesson, SET_WORDS } from './lesson.js';
 import { Translate, LANGUAGES } from './translate.js';
+import {
+  poolByBand, startPlacement, nextQuestion, answerPlacement, placementDone, estimate, BANDS,
+} from './placement.js';
+import { buildPlan } from './advice.js';
 
 // ── session state ──────────────────────────────────────────────────────────
 const session = {
@@ -65,6 +70,7 @@ async function boot() {
     onFinished: () => { render(); loadModules(); },
   });
   wireWords();
+  wireAssess();
   wireProgress();
   wireSettings();
   wireKeyboard();
@@ -99,7 +105,7 @@ async function boot() {
 
   // Exposed deliberately: handy in the console, and the hook the browser tests
   // use to reach internals. Drop this line if you'd rather keep it sealed.
-  window.Lexio = { Store, Notifier, Push, AIClient, session, render, lesson: currentLesson };
+  window.Lexio = { Store, Notifier, Push, AIClient, session, render, lesson: currentLesson, placement: () => placementRun };
 
   console.info(`${APP.name} ready — ${Object.keys(Store.state.words).length} words in deck.`);
 }
@@ -153,6 +159,7 @@ function render() {
   renderProgress(state);
   drawXp(state);
   drawHome(state);
+  renderLevelSummary(state.placement || null);
 }
 
 /** The level card and the leaderboard live in the Ledger view. */
@@ -591,6 +598,8 @@ function wireModules() {
 
 /** Fetch the manifest, then each pack only to count what is already in the deck. */
 let moduleManifest = [];
+/** id -> { Easy: n, Moderate: n, … }, so the plan can rank modules by difficulty. */
+let moduleBands = {};
 
 async function loadModules() {
   const node = $('#moduleList');
@@ -601,6 +610,7 @@ async function loadModules() {
       const pack = await Catalog.pack(m.id);
       const sets = chunk(pack.words, SET_WORDS);
       const results = setResults(m.id);
+      moduleBands[m.id] = tallyBands(pack.words);
       return {
         ...m,
         sets: sets.length,
@@ -612,6 +622,13 @@ async function loadModules() {
   } catch (err) {
     node.replaceChildren(el('p', { class: 'hint', text: `Could not load the modules: ${err.message}` }));
   }
+}
+
+/** How many words of each difficulty band a pack holds. */
+function tallyBands(words) {
+  const mix = {};
+  for (const w of words) if (w.x) mix[w.x] = (mix[w.x] || 0) + 1;
+  return mix;
 }
 
 /** Open one module and show its sets. */
@@ -776,6 +793,201 @@ async function suggestWords() {
     btn.disabled = false;
     label.textContent = 'Suggest six';
   }
+}
+
+// ── the level check ────────────────────────────────────────────────────────
+
+/**
+ * The placement exam, from intro to plan.
+ *
+ * The question pool is every module pack's words, which is where the difficulty
+ * bands live — the dictionary shards carry no band, so they cannot be used to
+ * measure anything. Packs are fetched once and cached by Catalog.
+ */
+let placementRun = null;
+let placementPool = null;
+
+function wireAssess() {
+  $('#homeAssess').addEventListener('click', openAssess);
+  $('#progressAssess').addEventListener('click', openAssess);
+  $('#assessStart').addEventListener('click', beginPlacement);
+  $('#assessRetake').addEventListener('click', beginPlacement);
+  $('#assessShowLast').addEventListener('click', showLastPlacement);
+  $('#assessQuit').addEventListener('click', () => {
+    placementRun = null;
+    switchView('home');
+  });
+  $('#assessApply').addEventListener('click', applyPlan);
+}
+
+function openAssess() {
+  const last = Store.state.placement || null;
+  $('#assessIntro').hidden = false;
+  $('#assessExam').hidden = true;
+  $('#assessResult').hidden = true;
+  $('#assessLast').hidden = !last;
+  if (last) {
+    const when = new Date(last.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+    $('#assessLastLine').textContent = `${last.level} on ${when} — ${last.correct} of ${last.answered} right.`;
+  }
+  switchView('assess');
+}
+
+/** Every banded word the app ships, loaded once. */
+async function loadPlacementPool() {
+  if (placementPool) return placementPool;
+  const manifest = await Catalog.modules();
+  moduleManifest = manifest;
+  const packs = await Promise.all(manifest.map((m) => Catalog.pack(m.id)));
+  // The plan ranks modules by how their difficulty mix sits against the
+  // learner's level, so the tally has to exist before the result screen is
+  // built. Doing it here as well as in loadModules() means the ranking is real
+  // even if the Modules tab has never been opened — without it every module
+  // scored identically and the "start with these" list was just manifest order.
+  manifest.forEach((m, i) => { moduleBands[m.id] = tallyBands(packs[i].words); });
+  placementPool = poolByBand(packs.flatMap((p) => p.words));
+  return placementPool;
+}
+
+async function beginPlacement() {
+  $('#assessStart').disabled = true;
+  $('#assessStart').textContent = 'Loading the questions…';
+  try {
+    const pool = await loadPlacementPool();
+    placementRun = startPlacement(pool);
+    askPlacement();
+  } catch (err) {
+    toast(`Could not load the questions: ${err.message}`, 'bad');
+  } finally {
+    $('#assessStart').disabled = false;
+    $('#assessStart').textContent = 'Start the check';
+  }
+}
+
+function askPlacement() {
+  const question = nextQuestion(placementRun);
+  if (!question) { finishPlacement(); return; }
+  renderPlacementQuestion(placementRun, question, markPlacement);
+}
+
+/**
+ * Mark the answer, show it briefly, then move on. The delay is what makes the
+ * exam feel like an exam rather than a form — and seeing the right answer is
+ * the only teaching this screen does.
+ */
+function markPlacement(choice) {
+  const question = placementRun.question;
+  const result = answerPlacement(placementRun, choice);
+  if (!result) return;
+
+  const buttons = $$('#assessOptions .option');
+  buttons.forEach((b, i) => {
+    b.disabled = true;
+    if (i === question.answerIndex) b.classList.add('is-correct');
+    else if (i === choice) b.classList.add('is-wrong');
+  });
+
+  setTimeout(() => {
+    if (!placementRun) return;
+    if (placementDone(placementRun)) finishPlacement();
+    else askPlacement();
+  }, result.correct ? 420 : 900);
+}
+
+function finishPlacement() {
+  const run = placementRun;
+  placementRun = null;
+  if (!run || !run.asked.length) { switchView('home'); return; }
+
+  const sizes = Object.fromEntries(BANDS.map((b) => [b.id, (run.pool.get(b.id) || []).length]));
+  const result = estimate(run, sizes);
+  Store.set('placement', result);
+
+  const plan = currentPlan(result);
+  renderPlacementResult(result, plan, { onModule: openModuleById });
+  renderLevelSummary(result);
+  streamAssessment(result, plan);
+  render();
+}
+
+/** The plan for a result, against what the learner is set to right now. */
+function currentPlan(result) {
+  const s = summary(Store.state);
+  return buildPlan({
+    estimate: result,
+    manifest: moduleManifest,
+    bandMix: moduleBands,
+    accuracy: s.accuracy7,
+    weak: weakest(Store.state, 8),
+    current: {
+      level: Store.state.profile.level,
+      newPerDay: Store.state.settings.newPerDay,
+      dailyGoal: Store.state.settings.dailyGoal,
+    },
+  });
+}
+
+/** The written read-out — built-in, or Claude when it is connected. */
+async function streamAssessment(result, plan) {
+  const body = $('#assessAnalysis');
+  $('#assessSource').textContent = AIClient.isLive ? 'Claude' : 'Built-in';
+  body.textContent = '';
+  body.classList.add('cursor');
+  try {
+    await AIClient.assess({
+      estimate: result,
+      plan: { level: plan.level, newPerDay: plan.newPerDay, dailyGoal: plan.dailyGoal,
+              paceWhy: plan.paceWhy, modules: plan.modules.map((m) => ({ title: m.title, why: m.why })),
+              revisit: plan.revisit, notes: plan.notes },
+      deck: { size: Object.keys(Store.state.words).length, streak: Store.state.streak.current },
+    }, (t) => { body.textContent += t; });
+  } catch (err) {
+    body.textContent = `Could not reach Claude: ${err.message}`;
+  } finally {
+    body.classList.remove('cursor');
+  }
+}
+
+function showLastPlacement() {
+  const last = Store.state.placement;
+  if (!last) return;
+  const plan = currentPlan(last);
+  renderPlacementResult(last, plan, { onModule: openModuleById });
+  streamAssessment(last, plan);
+}
+
+/** One tap turns the measurement into settings. */
+function applyPlan() {
+  const result = Store.state.placement;
+  if (!result) return;
+  const plan = currentPlan(result);
+
+  Store.set('profile.level', plan.level);
+  Store.set('settings.newPerDay', plan.newPerDay);
+  Store.set('settings.dailyGoal', plan.dailyGoal);
+
+  // Settings is already built, so its controls have to be told.
+  $('#levelSelect').value = plan.level;
+  $('#newRange').value = plan.newPerDay;
+  $('#newValue').textContent = plan.newPerDay;
+  $('#goalRange').value = plan.dailyGoal;
+  $('#goalValue').textContent = plan.dailyGoal;
+
+  $('#assessApply').hidden = true;
+  $('#assessApplied').hidden = false;
+  $('#assessApplied').textContent = plan.changes.length
+    ? `Applied: ${plan.changes.join(' · ')}.`
+    : 'Your settings already matched the plan.';
+
+  refillQueue();
+  render();
+  toast('Plan applied.');
+}
+
+async function openModuleById(module) {
+  const entry = moduleManifest.find((m) => m.id === module.id);
+  if (entry) await openModule(entry);
+  else switchView('modules');
 }
 
 // ── progress ───────────────────────────────────────────────────────────────

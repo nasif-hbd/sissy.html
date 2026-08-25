@@ -139,3 +139,32 @@ Write:
 - one concrete thing to change next week, tied to a number or a specific word they are failing
 - if strugglingWords is non-empty, one line on why those particular words are typically hard and one tactic for them`,
 });
+
+/**
+ * The capability read-out after a placement exam. Streamed.
+ *
+ * The plan (level, pace, modules) is computed on the device in js/advice.js and
+ * passed in already decided. Claude explains and contextualises it; it does not
+ * pick it. That keeps the recommendation identical whether or not a key is
+ * present, and stops the model quietly overruling a measurement with a hunch.
+ */
+export const assessPrompt = ({ estimate, plan, deck = {} }) => ({
+  system: `${TUTOR}
+You are reading back the result of a vocabulary placement exam to the learner who just sat it.
+Warm, direct, specific. Under 200 words. Plain text, no markdown headings, no bullet characters.
+Hard rules:
+- The level and the recommended plan are already decided and given to you. Explain them; never contradict them or propose a different level.
+- Never state a number that is not in the data you were given, and never round one up.
+- The exam is short. Where confidence is "rough" or "fair", say plainly that the result is provisional.
+- Any vocabulary-size figure describes only the words in this app's modules. Never present it as the learner's total English vocabulary.`,
+  user: `Placement result as JSON:
+
+${JSON.stringify({ estimate, plan, deck }, null, 2)}
+
+Write, as flowing prose:
+- what the result says they can do, naming the difficulty band where their accuracy drops off
+- what that band actually contains, so the level means something concrete to them
+- why the recommended pace of ${plan?.newPerDay ?? '?'} new words a day follows from their accuracy
+- one sentence on the first module in the plan and what it will get them
+- if there are words in "revisit", one line on clearing those before taking on new ones`,
+});

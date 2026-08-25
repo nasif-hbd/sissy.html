@@ -374,6 +374,118 @@ export function renderHome(data) {
   if (data.continue) $('#homeContinueText').textContent = data.continue.text;
 }
 
+// ── the level check ────────────────────────────────────────────────────────
+
+/** One question of the placement exam. */
+export function renderPlacementQuestion(run, question, onAnswer) {
+  $('#assessIntro').hidden = true;
+  $('#assessResult').hidden = true;
+  $('#assessExam').hidden = false;
+
+  const n = run.asked.length + 1;
+  $('#assessCount').textContent = `${n} of ${run.length}`;
+  $('#assessFill').style.width = `${Math.round(((n - 1) / run.length) * 100)}%`;
+  $('#assessBand').textContent = BAND_LABEL[question.band] || question.band;
+  $('#assessPrompt').textContent = question.prompt;
+
+  $('#assessOptions').replaceChildren(...question.options.map((text, i) =>
+    el('button', { class: 'option', type: 'button', onclick: () => onAnswer(i) }, text)));
+}
+
+const BAND_LABEL = {
+  Easy: 'Everyday', Moderate: 'Common', Advanced: 'Academic', 'God Level': 'Rare',
+};
+
+/** The result screen: level, band bars, plan, modules. */
+export function renderPlacementResult(estimate, plan, handlers = {}) {
+  $('#assessIntro').hidden = true;
+  $('#assessExam').hidden = true;
+  $('#assessResult').hidden = false;
+
+  $('#assessLevel').textContent = estimate.level;
+  $('#assessLevelLine').textContent = estimate.reached
+    ? `${estimate.correct} of ${estimate.answered} right · ${CONFIDENCE[estimate.confidence]}`
+    : `${estimate.correct} of ${estimate.answered} right — not enough to place you higher yet`;
+
+  const known = estimate.knownWords;
+  $('#assessKnown').textContent = known
+    ? `Around ${known.known.toLocaleString()} of the ${known.total.toLocaleString()} words in these modules. An estimate from ${estimate.answered} questions, not a measure of your whole English.`
+    : '';
+
+  drawBands($('#assessBands'), estimate.perBand, true);
+
+  $('#assessPace').textContent = plan.paceWhy;
+  $('#assessChanges').replaceChildren(...planLines(plan).map((t) => el('li', { text: t })));
+  $('#assessApply').hidden = false;
+  $('#assessApplied').hidden = true;
+
+  $('#assessModules').replaceChildren(...plan.modules.map((m) =>
+    el('button', { class: 'pick', type: 'button', onclick: () => handlers.onModule?.(m) },
+      el('div', { class: 'pick__title', text: m.title }),
+      el('div', { class: 'pick__why', text: m.why }))));
+
+  $('#assessRevisitCard').hidden = !plan.revisit.length;
+  $('#assessRevisit').replaceChildren(...plan.revisit.map((t) =>
+    el('span', { class: 'chip', text: t })));
+}
+
+const CONFIDENCE = { good: 'a firm result', fair: 'reasonably firm', rough: 'provisional' };
+
+/** What the plan would set, said plainly. */
+function planLines(plan) {
+  const lines = [
+    `Level ${plan.level}`,
+    `${plan.newPerDay} new words a day`,
+    `${plan.dailyGoal} reviews a day`,
+  ];
+  return [...lines, ...plan.notes];
+}
+
+/** Accuracy per difficulty band. Bands never asked about say so. */
+function drawBands(node, perBand, wide) {
+  node.replaceChildren(...perBand.map((b) => {
+    const pct = b.accuracy == null ? 0 : Math.round(b.accuracy * 100);
+    const state = b.accuracy == null ? 'is-unasked' : b.accuracy >= 0.7 ? 'is-held' : 'is-weak';
+    return el('div', { class: `band ${state}` },
+      el('span', { class: 'band__name', text: `${b.label} · ${b.cefr}` }),
+      el('div', { class: 'band__track' }, el('i', { style: `width:${pct}%` })),
+      el('span', {
+        class: 'band__score',
+        text: b.accuracy == null ? '—' : wide ? `${pct}% of ${b.seen}` : `${pct}%`,
+      }));
+  }));
+}
+
+/** The level summary shown on Home and Progress without re-sitting the exam. */
+export function renderLevelSummary(placement) {
+  const badgeText = placement ? placement.level : '?';
+  for (const id of ['#homeLevelBadge', '#progressLevelBadge']) {
+    const node = $(id);
+    if (node) node.textContent = badgeText;
+  }
+
+  const when = placement
+    ? new Date(placement.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+    : null;
+  $('#homeLevelLine').textContent = placement
+    ? `${placement.level} · checked ${when}`
+    : 'Not checked yet';
+  $('#homeAssess').textContent = placement ? 'Check again' : 'Check my level';
+
+  const line = $('#progressLevelLine');
+  if (line) {
+    line.textContent = placement
+      ? `${placement.level} on ${when} — ${placement.correct} of ${placement.answered} right, ${CONFIDENCE[placement.confidence]}.`
+      : 'You have not sat the level check yet.';
+  }
+  const bands = $('#progressBands');
+  if (bands) {
+    bands.hidden = !placement;
+    if (placement) drawBands(bands, placement.perBand, false);
+  }
+  $('#progressAssess').textContent = placement ? 'Check again' : 'Check my level';
+}
+
 /** The level card and the two boards under it. */
 export function renderXp(standing, modules, days, totalXp) {
   $('#xpLevel').textContent = standing.level;

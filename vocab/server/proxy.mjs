@@ -28,7 +28,7 @@ import { fileURLToPath } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
 import {
   wordPrompt, wordSchema, quizPrompt, quizSchema,
-  suggestPrompt, suggestSchema, coachPrompt, reportPrompt,
+  suggestPrompt, suggestSchema, coachPrompt, reportPrompt, assessPrompt,
 } from './prompts.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -134,6 +134,17 @@ const routes = {
     if (!body.sentence) throw new HttpError(400, 'No sentence given.');
     openSse(res);
     await streamText(coachPrompt(body), res, pickModel(body));
+  },
+
+  'POST /api/ai/assess': async (req, res, body) => {
+    requireKey();
+    if (!body.estimate) throw new HttpError(400, 'No placement result given.');
+    openSse(res);
+    await streamText(assessPrompt({
+      estimate: body.estimate,
+      plan: body.plan || null,
+      deck: body.deck || {},
+    }), res, pickModel(body));
   },
 
   'POST /api/ai/report': async (req, res, body) => {
