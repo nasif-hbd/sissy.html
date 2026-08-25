@@ -1,10 +1,11 @@
 /**
  * AI adapter.
  *
- * The browser never holds an Anthropic API key. In `proxy` mode every call
- * goes to your own server (see server/proxy.mjs), which owns the key and calls
- * the Claude API. In `mock` mode nothing leaves the device — the template stays
- * fully usable, and demoable, before anyone wires up a key.
+ * Two answers to every question. `built-in` answers on the device from the
+ * dictionary and module packs that ship with the app (see local.js) — no
+ * network, no key, and a real answer rather than a placeholder. `claude` sends
+ * the same question to your own server, which holds the Anthropic API key and
+ * calls the Claude API. The browser never holds a key either way.
  *
  * Wire protocol (both directions are ours, so it is deliberately small):
  *   JSON routes    → POST {…} ⇒ { ok: true, data: … } | { ok: false, error }
@@ -14,6 +15,7 @@
  */
 import { AI } from './config.js';
 import { Store } from './store.js';
+import { localWord, localExplain, localCoach, localSuggest, localReport } from './local.js';
 
 const cfg = () => Store.state.settings.ai;
 
@@ -28,7 +30,7 @@ export const AIClient = {
 
   /** Is the proxy reachable? Returns a short human-readable status string. */
   async health() {
-    if (!this.isLive) return 'Offline mode — using built-in sample responses.';
+    if (!this.isLive) return 'Built-in tutor — answers come from the dictionary on this device.';
     try {
       const res = await fetch(this.url(AI.routes.health), { signal: timeout(6000) });
       if (!res.ok) return `Proxy responded ${res.status}. Check the server logs.`;
@@ -45,13 +47,13 @@ export const AIClient = {
 
   /** Full dictionary entry for a word: definition, examples, mnemonic… */
   async enrichWord(term, opts = {}) {
-    if (!this.isLive) return mockWord(term, opts.level);
+    if (!this.isLive) return localWord(term, opts.level);
     return post(this.url(AI.routes.word), { term, level: opts.level, model: cfg().model });
   },
 
   /** A multiple-choice item for `word`, with plausible distractors. */
   async quiz(word, pool, opts = {}) {
-    if (!this.isLive) return mockQuiz(word, pool);
+    if (!this.isLive) return localQuiz(word, pool);
     return post(this.url(AI.routes.quiz), {
       term: word.term,
       definition: word.definition,
@@ -63,7 +65,7 @@ export const AIClient = {
 
   /** Words worth learning next, given what the learner already knows. */
   async suggest(opts = {}) {
-    if (!this.isLive) return mockSuggest(opts);
+    if (!this.isLive) return localSuggest(opts);
     return post(this.url(AI.routes.suggest), {
       level: opts.level,
       known: opts.known || [],
@@ -75,16 +77,31 @@ export const AIClient = {
 
   // ── streaming calls ──────────────────────────────────────────────────────
 
+  /**
+   * One explanation of a word — meaning, usage, memory hook. Streams so the
+   * panel fills in the same way whichever half is answering.
+   */
+  async explain(word, onToken, opts = {}) {
+    if (!this.isLive) return replay(localExplain(word, opts.level), onToken);
+    return stream(this.url(AI.routes.coach), {
+      term: word.term,
+      definition: word.definition,
+      level: opts.level,
+      sentence: `Explain "${word.term}" to a ${opts.level || 'B1'} learner: two short sentences of plain English, one natural example sentence, then one memory hook.`,
+      model: cfg().model,
+    }, onToken);
+  },
+
   /** Feedback on a learner-written sentence. Streams tokens to `onToken`. */
   async coach({ term, definition, sentence, level }, onToken) {
-    if (!this.isLive) return mockStream(mockCoach(term, sentence), onToken);
+    if (!this.isLive) return replay(localCoach(term, sentence), onToken);
     return stream(this.url(AI.routes.coach),
       { term, definition, sentence, level, model: cfg().model }, onToken);
   },
 
   /** Weekly progress write-up from the tracking snapshot. */
   async report(payload, onToken) {
-    if (!this.isLive) return mockStream(mockReport(payload), onToken);
+    if (!this.isLive) return replay(localReport(payload), onToken);
     return stream(this.url(AI.routes.report), { stats: payload, model: cfg().model }, onToken);
   },
 };
@@ -145,88 +162,30 @@ async function stream(url, body, onToken) {
   return full;
 }
 
-// ── offline mode ───────────────────────────────────────────────────────────
-// Deterministic, obviously-sample content. Enough shape for the UI to be real;
-// never pretends to be a dictionary.
+// ── the built-in half ──────────────────────────────────────────────────────
+// localWord/localCoach/localSuggest/localReport live in local.js because they
+// read the shipped data. Only these two need nothing but the arguments.
 
-function mockWord(term, level = 'B1') {
-  const t = term.trim().toLowerCase();
-  return {
-    term: t,
-    phonetic: '',
-    pos: 'unknown',
-    level,
-    definition: `Sample entry for “${t}”. Switch the AI mode to Proxy in Settings to get a real definition from Claude.`,
-    examples: [
-      `I keep meeting the word ${t} and I want it to stick.`,
-      `Write your own sentence with ${t} here — the writing coach will mark it.`,
-    ],
-    synonyms: [],
-    antonyms: [],
-    mnemonic: `Link “${t}” to a picture you already have in your head — the sillier, the stickier.`,
-    tags: ['custom'],
-  };
-}
-
-function mockQuiz(word, pool) {
+/** A multiple-choice item built from the learner's own deck. */
+function localQuiz(word, pool) {
   const others = pool.filter((w) => w.id !== word.id).sort(() => Math.random() - 0.5).slice(0, 3);
   const options = [...others.map((w) => w.term), word.term].sort(() => Math.random() - 0.5);
   return {
     question: word.definition || `Which word means “${word.term}”?`,
     options,
     answerIndex: options.indexOf(word.term),
-    // The question already carries the definition, so the note adds context
-    // rather than repeating it.
     explanation: word.synonyms?.length
       ? `Close in sense to ${word.synonyms.slice(0, 2).join(' and ')}.`
-      : 'Sample explanation — connect the proxy for a real one.',
+      : `“${word.term}” — ${word.definition || 'check the card for the full entry.'}`,
   };
 }
 
-function mockSuggest({ level = 'B1' } = {}) {
-  const bank = [
-    ['nuance', 'a small but meaningful difference'],
-    ['tangible', 'real enough to touch or measure'],
-    ['adhere', 'to stick to a rule or a surface'],
-    ['scarce', 'not enough to meet demand'],
-    ['exempt', 'freed from a rule others must follow'],
-    ['fluctuate', 'to rise and fall irregularly'],
-    ['intricate', 'detailed and complicated'],
-    ['persistent', 'continuing despite difficulty'],
-  ];
-  return bank.sort(() => Math.random() - 0.5).slice(0, 6)
-    .map(([term, reason]) => ({ term, reason: `${reason} — typical ${level} vocabulary.` }));
-}
-
-function mockCoach(term, sentence) {
-  const uses = sentence.toLowerCase().includes(term.toLowerCase().slice(0, Math.max(4, term.length - 2)));
-  return [
-    uses ? `Good — you used “${term}” in your own sentence.` : `I could not find “${term}” in that sentence. Try again using it directly.`,
-    '',
-    'Offline mode is on, so this is sample feedback rather than a real assessment.',
-    'Turn on Proxy mode in Settings and Claude will check grammar, collocation and register,',
-    'then rewrite your sentence one level more natural.',
-  ].join('\n');
-}
-
-function mockReport(p = {}) {
-  return [
-    `Week in review — ${p.reviewsLast7Days ?? 0} reviews across ${p.activeDaysLast7 ?? 0} active days.`,
-    '',
-    `You are holding a ${p.streak ?? 0}-day streak and ${p.knownWords ?? 0} of ${p.deckSize ?? 0} words have moved into long-term review.`,
-    p.strugglingWords?.length
-      ? `Keep an eye on: ${p.strugglingWords.map((w) => w.term).join(', ')}.`
-      : 'Nothing is badly stuck right now.',
-    '',
-    'This is sample text — connect the proxy for a real analysis of your data.',
-  ].join('\n');
-}
-
-/** Replays canned text through the same token callback the live stream uses. */
-async function mockStream(text, onToken) {
-  for (const chunk of text.match(/\S+\s*/g) || [text]) {
+/** Feeds text through the same token callback the live stream uses. */
+async function replay(text, onToken) {
+  const body = typeof text?.then === 'function' ? await text : text;
+  for (const chunk of body.match(/\S+\s*/g) || [body]) {
     onToken?.(chunk);
-    await new Promise((r) => setTimeout(r, 18));
+    await new Promise((r) => setTimeout(r, 14));
   }
-  return text;
+  return body;
 }

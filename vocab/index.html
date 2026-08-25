@@ -26,7 +26,6 @@
     <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5.5v13M5.5 12h13"/></symbol>
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"/><path d="M14.5 14.5L19.5 19.5"/></symbol>
     <symbol id="i-pen" viewBox="0 0 24 24"><path d="M19.5 4.5L9 15l-1.5 4.5L12 18 19.5 4.5z"/><path d="M13.5 6.5l4 4"/></symbol>
-    <symbol id="i-book" viewBox="0 0 24 24"><path d="M12 7.5v12"/><path d="M12 7.5C10 5.5 7 5.5 4 6v12c3-.5 6-.5 8 1.5 2-2 5-2 8-1.5V6c-3-.5-6-.5-8 1.5z"/></symbol>
     <symbol id="i-skip" viewBox="0 0 24 24"><path d="M6 6l8 6-8 6z"/><path d="M17.5 6v12"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9L17.5 7"/></symbol>
@@ -59,7 +58,7 @@
     </div>
   </header>
 
-  <div class="goalbar" id="goalbar">
+  <div class="goalbar" id="goalbar" hidden>
     <div class="goalbar__track"><div class="goalbar__fill" id="goalFill"></div></div>
     <span class="goalbar__label" id="goalLabel">0 / 20 reviews today</span>
   </div>
@@ -75,9 +74,9 @@
           <div class="module__meter"><i id="homeGoalFill"></i></div>
           <p class="hint" id="homeGoalHint"></p>
           <button class="btn btn--primary btn--wide" id="homeStart">Start learning</button>
-          <div class="row">
+          <div class="row row--even">
+            <button class="btn btn--quiet" id="homeModules"><svg class="ico" aria-hidden="true"><use href="#i-modules"/></svg>Modules</button>
             <button class="btn btn--quiet" id="homePractice"><svg class="ico" aria-hidden="true"><use href="#i-drill"/></svg>Practise</button>
-            <button class="btn btn--quiet" id="homeModules">Browse modules</button>
           </div>
         </div>
 
@@ -97,6 +96,7 @@
         <div class="card">
           <h3 class="card__title">Last 7 days</h3>
           <div class="bars" id="homeBars"></div>
+          <p class="hint" id="homeBarsEmpty" hidden>Review some words and the week fills in here.</p>
         </div>
       </div>
     </section>
@@ -105,6 +105,7 @@
     <section class="view" id="view-learn" data-view="learn" hidden>
       <div class="stack">
         <p class="helper">Due = ready now · New = not seen yet · Learning = still settling in</p>
+
         <div class="queue-summary" id="queueSummary">
           <div class="queue-summary__item"><b id="qDue">0</b><span>due</span></div>
           <div class="queue-summary__item"><b id="qNew">0</b><span>new</span></div>
@@ -132,7 +133,7 @@
               <p id="cardMnemonic"></p>
             </div>
             <div class="ai-slot" id="aiSlot" hidden>
-              <div class="ai-slot__head"><span class="pill pill--ai">†</span><span id="aiSlotTitle">AI note</span></div>
+              <div class="ai-slot__head"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-bulb"/></svg><span id="aiSlotTitle">Help</span></div>
               <div class="ai-slot__body" id="aiSlotBody"></div>
             </div>
           </div>
@@ -148,16 +149,15 @@
           </div>
 
           <div class="card__tools" id="cardTools" hidden>
-            <button class="btn btn--quiet btn--sm" id="explainBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-pen"/></svg>Explain simply</button>
-            <button class="btn btn--quiet btn--sm" id="moreExamplesBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-book"/></svg>More examples</button>
+            <button class="btn btn--quiet btn--sm" id="explainBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-bulb"/></svg>Help me remember</button>
             <button class="btn btn--quiet btn--sm" id="burySkipBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-skip"/></svg>Skip</button>
           </div>
         </div>
 
         <div class="empty" id="learnEmpty">
           <p class="empty__emoji">❦</p>
-          <h2>Queue clear</h2>
-          <p class="empty__text" id="learnEmptyText">Nothing is due. Add an entry, drill what you know, or come back when we call for you.</p>
+          <h2>Nothing to review</h2>
+          <p class="empty__text" id="learnEmptyText">You are up to date.</p>
           <button class="btn btn--primary" id="studyAheadBtn" type="button">Study ahead</button>
         </div>
       </div>
@@ -214,15 +214,22 @@
     <!-- ─────────────────── One module, opened ─────────────────── -->
     <section class="view" id="view-module" data-view="module" hidden>
       <div class="stack">
-        <button class="btn btn--quiet btn--sm" id="moduleBack"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg>All modules</button>
+        <button class="btn btn--quiet btn--sm btn--inline" id="moduleBack"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg>All modules</button>
         <div class="card">
           <h3 class="card__title" id="moduleTitle">Module</h3>
           <p class="hint" id="moduleBlurb"></p>
           <div class="module__meter"><i id="moduleFill"></i></div>
           <p class="hint" id="moduleProgress"></p>
+          <button class="btn btn--primary btn--wide" id="moduleStart">Start set 1</button>
+          <p class="hint" id="moduleNextWords"></p>
         </div>
-        <p class="board__head">Sets of ten words</p>
-        <div class="sets" id="moduleSets"></div>
+        <div class="card card--tight">
+          <div class="row row--between">
+            <h3 class="card__title">All sets</h3>
+            <span class="hint" id="moduleSetsHint"></span>
+          </div>
+          <div class="grid-sets" id="moduleSets"></div>
+        </div>
       </div>
     </section>
 
@@ -318,13 +325,6 @@
     <!-- ───────────────────────── Progress ───────────────────────── -->
     <section class="view" id="view-progress" data-view="progress" hidden>
       <div class="stack">
-        <div class="tiles">
-          <div class="tile"><span class="tile__label">Streak</span><b class="tile__value" id="tStreak">0</b><span class="tile__foot" id="tStreakFoot">best 0</span></div>
-          <div class="tile"><span class="tile__label">Held</span><b class="tile__value" id="tKnown">0</b><span class="tile__foot" id="tKnownFoot">of 0</span></div>
-          <div class="tile"><span class="tile__label">Accuracy</span><b class="tile__value" id="tAccuracy">—</b><span class="tile__foot" id="tAccuracyFoot">last 7 days</span></div>
-          <div class="tile"><span class="tile__label">Reviews</span><b class="tile__value" id="tReviews">0</b><span class="tile__foot" id="tReviewsFoot">≈0/day</span></div>
-        </div>
-
         <div class="card">
           <div class="row row--between">
             <h3 class="card__title">Level <span id="xpLevel">1</span> · <span id="xpTitle">Beginner</span></h3>
@@ -332,11 +332,15 @@
           </div>
           <div class="module__meter"><i id="xpFill"></i></div>
           <p class="hint" id="xpNext">100 XP to the next level</p>
+          <div class="facts">
+            <span><b id="tAccuracy">—</b> accuracy over 7 days</span>
+            <span><b id="tStreak">0</b> best streak</span>
+            <span><b id="tKnown">0</b> words held for the long term</span>
+          </div>
         </div>
 
         <div class="card">
-          <h3 class="card__title">Leaderboard</h3>
-          <p class="hint">Which modules your points came from, and your best days.</p>
+          <h3 class="card__title">Where your XP came from</h3>
           <div class="board" id="boardModules"></div>
           <p class="board__head">Best days</p>
           <div class="board" id="boardDays"></div>
@@ -349,26 +353,18 @@
         </div>
 
         <div class="card">
-          <h3 class="card__title">Last 14 days</h3>
-          <div class="bars" id="bars"></div>
-        </div>
-
-        <div class="card">
           <h3 class="card__title">Your words</h3>
           <div class="mastery" id="mastery"></div>
           <div class="legend" id="masteryLegend"></div>
-        </div>
-
-        <div class="card">
-          <h3 class="card__title">Coming up</h3>
-          <p class="hint">Words due for review over the next 7 days.</p>
+          <p class="board__head">Due over the next 7 days</p>
           <div class="bars bars--forecast" id="forecast"></div>
+          <p class="hint" id="forecastEmpty" hidden>Nothing scheduled yet — reviews appear here once you have graded some words.</p>
         </div>
 
         <div class="card">
           <div class="row row--between">
             <h3 class="card__title">Weekly summary</h3>
-            <button class="btn btn--quiet btn--sm" id="reportBtn" type="button">Generate</button>
+            <button class="btn btn--quiet btn--sm" id="reportBtn" type="button">Write it</button>
           </div>
           <div class="ai-stream" id="reportOutput" hidden></div>
         </div>
@@ -382,9 +378,9 @@
         <div class="card">
           <h3 class="card__title">Reminders</h3>
           <p class="hint" id="notifyState">Checking notification permission…</p>
-          <div class="row">
-            <button class="btn btn--primary" id="notifyEnable" type="button"><svg class="ico" aria-hidden="true"><use href="#i-bell"/></svg>Enable reminders</button>
-            <button class="btn btn--quiet" id="notifyTest" type="button">Send test</button>
+          <div class="row row--even">
+            <button class="btn btn--primary" id="notifyEnable" type="button"><svg class="ico" aria-hidden="true"><use href="#i-bell"/></svg>Turn on</button>
+            <button class="btn btn--quiet" id="notifyTest" type="button">Send a test</button>
           </div>
           <label class="field">
             <span>Reminder times</span>
@@ -392,7 +388,7 @@
           </label>
           <div class="row">
             <input class="input" id="newTime" type="time" value="20:00">
-            <button class="btn btn--quiet" id="addTimeBtn" type="button">Add time</button>
+            <button class="btn btn--quiet" id="addTimeBtn" type="button">Add</button>
           </div>
           <label class="check">
             <input type="checkbox" id="pushToggle">
@@ -442,30 +438,35 @@
         </div>
 
         <div class="card">
-          <h3 class="card__title">AI assistance</h3>
-          <label class="field">
-            <span>Mode</span>
-            <select class="input input--select" id="aiMode">
-              <option value="mock">Offline — built-in sample responses</option>
-              <option value="proxy">Proxy — your server calls the Claude API</option>
-            </select>
-          </label>
-          <label class="field" id="endpointField" hidden>
-            <span>Proxy base URL</span>
-            <input class="input" id="aiEndpoint" type="url" placeholder="http://localhost:8787">
-          </label>
-          <label class="field" id="modelField" hidden>
-            <span>Model</span>
-            <input class="input" id="aiModel" type="text" placeholder="claude-opus-5">
-          </label>
-          <p class="hint">The API key never touches the browser — the proxy in <code>server/</code> holds it. See the README to run it.</p>
-          <p class="hint" id="aiStatus"></p>
+          <h3 class="card__title">AI help</h3>
+          <p class="hint">Explanations, suggested words and the weekly summary. The built-in tutor
+             answers from the dictionary on your device; Claude writes them fresh.</p>
+          <div class="seg seg--wide" id="aiModePicker" role="tablist">
+            <button class="seg__btn is-active" data-ai="mock" role="tab">Built-in</button>
+            <button class="seg__btn" data-ai="proxy" role="tab">Claude</button>
+          </div>
+          <p class="status" id="aiStatus"><i class="status__dot"></i><span id="aiStatusText">Checking…</span></p>
+          <div id="aiProxyFields" hidden>
+            <label class="field">
+              <span>Your server</span>
+              <input class="input" id="aiEndpoint" type="url" placeholder="http://localhost:8787">
+            </label>
+            <label class="field">
+              <span>Model</span>
+              <input class="input" id="aiModel" type="text" placeholder="claude-opus-5">
+            </label>
+            <div class="row">
+              <button class="btn btn--quiet btn--sm" id="aiTest" type="button">Test connection</button>
+            </div>
+            <p class="hint">The API key never touches the browser — the proxy in <code>server/</code>
+               holds it. See the README to run it.</p>
+          </div>
         </div>
 
         <div class="card">
           <h3 class="card__title">Your data</h3>
           <p class="hint">Everything lives in this browser. Export before clearing site data.</p>
-          <div class="row">
+          <div class="row row--even">
             <button class="btn btn--quiet" id="exportBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-download"/></svg>Export</button>
             <button class="btn btn--quiet" id="importBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-upload"/></svg>Import</button>
             <button class="btn btn--danger" id="resetBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-trash"/></svg>Reset</button>

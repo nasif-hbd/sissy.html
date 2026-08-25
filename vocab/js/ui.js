@@ -6,7 +6,7 @@
  * state change without diffing.
  */
 import { bucket, previewIntervals, formatDelta, queueCounts, forecast } from './srs.js';
-import { summary, heatmap, recentDays, masteryBreakdown, weakest } from './stats.js';
+import { summary, heatmap, masteryBreakdown, weakest } from './stats.js';
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -55,9 +55,15 @@ export function applyTheme(theme) {
   $('meta[name="theme-color"]')?.setAttribute('content', paper || '#ffffff');
 }
 
+/** Views where a "reviews done today" bar means something. */
+const GOAL_VIEWS = new Set(['learn', 'practice', 'lesson']);
+
 export function switchView(name) {
   for (const view of $$('.view')) view.hidden = view.dataset.view !== name;
   for (const tab of $$('.tab')) tab.classList.toggle('is-active', tab.dataset.tab === name);
+  // Home draws its own, larger version of the goal meter, and on Settings or
+  // Words the bar was just a line of furniture on every screen.
+  $('#goalbar').hidden = !GOAL_VIEWS.has(name);
   window.scrollTo({ top: 0, behavior: 'instant' });
   location.hash = name;
 }
@@ -196,32 +202,44 @@ export function renderWordList(state, { query = '', filter = 'all' }, handlers =
   }));
 }
 
+/**
+ * A small sheet of choices, anchored to the bottom of the screen.
+ *
+ * This replaces a `prompt()` that asked the learner to read four numbered lines
+ * and type a digit. Each action is `{ label, icon, danger, run }`.
+ */
+export function actionSheet(title, actions) {
+  const close = () => wrap.remove();
+  const wrap = el('div', { class: 'sheet', onclick: (e) => { if (e.target === wrap) close(); } },
+    el('div', { class: 'sheet__panel' },
+      el('p', { class: 'sheet__title', text: title }),
+      ...actions.map((a) => el('button', {
+        class: `sheet__btn${a.danger ? ' sheet__btn--danger' : ''}`,
+        type: 'button',
+        onclick: () => { close(); a.run(); },
+      }, a.icon ? icon(a.icon) : '', a.label)),
+      el('button', { class: 'sheet__btn sheet__btn--cancel', type: 'button', onclick: close }, 'Cancel')));
+
+  document.addEventListener('keydown', function esc(e) {
+    if (e.key !== 'Escape') return;
+    document.removeEventListener('keydown', esc);
+    close();
+  });
+  document.body.append(wrap);
+  wrap.querySelector('.sheet__btn')?.focus();
+}
+
 // ── progress ───────────────────────────────────────────────────────────────
 
 export function renderProgress(state) {
   const s = summary(state);
-  $('#tStreak').textContent = s.streak;
-  $('#tStreakFoot').textContent = `best ${s.longest}`;
-  $('#tKnown').textContent = s.known;
-  $('#tKnownFoot').textContent = `of ${s.total} words`;
   $('#tAccuracy').textContent = s.accuracy7 == null ? '—' : `${Math.round(s.accuracy7 * 100)}%`;
-  $('#tReviews').textContent = s.reviews7;
-  $('#tReviewsFoot').textContent = `≈${s.perDay}/day · ${s.minutes7} min`;
+  $('#tStreak').textContent = s.longest;
+  $('#tKnown').textContent = s.known;
 
   // heatmap
   $('#heatmap').replaceChildren(...heatmap(state, 12).map((c) =>
     el('i', { 'data-l': c.level, title: `${c.key}: ${c.count} review${c.count === 1 ? '' : 's'}` })));
-
-  // 14-day bars
-  const days = recentDays(state, 14);
-  const peak = Math.max(1, ...days.map((d) => d.reviews));
-  $('#bars').replaceChildren(...days.map((d) =>
-    el('div', { class: 'bar', title: `${d.key}: ${d.reviews} reviews` },
-      el('i', {
-        class: d.reviews ? '' : 'is-empty',
-        style: `height:${d.reviews ? Math.max(6, (d.reviews / peak) * 100) : 2}%`,
-      }),
-      el('span', { text: d.label }))));
 
   // mastery bar
   const m = masteryBreakdown(state);
@@ -232,14 +250,19 @@ export function renderProgress(state) {
     ['mastered', 'var(--ok)'], ['review', 'var(--info)'],
     ['learning', 'var(--warn)'], ['leech', 'var(--danger)'], ['new', 'var(--rule-firm)'],
   ];
+  // The stats keep the SRS names; the legend says them in English.
+  const plain = { mastered: 'known', review: 'in review', learning: 'learning', leech: 'tricky', new: 'not started' };
   $('#mastery').replaceChildren(...order.map(([k, colour]) =>
     el('i', { style: `width:${(m[k] / total) * 100}%;background:${colour}`, title: `${k}: ${m[k]}` })));
   $('#masteryLegend').replaceChildren(...order.map(([k, colour]) =>
-    el('span', {}, el('i', { class: 'dot', style: `background:${colour}` }), `${k} ${m[k]}`)));
+    el('span', {}, el('i', { class: 'dot', style: `background:${colour}` }), `${plain[k]} ${m[k]}`)));
 
   // forecast
   const fc = forecast(state, 7);
   const fpeak = Math.max(1, ...fc);
+  const anyDue = fc.some(Boolean);
+  $('#forecast').hidden = !anyDue;
+  $('#forecastEmpty').hidden = anyDue;
   const labels = ['today', ...Array.from({ length: 6 }, (_, i) => {
     const d = new Date(); d.setDate(d.getDate() + i + 1);
     return d.toLocaleDateString(undefined, { weekday: 'narrow' });
@@ -288,20 +311,33 @@ export function renderModuleDetail(module, sets, results, handlers = {}) {
 
   const done = sets.filter((_, i) => results[i]?.passed).length;
   $('#moduleFill').style.width = `${Math.round((done / Math.max(1, sets.length)) * 100)}%`;
-  $('#moduleProgress').textContent = `${done} of ${sets.length} sets passed · ${module.count} words in total`;
+  $('#moduleProgress').textContent = done
+    ? `${done} of ${sets.length} sets passed · ${module.count} words in the module`
+    : `${sets.length} sets of ten · ${module.count} words in the module`;
 
-  const firstUnfinished = sets.findIndex((_, i) => !results[i]?.passed);
+  // One obvious next move. The grid below is for jumping around, not for
+  // choosing where to begin — 40 identical rows made that decision for nobody.
+  const next = sets.findIndex((_, i) => !results[i]?.passed);
+  const target = next === -1 ? 0 : next;
+  $('#moduleStart').textContent = next === -1
+    ? 'Every set passed — study set 1 again'
+    : `${done ? 'Continue' : 'Start'} — set ${target + 1} of ${sets.length}`;
+  $('#moduleStart').onclick = () => handlers.onStart?.(target);
+  $('#moduleNextWords').textContent = (sets[target] || [])
+    .slice(0, 5).map((w) => w.term).join(' · ');
+
+  $('#moduleSetsHint').textContent = `${done}/${sets.length} passed`;
   $('#moduleSets').replaceChildren(...sets.map((words, i) => {
     const result = results[i];
-    const classes = ['set',
+    const classes = ['chip-set',
       result?.passed ? 'is-passed' : '',
-      i === firstUnfinished ? 'is-current' : ''].filter(Boolean).join(' ');
-    return el('button', { class: classes, type: 'button', onclick: () => handlers.onStart?.(i) },
-      el('span', { class: 'set__num', text: String(i + 1) }),
-      el('div', { class: 'set__body' },
-        el('div', { class: 'set__title', text: `Set ${i + 1}` }),
-        el('div', { class: 'set__words', text: words.slice(0, 4).map((w) => w.term).join(', ') + '…' })),
-      el('span', { class: 'set__score', text: result ? `${result.best}%` : `${words.length} words` }));
+      i === target ? 'is-current' : ''].filter(Boolean).join(' ');
+    return el('button', {
+      class: classes,
+      type: 'button',
+      title: `Set ${i + 1} — ${words.slice(0, 4).map((w) => w.term).join(', ')}${result ? ` (best ${result.best}%)` : ''}`,
+      onclick: () => handlers.onStart?.(i),
+    }, String(i + 1));
   }));
 }
 
@@ -310,6 +346,7 @@ export function renderHome(data) {
   $('#homeToday').textContent = data.todayLine;
   $('#homeGoalFill').style.width = `${Math.round(data.goalPct * 100)}%`;
   $('#homeGoalHint').textContent = data.goalHint;
+  $('#homeGoalHint').hidden = !data.goalHint;
   $('#homeStart').textContent = data.startLabel;
 
   $('#homeWeek').textContent = data.week.reviews;
@@ -322,6 +359,9 @@ export function renderHome(data) {
   $('#homeLearnedFoot').textContent = `of ${data.total} words`;
 
   const peak = Math.max(1, ...data.days.map((d) => d.reviews));
+  const anyReviews = data.days.some((d) => d.reviews);
+  $('#homeBars').hidden = !anyReviews;
+  $('#homeBarsEmpty').hidden = anyReviews;
   $('#homeBars').replaceChildren(...data.days.map((d) =>
     el('div', { class: 'bar', title: `${d.key}: ${d.reviews} reviews` },
       el('i', {
