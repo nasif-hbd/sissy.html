@@ -30,7 +30,8 @@ vocab/
 │   ├── srs.js          SM-2 scheduler (pure functions)
 │   ├── stats.js        streaks, accuracy, heatmap, forecast
 │   ├── notify.js       reminders (local) + Web Push (optional)
-│   ├── ai.js           Claude adapter, offline + proxy modes
+│   ├── ai.js           routes each call to the built-in tutor or the proxy
+│   ├── local.js        the built-in tutor — every AI answer, on the device
 │   ├── ui.js           rendering
 │   └── data/seed.js    40-word starter deck — swap this out
 ├── server/             the only place an API key exists
@@ -42,8 +43,8 @@ vocab/
 
 ## Quick start
 
-**Offline, right now** — the app ships with sample AI responses, so nothing is
-required to try it:
+**Offline, right now** — every AI feature is answered on the device from the
+dictionary that ships with the app, so nothing is required to try it:
 
 ```bash
 cd vocab
@@ -130,7 +131,7 @@ Hover styling is behind `(hover: hover) and (pointer: fine)`, so touch devices
 never inherit a stuck hover state. Every control clears a 44px target on touch
 sizes, and quiz results are marked with a glyph as well as a colour.
 
-`tests/devices.mjs` drives all five views at eight viewport shapes — a 320px
+`tests/devices.mjs` drives all six views at eight viewport shapes — a 320px
 phone through a 1680px desktop, including landscape — and fails on horizontal
 overflow, a sub-30px tap target, or an icon that doesn't paint. It needs a
 browser, so it sits outside `node --test`:
@@ -366,9 +367,14 @@ Prompts and schemas are all in `server/prompts.mjs`, under one shared tutor
 system prompt. Re-target the app — a different language, an exam board, a
 domain glossary — by editing that file and `js/data/seed.js`.
 
-**Offline mode** (`mock`) is not a stub for the demo's sake: it keeps every
-screen usable with no key, no network and no cost, and returns clearly-labelled
-sample text so nobody mistakes it for a real definition.
+**The built-in tutor** (`mock`) is not a stub for the demo's sake. `js/local.js`
+answers each route from the 95,000-entry dictionary and the module packs already
+on disk: real definitions and synonyms for the explain panel, real words at the
+learner's band for suggestions, checkable feedback on a written sentence, and a
+weekly summary written from the tracking numbers. No key, no network, no cost —
+and no placeholder telling the learner to go and configure a server first. Claude
+is what you turn on for prose that is written fresh for the learner, not for the
+app to become usable.
 
 ## Customising
 
@@ -389,7 +395,7 @@ sample text so nobody mistakes it for a real definition.
 ## Testing
 
 ```bash
-cd vocab && node --test            # scheduler, tracking, design, XP, exams: 45 tests, no deps
+cd vocab && node --test              # scheduler, tracking, design, XP, exams, tutor: 54 tests, no deps
 cd server && npm run smoke         # every proxy route against a live server
 ```
 

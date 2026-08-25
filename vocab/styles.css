@@ -210,6 +210,11 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 .stack { display: flex; flex-direction: column; gap: 14px; }
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .row--between { justify-content: space-between; }
+/* Buttons that should read as one group: equal widths when they fit on a line,
+   and an even wrap rather than one orphan when they don't. */
+.row--even > .btn { flex: 1 1 118px; min-width: 0; }
+/* A button in a .stack would otherwise stretch the full column width. */
+.btn--inline { align-self: flex-start; }
 .row > .input, .row > .input-icon { flex: 1; min-width: 0; }
 
 .card {
@@ -250,7 +255,6 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 }
 .pill--ghost { background: var(--paper-sunk); color: var(--ink-3); }
 .pill--level { background: var(--paper-sunk); color: var(--ink-3); }
-.pill--ai { background: var(--info-soft); color: var(--info); }
 .card__head .icon-btn { margin-left: auto; }
 
 .term {
@@ -288,9 +292,11 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 
 .ai-slot { border-radius: var(--radius-sm); background: var(--info-soft); padding: 13px 15px; }
 .ai-slot__head {
-  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
-  font-family: var(--sans); font-size: 11px; font-weight: 500; color: var(--ink-3);
+  display: flex; align-items: center; gap: 7px; margin-bottom: 8px;
+  font-family: var(--sans); font-size: 11px; font-weight: 600;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
 }
+.ai-slot__head .ico { color: var(--info); }
 .ai-slot__body { font-size: 14.5px; line-height: 1.55; color: var(--ink-2); white-space: pre-wrap; }
 
 .card__actions { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
@@ -391,6 +397,34 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
   font-family: var(--sans); font-size: 13.5px; font-weight: 500;
 }
 .seg__btn.is-active { background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm); }
+.seg--wide { margin-bottom: 11px; }
+
+/* A one-line state readout: coloured dot, then the sentence. */
+.status {
+  display: flex; align-items: flex-start; gap: 9px;
+  font-size: 13.5px; line-height: 1.5; color: var(--ink-2);
+}
+.status__dot {
+  flex: 0 0 auto; width: 8px; height: 8px; margin-top: 6px; border-radius: 50%;
+  background: var(--ink-3);
+}
+.status[data-state="ok"] .status__dot   { background: var(--ok); }
+.status[data-state="bad"] .status__dot  { background: var(--danger); }
+.status[data-state="wait"] .status__dot { background: var(--warn); }
+
+/* Three numbers on one line — what used to be a row of stat tiles. */
+.facts {
+  display: flex; flex-wrap: wrap; gap: 6px 18px; margin-top: 12px;
+  font-size: 13px; color: var(--ink-3);
+}
+/* Every meter inside a card needs air on both sides; they sat flush against
+   the lines above and below them. */
+.card .module__meter { margin: 12px 0 10px; }
+
+.facts b {
+  font-family: var(--sans); font-size: 15px; font-weight: 700; color: var(--ink);
+  font-variant-numeric: tabular-nums; margin-right: 4px;
+}
 
 .prompt { font-size: 17px; line-height: 1.5; margin-bottom: 13px; }
 .prompt b { font-family: var(--sans); font-weight: 600; }
@@ -535,29 +569,57 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 }
 
 /* ── a module opened: its sets of ten ───────────────────────────────────── */
-.sets { display: flex; flex-direction: column; gap: 8px; }
-.set {
-  display: flex; align-items: center; gap: 12px;
-  padding: 13px 15px; cursor: pointer; text-align: left; width: 100%;
-  background: var(--card); border: 1px solid var(--edge); border-radius: var(--radius-sm);
-  box-shadow: var(--shadow-sm); font-family: inherit;
+/* Forty sets used to be forty full-width rows. They are numbered chips now:
+   the same forty targets in six rows instead of forty screens of scrolling. */
+.grid-sets {
+  display: grid; gap: 7px;
+  grid-template-columns: repeat(auto-fill, minmax(44px, 1fr));
 }
-.set__num {
-  display: grid; place-items: center; flex: none;
-  width: 34px; height: 34px; border-radius: 50%;
+.chip-set {
+  aspect-ratio: 1; min-width: 0; min-height: 44px; cursor: pointer;
+  display: grid; place-items: center;
   background: var(--paper-sunk); color: var(--ink-2);
-  font-family: var(--sans); font-size: 13px; font-weight: 600;
+  border: 1px solid transparent; border-radius: var(--radius-sm);
+  font-family: var(--sans); font-size: 13.5px; font-weight: 600;
+  font-variant-numeric: tabular-nums;
 }
-.set.is-passed .set__num { background: var(--ok-soft); color: var(--ok); }
-.set.is-current .set__num { background: var(--accent); color: var(--accent-ink); }
-.set__body { flex: 1; min-width: 0; }
-.set__title { font-family: var(--sans); font-size: 14.5px; font-weight: 600; }
-.set__words { font-size: 12.5px; color: var(--ink-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.set__score {
-  font-family: var(--sans); font-size: 13px; font-weight: 600;
-  font-variant-numeric: tabular-nums; color: var(--ink-3);
+.chip-set.is-passed { background: var(--ok-soft); color: var(--ok); }
+.chip-set.is-current {
+  background: var(--accent); color: var(--accent-ink);
+  box-shadow: 0 0 0 3px var(--accent-soft);
 }
-.set.is-passed .set__score { color: var(--ok); }
+
+/* ── the action sheet ───────────────────────────────────────────────────── */
+.sheet {
+  position: fixed; inset: 0; z-index: 60;
+  display: flex; align-items: flex-end; justify-content: center;
+  background: rgba(16, 19, 26, .34);
+  animation: sheet-in .16s ease;
+}
+.sheet__panel {
+  width: min(420px, 100%); max-height: 80vh; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 14px 14px calc(18px + env(safe-area-inset-bottom));
+  background: var(--card); border-radius: var(--radius) var(--radius) 0 0;
+  box-shadow: var(--shadow-lift);
+}
+.sheet__title {
+  font-family: var(--sans); font-size: 12px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
+  padding: 6px 10px 8px;
+}
+.sheet__btn {
+  display: flex; align-items: center; gap: 11px; width: 100%;
+  min-height: 48px; padding: 0 14px; cursor: pointer; text-align: left;
+  background: transparent; border: 0; border-radius: var(--radius-sm);
+  color: var(--ink); font-family: var(--sans); font-size: 15px; font-weight: 500;
+}
+.sheet__btn .ico { color: var(--ink-3); }
+.sheet__btn--danger, .sheet__btn--danger .ico { color: var(--danger); }
+.sheet__btn--cancel { justify-content: center; margin-top: 4px; background: var(--paper-sunk); color: var(--ink-2); }
+@keyframes sheet-in { from { opacity: 0; } to { opacity: 1; } }
+@media (hover: hover) { .sheet__btn:hover { background: var(--paper-sunk); } }
+@media (min-width: 700px) { .sheet { align-items: center; } .sheet__panel { border-radius: var(--radius); } }
 
 /* ── a set being studied ────────────────────────────────────────────────── */
 .lesson__bar { display: flex; align-items: center; gap: 11px; }

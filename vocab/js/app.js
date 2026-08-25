@@ -16,7 +16,7 @@ import { AIClient } from './ai.js';
 import {
   $, $$, el, icon, toast, applyTheme, switchView, renderHeader, renderQueueSummary,
   renderCard, renderEmptyQueue, renderWordList, renderProgress, renderSuggestions,
-  renderModules, renderModuleDetail, renderHome, renderXp, practicePool,
+  renderModules, renderModuleDetail, renderHome, renderXp, practicePool, actionSheet,
 } from './ui.js';
 import { Catalog } from './catalog.js';
 import { AWARDS, award, claimDailyBonuses, standing, moduleStandings, bestDays } from './xp.js';
@@ -200,8 +200,7 @@ function wireLearn() {
   for (const btn of $$('#grades .btn--grade')) {
     btn.addEventListener('click', () => gradeCard(Number(btn.dataset.grade)));
   }
-  $('#explainBtn').addEventListener('click', () => aiCardHelp('explain'));
-  $('#moreExamplesBtn').addEventListener('click', () => aiCardHelp('examples'));
+  $('#explainBtn').addEventListener('click', aiCardHelp);
 }
 
 function refillQueue() {
@@ -301,36 +300,37 @@ function gradeCard(grade) {
 }
 
 /** The dagger buttons on the back of a card. */
-async function aiCardHelp(kind) {
+/**
+ * One button, one panel. It fills with the meaning in plainer words, the
+ * examples we hold, and a memory hook — from the device, or from Claude when
+ * the proxy is connected. Any examples that come back are kept on the card.
+ */
+async function aiCardHelp() {
   const word = currentWord();
   if (!word) return;
   const slot = $('#aiSlot');
   const body = $('#aiSlotBody');
+  const btn = $('#explainBtn');
   slot.hidden = false;
-  $('#aiSlotTitle').textContent = kind === 'explain' ? 'Marginalia' : 'Further usage';
+  $('#aiSlotTitle').textContent = AIClient.isLive ? 'Claude' : 'From the dictionary';
   body.textContent = '';
   body.classList.add('cursor');
+  btn.disabled = true;
 
   try {
-    if (kind === 'explain') {
-      await AIClient.coach({
-        term: word.term, definition: word.definition, level: Store.state.profile.level,
-        sentence: `Explain the word "${word.term}" to a ${Store.state.profile.level} learner in two short sentences, then give one memory hook.`,
-      }, (t) => { body.textContent += t; });
-    } else {
-      const data = await AIClient.enrichWord(word.term, { level: Store.state.profile.level });
-      const examples = (data.examples || []).slice(0, 3);
-      body.textContent = examples.map((e) => `• ${e}`).join('\n');
-      if (examples.length) {
-        Store.updateWord(word.id, {
-          examples: [...new Set([...(word.examples || []), ...examples])].slice(0, 5),
-        });
-      }
+    await AIClient.explain(word, (t) => { body.textContent += t; },
+      { level: Store.state.profile.level });
+    if (!(word.examples || []).length) {
+      const data = await AIClient.enrichWord(word.term, { level: Store.state.profile.level })
+        .catch(() => null);
+      const examples = (data?.examples || []).slice(0, 3);
+      if (examples.length) Store.updateWord(word.id, { examples });
     }
   } catch (err) {
-    body.textContent = `Could not reach the AI: ${err.message}`;
+    body.textContent = `Could not reach Claude: ${err.message}`;
   } finally {
     body.classList.remove('cursor');
+    btn.disabled = false;
   }
 }
 
@@ -557,11 +557,13 @@ function drawHome(state) {
 
   renderHome({
     todayLine: doneToday
-      ? `${doneToday} review${doneToday === 1 ? '' : 's'} done today · ${xpToday} XP`
-      : 'Nothing done yet today.',
+      ? `${doneToday} review${doneToday === 1 ? '' : 's'} done · ${xpToday} XP`
+      : `Nothing yet — ${goal} reviews to go.`,
     goalPct: goal ? Math.min(1, doneToday / goal) : 0,
-    goalHint: doneToday >= goal
-      ? 'Daily goal reached. Anything more is a bonus.'
+    // Only worth a second line once the first one is a score rather than an
+    // invitation — otherwise it says the same thing twice.
+    goalHint: !doneToday ? ''
+      : doneToday >= goal ? 'Daily goal reached. Anything more is a bonus.'
       : `${goal - doneToday} more to reach today's goal of ${goal}.`,
     startLabel: waiting ? `Review ${waiting} word${waiting === 1 ? '' : 's'}` : 'Start learning',
     week: { reviews: week.reviews, xp: xpInWindow(state, 7) },
@@ -668,47 +670,6 @@ function rememberContinue(rows) {
   session.continueSet = null;
 }
 
-/** Add the next `count` unlearned words of a module to the deck. */
-async function addFromModule(module, count) {
-  const pack = await Catalog.pack(module.id);
-  const fresh = pack.words.filter((entry) => !Store.state.words[entry.w]);
-  const take = fresh.slice(0, count === Infinity ? fresh.length : count);
-  if (!take.length) { toast('Every word of this module is already in your deck.'); return; }
-
-  Store.commit((state) => {
-    for (const entry of take) {
-      const word = makeModuleWord(entry, module.id);
-      state.words[word.id] = word;
-      state.srs[word.id] ??= makeSrs();
-    }
-  });
-
-  toast(`Added ${take.length} word${take.length === 1 ? '' : 's'} from ${module.title}.`);
-  refillQueue();
-  render();
-  loadModules();
-}
-
-function makeModuleWord(entry, moduleId) {
-  return {
-    id: entry.w,
-    term: entry.w,
-    phonetic: '',
-    pos: entry.p || '',
-    definition: entry.d || '',
-    examples: [],
-    synonyms: entry.s || [],
-    antonyms: [],
-    mnemonic: '',
-    tags: [moduleId],
-    level: { Easy: 'A2', Moderate: 'B1', Advanced: 'B2', 'God Level': 'C2' }[entry.x] || '',
-    tr: { bn: entry.bn || '', hi: entry.hi || '', 'zh-CN': entry.zh || '' },
-    source: `module:${moduleId}`,
-    module: moduleId,
-    addedAt: Date.now(),
-  };
-}
-
 function refreshWordList() {
   renderWordList(Store.state,
     { query: session.wordQuery, filter: session.wordFilter },
@@ -761,17 +722,20 @@ function openWord(word) {
 }
 
 function wordMenu(word) {
-  const rec = Store.state.srs[word.id];
-  const action = prompt(
-    `“${word.term}” — ${bucket(rec)}\n\n` +
-    '1  Study now\n2  Reset progress\n3  Refresh with AI\n4  Delete\n\nType a number:',
-    '1');
-  if (action === '1') openWord(word);
-  else if (action === '2') { Store.commit((s) => { s.srs[word.id] = makeSrs(); }); toast('Progress reset.'); render(); }
-  else if (action === '3') refreshWithAI(word);
-  else if (action === '4') {
-    if (confirm(`Delete “${word.term}” and its progress?`)) { Store.deleteWord(word.id); render(); }
-  }
+  actionSheet(`${word.term} — ${bucket(Store.state.srs[word.id])}`, [
+    { label: 'Study this word now', icon: 'study', run: () => openWord(word) },
+    { label: 'Explain it again', icon: 'bulb', run: () => refreshWithAI(word) },
+    { label: 'Start it over', icon: 'back', run: () => {
+      Store.commit((s) => { s.srs[word.id] = makeSrs(); });
+      toast('Progress reset.');
+      render();
+    } },
+    { label: 'Delete', icon: 'trash', danger: true, run: () => {
+      if (!confirm(`Delete “${word.term}” and its progress?`)) return;
+      Store.deleteWord(word.id);
+      render();
+    } },
+  ]);
 }
 
 async function refreshWithAI(word) {
@@ -904,29 +868,44 @@ function wireSettings() {
   level.value = Store.state.profile.level;
   level.addEventListener('change', (e) => Store.set('profile.level', e.target.value));
 
-  // AI
-  const mode = $('#aiMode');
-  mode.value = s.ai.mode;
+  // AI — one choice, one status line, the server fields only when they matter.
   $('#aiEndpoint').value = s.ai.endpoint || AICFG.defaultEndpoint;
   $('#aiModel').value = s.ai.model || AICFG.defaultModel;
-  const syncAIFields = () => {
-    const live = $('#aiMode').value === 'proxy';
-    $('#endpointField').hidden = !live;
-    $('#modelField').hidden = !live;
+
+  const showAIMode = (mode) => {
+    for (const btn of $$('#aiModePicker .seg__btn')) {
+      btn.classList.toggle('is-active', btn.dataset.ai === mode);
+    }
+    $('#aiProxyFields').hidden = mode !== 'proxy';
   };
-  mode.addEventListener('change', async (e) => {
-    Store.set('settings.ai.mode', e.target.value);
-    syncAIFields();
-    $('#aiStatus').textContent = await AIClient.health();
-  });
-  $('#aiEndpoint').addEventListener('change', async (e) => {
+
+  async function refreshAIStatus() {
+    const text = $('#aiStatusText');
+    const dot = $('#aiStatus');
+    text.textContent = 'Checking…';
+    dot.dataset.state = 'wait';
+    const msg = await AIClient.health();
+    text.textContent = msg;
+    dot.dataset.state = !AIClient.isLive || /^Connected/.test(msg) ? 'ok' : 'bad';
+  }
+
+  for (const btn of $$('#aiModePicker .seg__btn')) {
+    btn.addEventListener('click', () => {
+      Store.set('settings.ai.mode', btn.dataset.ai);
+      showAIMode(btn.dataset.ai);
+      refreshAIStatus();
+    });
+  }
+  $('#aiEndpoint').addEventListener('change', (e) => {
     Store.set('settings.ai.endpoint', e.target.value.trim());
-    $('#aiStatus').textContent = await AIClient.health();
+    refreshAIStatus();
   });
   $('#aiModel').addEventListener('change', (e) =>
     Store.set('settings.ai.model', e.target.value.trim() || AICFG.defaultModel));
-  syncAIFields();
-  AIClient.health().then((msg) => { $('#aiStatus').textContent = msg; });
+  $('#aiTest').addEventListener('click', refreshAIStatus);
+
+  showAIMode(s.ai.mode);
+  refreshAIStatus();
 
   // data
   $('#exportBtn').addEventListener('click', () => {

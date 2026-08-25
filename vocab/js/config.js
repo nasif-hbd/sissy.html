@@ -59,8 +59,9 @@ export const THEMES = [
 /**
  * AI wiring.
  *
- * `mock`  — no network. Built-in sample responses so the template is usable
- *           (and demo-able) before anyone has an API key.
+ * `mock`  — no network. The built-in tutor answers from the dictionary and
+ *           module packs that ship with the app (js/local.js), so every AI
+ *           feature works on a fresh install with no key and no server.
  * `proxy` — the browser calls YOUR server, which holds the Anthropic API key
  *           and calls the Claude API. Never ship a key to the browser.
  */
