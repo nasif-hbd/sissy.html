@@ -44,6 +44,7 @@ function freshState() {
     days: {},    // 'YYYY-MM-DD' -> { reviews, correct, learned, seconds }
     history: [], // recent reviews, newest last, capped at 2000
     streak: { current: 0, longest: 0, lastActive: null },
+    placement: null,  // the last level check, or null if never sat
   };
 }
 
@@ -105,6 +106,8 @@ function migrate(s) {
   if (!s.days) s.days = {};
   if (!s.history) s.history = [];
   if (!s.settings?.ai) s.settings = { ...freshState().settings, ...(s.settings || {}) };
+  // The level check arrived after the first release; older saves have no field.
+  if (s.placement === undefined) s.placement = null;
   // themes were system/light/dark before they were named
   const renamed = { system: 'auto', light: 'paper', dark: 'ink' };
   if (renamed[s.settings?.theme]) s.settings.theme = renamed[s.settings.theme];

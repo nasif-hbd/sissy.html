@@ -21,6 +21,8 @@ vocab/
 ├── js/
 │   ├── app.js          controller — wires DOM to the modules below
 │   ├── catalog.js      module packs + dictionary lookup (lazy)
+│   ├── placement.js    the adaptive level check (pure, testable)
+│   ├── advice.js       turns a level into a study plan
 │   ├── xp.js           the points economy, levels and rankings
 │   ├── exam.js         question generation and marking
 │   ├── lesson.js       one set of ten: cards, then the exam
@@ -131,7 +133,7 @@ Hover styling is behind `(hover: hover) and (pointer: fine)`, so touch devices
 never inherit a stuck hover state. Every control clears a 44px target on touch
 sizes, and quiz results are marked with a glyph as well as a colour.
 
-`tests/devices.mjs` drives all six views at eight viewport shapes — a 320px
+`tests/devices.mjs` drives all eight screens at eight viewport shapes — a 320px
 phone through a 1680px desktop, including landscape — and fails on horizontal
 overflow, a sub-30px tap target, or an icon that doesn't paint. It needs a
 browser, so it sits outside `node --test`:
@@ -290,6 +292,56 @@ attributed to the module a word came from, so the board shows where the effort
 is really going. It is all on-device — there are no accounts and nothing is
 sent anywhere.
 
+## The level check
+
+The learner used to pick their own CEFR level from a dropdown, which is a guess
+dressed up as a setting — and it decides how hard every definition, suggestion
+and module recommendation is. `js/placement.js` measures it instead.
+
+**How it measures.** Every word in the module packs carries the dataset's own
+difficulty band (Easy / Moderate / Advanced / God Level ⇒ A2 / B1 / B2 / C2), so
+a question drawn from a band is a question of known difficulty. A sitting is
+sixteen questions in two halves:
+
+1. **A calibration sweep** — two questions at each band, in order. This is what
+   makes every band judgeable. Without it a strong learner reaches the top rung
+   by question three and spends the other thirteen there, leaving every other
+   band on a single item and reporting a flawless score as "provisional".
+2. **An adaptive ladder** — the remaining eight. Right answer, harder band;
+   wrong answer, easier. It hands over one rung above the hardest band the sweep
+   saw passed, so it spends its questions on the boundary rather than
+   re-confirming settled ground.
+
+Questions come in three kinds — what a word means, which word means this, and
+which word is closest in meaning. **Every distractor is drawn from the answer's
+own band.** That is the property the whole measurement rests on: mix bands and a
+rare word becomes answerable by elimination against three everyday ones, and the
+ladder measures nothing. `tests/placement.test.mjs` fails if that ever breaks.
+
+**What it reports.** The level is the hardest band answered at 70% or better
+over at least two items — a single lucky answer never earns a band. Confidence
+falls when few bands got enough questions to judge, and the screen says so
+rather than implying a precision sixteen questions cannot support. The
+vocabulary figure is measured accuracy per band applied to the words *this app
+holds* in that band, and is labelled as exactly that — never as the learner's
+total English vocabulary.
+
+**What it does about it.** `js/advice.js` turns the result into a plan: a level,
+a daily goal, new words per day, the three modules that fit, and any of the
+learner's own words that keep coming back wrong. One button applies it.
+
+Modules are ranked by where their difficulty sits relative to the learner: a
+module pitched just above them scores highest, one entirely below is revision,
+one entirely above is discouraging. Pace comes from review accuracy once there
+is a week of it; before that it comes from *whether and how high they placed* —
+never from their exam score, because an adaptive exam drives every learner
+towards roughly half right and using that would tell everyone to slow down.
+
+The plan is computed on the device in both AI modes, so the recommendation is
+identical with or without a key. Claude writes the read-out around it (`/api/ai/assess`)
+and is told the level and plan as fixed inputs to explain — it cannot quietly
+overrule a measurement with a hunch.
+
 ## The three headline features
 
 ### 1 · Notifications
@@ -351,6 +403,7 @@ The browser **never** holds an API key. `js/ai.js` speaks to your own proxy;
 | Feature | Route | Shape |
 |---|---|---|
 | Add a word → full study card | `POST /api/ai/word` | structured JSON |
+| Level check → written read-out | `POST /api/ai/assess` | SSE stream |
 | Generate a quiz item with real distractors | `POST /api/ai/quiz` | structured JSON |
 | Suggest what to learn next | `POST /api/ai/suggest` | structured JSON |
 | Mark a sentence the learner wrote | `POST /api/ai/coach` | streamed |
@@ -395,7 +448,7 @@ app to become usable.
 ## Testing
 
 ```bash
-cd vocab && node --test              # scheduler, tracking, design, XP, exams, tutor: 54 tests, no deps
+cd vocab && node --test              # scheduler, tracking, design, XP, exams, tutor, placement: 89 tests, no deps
 cd server && npm run smoke         # every proxy route against a live server
 ```
 
@@ -427,3 +480,7 @@ Clearing site data erases progress, so the Export button is not decorative.
 - Speech uses the browser's own voices; quality varies by platform.
 - `localStorage` is synchronous and capped around 5 MB — comfortably thousands
   of words, but move to IndexedDB before shipping tens of thousands.
+- The level check measures against the 3,200 banded words in the module packs,
+  not the full 95,000-entry dictionary — only the packs carry difficulty bands.
+  Sixteen questions place a learner within a band, not to a fraction of one, and
+  the result screen says so instead of implying otherwise.

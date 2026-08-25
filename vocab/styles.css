@@ -568,6 +568,57 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
   padding: 2px 0;
 }
 
+/* ── the level check ────────────────────────────────────────────────────── */
+.level-badge {
+  display: grid; place-items: center; flex: none;
+  min-width: 46px; height: 46px; padding: 0 10px; border-radius: var(--radius-sm);
+  background: var(--accent-soft); color: var(--accent);
+  font-family: var(--sans); font-size: 19px; font-weight: 700;
+}
+
+/* Accuracy at one difficulty band. The bar is the measurement; the colour says
+   whether the learner holds that band. */
+.bands { display: flex; flex-direction: column; gap: 9px; }
+.band { display: flex; align-items: center; gap: 10px; font-size: 13px; }
+.band__name { flex: 0 0 108px; color: var(--ink-2); }
+.band__track {
+  flex: 1; min-width: 0; height: 8px; border-radius: 999px;
+  background: var(--paper-sunk); overflow: hidden;
+}
+.band__track i { display: block; height: 100%; border-radius: 999px; background: var(--ink-3); transition: width .4s ease; }
+.band__score {
+  flex: 0 0 auto; min-width: 62px; text-align: right; color: var(--ink-3);
+  font-family: var(--sans); font-variant-numeric: tabular-nums;
+}
+.band.is-held .band__track i { background: var(--ok); }
+.band.is-held .band__score { color: var(--ok); }
+.band.is-weak .band__track i { background: var(--warn); }
+.band.is-weak .band__score { color: var(--warn); }
+.band.is-unasked { opacity: .5; }
+.bands--mini { margin: 12px 0 4px; }
+.bands--mini .band__name { flex-basis: 92px; }
+.bands--mini .band__score { min-width: 38px; }
+
+/* The plan, as a list of what it would set. */
+.plan { list-style: none; margin: 10px 0 14px; display: flex; flex-direction: column; gap: 7px; }
+.plan li {
+  position: relative; padding-left: 18px; font-size: 14px; line-height: 1.5; color: var(--ink-2);
+}
+.plan li::before {
+  content: ""; position: absolute; left: 3px; top: 8px;
+  width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+}
+
+/* Recommended modules. */
+.picks { display: flex; flex-direction: column; gap: 8px; }
+.pick {
+  width: 100%; padding: 13px 15px; text-align: left; cursor: pointer;
+  background: var(--card); border: 1px solid var(--edge); border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-sm); font-family: inherit;
+}
+.pick__title { font-family: var(--sans); font-size: 15px; font-weight: 600; margin-bottom: 2px; }
+.pick__why { font-size: 13px; line-height: 1.45; color: var(--ink-3); }
+
 /* ── a module opened: its sets of ten ───────────────────────────────────── */
 /* Forty sets used to be forty full-width rows. They are numbered chips now:
    the same forty targets in six rows instead of forty screens of scrolling. */

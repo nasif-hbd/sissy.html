@@ -9,7 +9,7 @@
  * Bump CACHE when you change any shell file — the old cache is dropped on
  * activate.
  */
-const CACHE = 'lexio-v4';
+const CACHE = 'lexio-v5';
 const SHELL = [
   './',
   './index.html',

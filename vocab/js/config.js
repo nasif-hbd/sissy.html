@@ -75,6 +75,7 @@ export const AI = {
     coach: '/api/ai/coach',
     suggest: '/api/ai/suggest',
     report: '/api/ai/report',
+    assess: '/api/ai/assess',
     health: '/api/health',
   },
   timeoutMs: 45_000,

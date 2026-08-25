@@ -74,3 +74,25 @@ console.log('\nreport (stream) ', await streamPost('/api/ai/report', {
     strugglingWords: [{ term: 'plausible', wrong: 4, seen: 6 }],
   },
 }));
+
+console.log('\nassess (stream) ', await streamPost('/api/ai/assess', {
+  estimate: {
+    level: 'B1', band: 'Moderate', bandIndex: 1, reached: true,
+    answered: 16, correct: 8, accuracy: 0.5, confidence: 'good',
+    perBand: [
+      { band: 'Easy', cefr: 'A2', label: 'Everyday', seen: 2, right: 2, accuracy: 1, judged: true },
+      { band: 'Moderate', cefr: 'B1', label: 'Common', seen: 6, right: 6, accuracy: 1, judged: true },
+      { band: 'Advanced', cefr: 'B2', label: 'Academic', seen: 6, right: 0, accuracy: 0, judged: true },
+      { band: 'God Level', cefr: 'C2', label: 'Rare', seen: 2, right: 0, accuracy: 0, judged: true },
+    ],
+    knownWords: { known: 2228, total: 3200 },
+  },
+  plan: {
+    level: 'B1', newPerDay: 8, dailyGoal: 20,
+    paceWhy: 'A steady start for B1.',
+    modules: [{ title: 'SAT', why: '56% of it sits just above your level.' }],
+    revisit: ['plausible', 'coherent'],
+    notes: [],
+  },
+  deck: { size: 42, streak: 6 },
+}));
