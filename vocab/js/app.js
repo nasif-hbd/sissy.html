@@ -9,7 +9,7 @@
  */
 import { APP, AI as AICFG, THEMES } from './config.js';
 import { Store, refreshStreak, makeSrs, dayKey, daysAgoKey } from './store.js';
-import { schedule, buildQueue, bucket, queueCounts } from './srs.js';
+import { schedule, buildQueue, bucket, plannedSession } from './srs.js';
 import { makeSessionTimer, reportPayload, weakest, summary, window as windowStats, recentDays } from './stats.js';
 import { Notifier, Push } from './notify.js';
 import { AIClient } from './ai.js';
@@ -559,20 +559,22 @@ function drawHome(state) {
   const xpToday = state.xp?.byDay?.[dayKey()] || 0;
   const week = windowStats(state, 7);
   const month = windowStats(state, 30);
-  const counts = queueCounts(state);
-  const waiting = counts.due + counts.learning;
+  const plan = plannedSession(state, { newAllowance: newLeftToday(state) });
 
   renderHome({
-    todayLine: doneToday
-      ? `${doneToday} review${doneToday === 1 ? '' : 's'} done · ${xpToday} XP`
-      : `Nothing yet — ${goal} reviews to go.`,
+    // The card carries two different measurements — the day's goal and the
+    // queue waiting right now — and they are rarely the same number. Left
+    // unlabelled beside each other ("20 reviews to go" over "Review 2 words")
+    // they read as a bug, so the counter names its unit and the button names
+    // exactly what pressing it will do.
+    countLine: `${doneToday} of ${goal} reviews`
+      + (xpToday ? ` · ${xpToday} XP` : ''),
     goalPct: goal ? Math.min(1, doneToday / goal) : 0,
-    // Only worth a second line once the first one is a score rather than an
-    // invitation — otherwise it says the same thing twice.
-    goalHint: !doneToday ? ''
-      : doneToday >= goal ? 'Daily goal reached. Anything more is a bonus.'
-      : `${goal - doneToday} more to reach today's goal of ${goal}.`,
-    startLabel: waiting ? `Review ${waiting} word${waiting === 1 ? '' : 's'}` : 'Start learning',
+    goalDone: doneToday >= goal && doneToday > 0,
+    goalHint: doneToday >= goal && doneToday > 0
+      ? 'Daily goal reached. Anything more is a bonus.'
+      : '',
+    startLabel: startLabel(plan),
     week: { reviews: week.reviews, xp: xpInWindow(state, 7) },
     month: { reviews: month.reviews, xp: xpInWindow(state, 30) },
     streak: state.streak.current || 0,
@@ -583,6 +585,30 @@ function drawHome(state) {
       ? { text: `${session.continueSet.module.title} — set ${session.continueSet.index + 1} of ${session.continueSet.total}` }
       : null,
   });
+}
+
+/**
+ * What the primary button will actually do, said in the button.
+ *
+ * "Start learning" was a label for three different outcomes — reviewing what is
+ * due, meeting new words, or studying ahead of schedule — and gave the learner
+ * no way to know which they were about to get.
+ *
+ * The new-word count is the number the session will really serve, not the
+ * number sitting in the deck: buildQueue caps new cards at the daily allowance,
+ * so a fresh install offered "Learn 40 new words" and then handed over ten.
+ */
+function startLabel(plan) {
+  const waiting = plan.due + plan.learning;
+  if (waiting) return `Review ${waiting} word${waiting === 1 ? '' : 's'}`;
+  if (plan.new) return `Learn ${plan.new} new word${plan.new === 1 ? '' : 's'}`;
+  return 'Study ahead';
+}
+
+/** New cards still allowed today, after the ones already introduced. */
+function newLeftToday(state) {
+  const used = state.days[dayKey()]?.learned || 0;
+  return Math.max(0, state.settings.newPerDay - used);
 }
 
 function xpInWindow(state, days) {

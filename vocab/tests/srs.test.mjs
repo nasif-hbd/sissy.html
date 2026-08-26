@@ -7,7 +7,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { schedule, bucket, buildQueue, queueCounts, forecast, formatDelta } from '../js/srs.js';
+import { schedule, bucket, buildQueue, queueCounts, plannedSession, forecast, formatDelta } from '../js/srs.js';
 import { makeSrs } from '../js/store.js';
 import { summary, recentDays, masteryBreakdown, weakest } from '../js/stats.js';
 import { dayKey, daysAgoKey } from '../js/store.js';
@@ -163,3 +163,68 @@ test('recentDays returns one entry per day, oldest first, ending today', () => {
   assert.equal(days.at(-1).reviews, 12);
   assert.equal(days.at(-2).reviews, 20);
 });
+
+// ── what a session will actually serve ─────────────────────────────────────
+
+test('the planned session caps new cards at the daily allowance', () => {
+  // queueCounts reports the whole deck; buildQueue serves only the allowance.
+  // Anything that promises the learner a number has to use the served figure —
+  // the home button offered "Learn 40 new words" and then handed over ten.
+  const state = deck(40, 'new');
+  const plan = plannedSession(state, { newAllowance: 10 });
+  assert.equal(plan.new, 10);
+  assert.equal(plan.heldBack, 30);
+  assert.equal(plan.total, 10);
+
+  // and it agrees with what buildQueue really returns
+  assert.equal(buildQueue(state, { newAllowance: 10 }).length, plan.total);
+});
+
+test('the planned session never promises more than the deck holds', () => {
+  const plan = plannedSession(deck(3, 'new'), { newAllowance: 25 });
+  assert.equal(plan.new, 3);
+  assert.equal(plan.heldBack, 0);
+});
+
+test('a spent allowance offers no new cards at all', () => {
+  const state = deck(40, 'new');
+  const plan = plannedSession(state, { newAllowance: 0 });
+  assert.equal(plan.new, 0);
+  assert.equal(plan.heldBack, 40);
+  assert.equal(buildQueue(state, { newAllowance: 0 }).length, 0);
+});
+
+test('a negative allowance is treated as none, not as a slice from the end', () => {
+  // newPerDay minus words already learned can go negative if the setting is
+  // lowered mid-day; slice(-3) would then quietly serve three cards.
+  const plan = plannedSession(deck(40, 'new'), { newAllowance: -3 });
+  assert.equal(plan.new, 0);
+  assert.equal(plan.total, 0);
+});
+
+test('due and learning cards are counted in full, only new ones are rationed', () => {
+  const state = deck(0, 'new');
+  const now = Date.now();
+  for (let i = 0; i < 12; i += 1) {
+    state.words[`d${i}`] = { id: `d${i}`, term: `d${i}` };
+    state.srs[`d${i}`] = { state: 'review', due: now - 1000, interval: 3, ease: 2.5, reps: 2, lapses: 0 };
+  }
+  for (let i = 0; i < 5; i += 1) {
+    state.words[`l${i}`] = { id: `l${i}`, term: `l${i}` };
+    state.srs[`l${i}`] = { state: 'learning', due: now - 1000, step: 0, interval: 0, ease: 2.5, reps: 1, lapses: 0 };
+  }
+  const plan = plannedSession(state, { newAllowance: 10 });
+  assert.equal(plan.due, 12, 'every due card is served, allowance or not');
+  assert.equal(plan.learning, 5);
+  assert.equal(plan.total, 17);
+});
+
+/** A deck of `n` cards all in one state. */
+function deck(n, cardState) {
+  const state = { words: {}, srs: {} };
+  for (let i = 0; i < n; i += 1) {
+    state.words[`w${i}`] = { id: `w${i}`, term: `w${i}`, addedAt: i };
+    state.srs[`w${i}`] = { state: cardState, due: 0, interval: 0, ease: 2.5, reps: 0, lapses: 0 };
+  }
+  return state;
+}

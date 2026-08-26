@@ -154,6 +154,28 @@ export function queueCounts(state, now = Date.now()) {
   return { due, learning, new: fresh };
 }
 
+/**
+ * What a session started right now would actually serve.
+ *
+ * `queueCounts` reports the whole deck — every new card in it, however many
+ * days' worth that is. `buildQueue` then hands over only `newAllowance` of
+ * them. Anything user-facing that promises a number has to use this one, or it
+ * over-promises: a fresh 40-word deck offered "Learn 40 new words" and then
+ * gave the learner ten.
+ */
+export function plannedSession(state, { now = Date.now(), newAllowance = 10 } = {}) {
+  const counts = queueCounts(state, now);
+  const fresh = Math.max(0, Math.min(counts.new, newAllowance));
+  return {
+    due: counts.due,
+    learning: counts.learning,
+    new: fresh,
+    /** New cards in the deck that today's allowance will not reach. */
+    heldBack: counts.new - fresh,
+    total: counts.due + counts.learning + fresh,
+  };
+}
+
 /** Cards coming back over the next `days` days, bucketed per day. */
 export function forecast(state, days = 7, now = Date.now()) {
   const out = Array.from({ length: days }, () => 0);

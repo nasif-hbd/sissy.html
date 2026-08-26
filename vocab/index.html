@@ -69,10 +69,12 @@
     <section class="view" id="view-home" data-view="home">
       <div class="stack">
         <div class="card">
-          <h3 class="card__title">Today</h3>
-          <p class="lead" id="homeToday">Nothing done yet today.</p>
+          <div class="row row--between">
+            <h3 class="card__title">Today</h3>
+            <span class="today__count" id="homeCount">0 of 20 reviews</span>
+          </div>
           <div class="module__meter"><i id="homeGoalFill"></i></div>
-          <p class="hint" id="homeGoalHint"></p>
+          <p class="hint" id="homeGoalHint" hidden></p>
           <button class="btn btn--primary btn--wide" id="homeStart">Start learning</button>
           <div class="row row--even">
             <button class="btn btn--quiet" id="homeModules"><svg class="ico" aria-hidden="true"><use href="#i-modules"/></svg>Modules</button>
