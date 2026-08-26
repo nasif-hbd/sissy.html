@@ -55,6 +55,8 @@
   --tap:       44px;
   --maxw:      660px;
   --rail:      64px;
+  /* Fallback height for the Ask chat; ui.js measures the real one per device. */
+  --chat-min:  60vh;
   --sans: "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   --text: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
@@ -376,18 +378,73 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 .range::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); border: 3px solid var(--card); }
 .range:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 
-.times { display: flex; flex-wrap: wrap; gap: 7px; }
-.time-chip {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 4px 5px 4px 14px; border-radius: 999px;
-  background: var(--accent-soft); color: var(--accent);
-  font-size: 13.5px; font-weight: 600; font-variant-numeric: tabular-nums;
+/* ── ask: the tutor conversation ────────────────────────────────────────── */
+/* The page scrolls and the input bar sticks to the bottom of it. A fixed-height
+   log needs a magic number for the header and the view padding, and gets it
+   wrong on the next device; this needs neither. */
+/* The fallback is declared here so the chat has a usable height even if the
+   script never runs; ui.js then measures the real distance from the top of the
+   chat to the bottom of the viewport and overrides it on the element. A
+   constant alone is wrong on the next device. */
+.chat { display: flex; flex-direction: column; min-height: var(--chat-min); }
+.chat__log {
+  flex: 1; display: flex; flex-direction: column; gap: 10px;
+  padding-bottom: 8px;
 }
-.time-chip button {
-  display: grid; place-items: center; width: 32px; height: 32px;
-  background: none; border: 0; border-radius: 50%; color: inherit; cursor: pointer;
+.chat__intro { text-align: center; padding: 26px 8px 18px; }
+.chat__intro h2 { font-size: 20px; margin: 10px 0 6px; }
+.chat__intro .ico--lg { width: 34px; height: 34px; color: var(--accent); }
+.chat__intro .chips { justify-content: center; margin-top: 16px; }
+
+.bubble {
+  max-width: 86%; padding: 11px 14px; border-radius: var(--radius);
+  font-size: 15px; line-height: 1.55; white-space: pre-wrap; overflow-wrap: anywhere;
 }
-.time-chip .ico { width: 13px; height: 13px; }
+.bubble--you {
+  align-self: flex-end; border-bottom-right-radius: 6px;
+  background: var(--accent); color: var(--accent-ink);
+}
+.bubble--tutor {
+  align-self: flex-start; border-bottom-left-radius: 6px;
+  background: var(--card); color: var(--ink); box-shadow: var(--shadow-sm);
+}
+.bubble.is-pending::after {
+  content: "▍"; margin-left: 2px; color: var(--ink-3);
+  animation: blink 1s steps(2, start) infinite;
+}
+.bubble.is-failed { color: var(--danger); }
+@keyframes blink { to { visibility: hidden; } }
+
+.chat__bar {
+  display: flex; gap: 8px; align-items: center;
+  padding: 10px 0 calc(6px + env(safe-area-inset-bottom));
+  background: var(--paper);
+  position: sticky; bottom: 0;
+}
+.chat__bar .input { flex: 1; min-width: 0; }
+.chat__bar .btn { flex: 0 0 auto; padding-left: 15px; padding-right: 15px; }
+.chip--tap { cursor: pointer; border: 0; font-family: inherit; text-align: left; }
+@media (hover: hover) { .chip--tap:hover { background: var(--accent-soft); color: var(--accent); } }
+
+/* ── the routine builder ────────────────────────────────────────────────── */
+.routine { display: flex; flex-direction: column; gap: 9px; }
+.step {
+  padding: 11px 12px; border-radius: var(--radius-sm);
+  background: var(--paper-sunk);
+}
+.step__row { display: flex; align-items: center; gap: 7px; }
+.step__row .input--time {
+  flex: 0 0 auto; width: auto; min-width: 0;
+  font-variant-numeric: tabular-nums; font-weight: 600;
+}
+.step__row .input--select { flex: 1; min-width: 0; }
+.step__hint { font-size: 12px; line-height: 1.45; color: var(--ink-3); margin-top: 7px; }
+
+/* Below this the time and the action stop fitting side by side. */
+@media (max-width: 420px) {
+  .step__row { flex-wrap: wrap; }
+  .step__row .input--select { flex: 1 0 100%; order: 3; }
+}
 
 /* ── practice ───────────────────────────────────────────────────────────── */
 .seg { display: flex; gap: 4px; padding: 4px; background: var(--paper-sunk); border-radius: var(--radius-sm); }

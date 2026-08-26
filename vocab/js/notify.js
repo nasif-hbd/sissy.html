@@ -14,6 +14,7 @@
 import { NOTIFY, PUSH } from './config.js';
 import { Store, dayKey } from './store.js';
 import { queueCounts } from './srs.js';
+import { dueStep, cardFor, quoteFor } from './routine.js';
 
 let swReg = null;
 let ticker = null;
@@ -78,49 +79,89 @@ export const Notifier = {
   stop() { clearInterval(ticker); ticker = null; },
 
   /**
-   * One check: has a reminder slot passed today that we have not fired yet,
-   * and is there anything worth interrupting the user for?
+   * One check: is a step of the routine due, and is there anything to say?
+   *
+   * Each step decides its own card, so the 08:00 word and the 21:00 module
+   * nudge no longer share one generic message.
    */
   tick(now = new Date()) {
-    const { reminders, dailyGoal } = Store.state.settings;
+    const { reminders } = Store.state.settings;
     if (!reminders?.enabled || this.permission !== 'granted') return;
 
     const today = dayKey(now);
-    const nowMins = now.getHours() * 60 + now.getMinutes();
+    const step = dueStep(reminders.routine, {
+      now, today, fired: reminders.lastFired || {},
+    });
+    if (!step) return;
 
-    for (const time of reminders.times || []) {
-      const [h, m] = time.split(':').map(Number);
-      const slotMins = h * 60 + m;
-      if (nowMins < slotMins) continue;                       // not yet
-      if (nowMins - slotMins > NOTIFY.dedupeMs / 60_000) continue; // long past, skip
-      if (reminders.lastFired?.[time] === today) continue;     // already sent
+    const card = cardFor(step, cardContext(step));
+    // A step with nothing worth saying still counts as handled, or it will be
+    // reconsidered every minute for the rest of its window.
+    Store.commit((s) => { (s.settings.reminders.lastFired ??= {})[step.id] = today; });
+    if (!card) return;
 
-      const counts = queueCounts(Store.state);
-      const doneToday = Store.today().reviews;
-      const pending = counts.due + counts.learning;
-      if (pending === 0 && doneToday >= dailyGoal) continue;   // nothing to nag about
-
-      Store.commit((s) => { (s.settings.reminders.lastFired ??= {})[time] = today; });
-      this.show(...reminderCopy({ pending, fresh: counts.new, doneToday, dailyGoal }));
-      return;
-    }
+    this.show(card.title, card.body, {
+      data: { view: card.view },
+      // The lock-screen cards are things to read, not tasks — action buttons
+      // on them would be noise.
+      actions: !card.quiet,
+    });
   },
 };
 
-/** Message shown at reminder time — kept in one place so it is easy to reword. */
-function reminderCopy({ pending, fresh, doneToday, dailyGoal }) {
-  if (pending > 0) {
-    return [
-      `${pending} entr${pending === 1 ? 'y' : 'ies'} due for review`,
-      doneToday > 0
-        ? `${doneToday} done today — a few more and the day is banked.`
-        : 'Two minutes now keeps the streak alive.',
-    ];
+/** What the routine needs to know about the learner, gathered at fire time. */
+function cardContext(step) {
+  const state = Store.state;
+  const counts = queueCounts(state);
+  const base = {
+    due: counts.due,
+    learning: counts.learning,
+    fresh: counts.new,
+    doneToday: Store.today().reviews,
+    dailyGoal: state.settings.dailyGoal,
+  };
+
+  if (step.action === 'quote') {
+    return { ...base, quote: state.settings.reminders.quote || quoteFor(dayKey()) };
   }
-  if (fresh > 0) {
-    return ['New entries to set', `${fresh} unread entr${fresh === 1 ? 'y is' : 'ies are'} waiting in your deck.`];
+  if (step.action === 'word') return { ...base, word: pickCardWord(state) };
+  if (step.action === 'module') return { ...base, ...nextModule(state) };
+  return base;
+}
+
+/**
+ * The word to put on the lock screen.
+ *
+ * Something they are mid-way through beats something brand new: the card is a
+ * free repetition, and a word already in the deck is the one repetition helps.
+ */
+function pickCardWord(state) {
+  const words = Object.values(state.words || {});
+  if (!words.length) return null;
+  const inFlight = words.filter((w) => {
+    const rec = state.srs?.[w.id];
+    return rec && rec.state !== 'new' && w.definition;
+  });
+  const pool = inFlight.length ? inFlight : words.filter((w) => w.definition);
+  if (!pool.length) return null;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+/** The module and set the learner is part-way through, for a module step. */
+function nextModule(state) {
+  const lessons = state.lessons || {};
+  let best = null;
+  for (const [id, sets] of Object.entries(lessons)) {
+    const results = Object.values(sets);
+    const at = Math.max(0, ...results.map((r) => r?.at || 0));
+    if (!best || at > best.at) {
+      const passed = Object.keys(sets).filter((i) => sets[i]?.passed).map(Number);
+      best = { at, id, next: (passed.length ? Math.max(...passed) + 1 : 0) + 1 };
+    }
   }
-  return ['Keep the streak going', `${doneToday} of ${dailyGoal} reviews today.`];
+  if (!best) return {};
+  const title = state.moduleTitles?.[best.id] || best.id.toUpperCase();
+  return { moduleTitle: title, setNumber: best.next };
 }
 
 // ── Web Push (optional) ─────────────────────────────────────────────────────
@@ -150,7 +191,9 @@ export const Push = {
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({
         subscription: sub,
-        times: Store.get('settings.reminders.times'),
+        // The server fires these when the app is closed, so it needs the whole
+        // routine — the times alone cannot say what each one is for.
+        routine: Store.get('settings.reminders.routine') || [],
         timezoneOffset: new Date().getTimezoneOffset(),
       }),
     });

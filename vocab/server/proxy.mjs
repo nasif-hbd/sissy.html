@@ -28,15 +28,35 @@ import { fileURLToPath } from 'node:url';
 import Anthropic from '@anthropic-ai/sdk';
 import {
   wordPrompt, wordSchema, quizPrompt, quizSchema,
-  suggestPrompt, suggestSchema, coachPrompt, reportPrompt, assessPrompt,
+  suggestPrompt, suggestSchema, coachPrompt, reportPrompt, assessPrompt, askPrompt,
 } from './prompts.mjs';
+// The reminder copy is shared with the app so the wording never drifts between
+// a notification fired in-tab and the same one pushed from here.
+import { dueStep, cardFor, quoteFor, fromTimes, validTime } from '../js/routine.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP_DIR = path.resolve(HERE, '..');
 const SUBS_FILE = path.join(HERE, 'subscriptions.json');
 
 const PORT = Number(process.env.PORT || 8787);
-const MODEL = process.env.LEXIO_MODEL || 'claude-opus-5';
+/**
+ * Default model: the cheapest one that does this job well.
+ *
+ * Every call here is short and tightly specified — a definition, one quiz item,
+ * a paragraph of feedback — which is exactly what Haiku is for. At $1/$5 per
+ * million tokens it is a fifth of Opus 5's input price. Override with
+ * LEXIO_MODEL, or per-request from the app's Settings.
+ */
+const MODEL = process.env.LEXIO_MODEL || 'claude-haiku-4-5';
+
+/**
+ * `output_config.effort` is not universal: it is rejected outright by Haiku 4.5
+ * and Sonnet 4.5. Sending it anyway turns every route into a 400, so it goes
+ * only to models that take it.
+ */
+const EFFORT_MODELS = /^claude-(fable|mythos|opus-5|opus-4-[678]|sonnet-5|sonnet-4-6|opus-4-5)/;
+const outputConfig = (model, extra = {}) =>
+  (EFFORT_MODELS.test(model) ? { effort: 'low', ...extra } : { ...extra });
 const MAX_BODY = 64 * 1024;
 
 // The SDK resolves ANTHROPIC_API_KEY (or an `ant auth login` profile) itself.
@@ -56,10 +76,7 @@ async function askJson({ system, user }, schema, model = MODEL) {
     max_tokens: 2000,
     system,
     messages: [{ role: 'user', content: user }],
-    output_config: {
-      effort: 'low',
-      format: { type: 'json_schema', schema },
-    },
+    output_config: outputConfig(model, { format: { type: 'json_schema', schema } }),
   });
 
   if (response.stop_reason === 'refusal') {
@@ -74,13 +91,15 @@ async function askJson({ system, user }, schema, model = MODEL) {
  * Streaming request: every text delta is forwarded to the browser as an SSE
  * frame, so feedback appears while it is being written.
  */
-async function streamText({ system, user }, res, model = MODEL) {
+async function streamText({ system, user, messages }, res, model = MODEL) {
   const stream = client.messages.stream({
     model,
     max_tokens: 2000,
     system,
-    messages: [{ role: 'user', content: user }],
-    output_config: { effort: 'low' },
+    // Most routes are one-shot and pass `user`; the chat passes a whole
+    // conversation as `messages`.
+    messages: messages?.length ? messages : [{ role: 'user', content: user }],
+    output_config: outputConfig(model),
   });
 
   for await (const event of stream) {
@@ -134,6 +153,18 @@ const routes = {
     if (!body.sentence) throw new HttpError(400, 'No sentence given.');
     openSse(res);
     await streamText(coachPrompt(body), res, pickModel(body));
+  },
+
+  'POST /api/ai/ask': async (req, res, body) => {
+    requireKey();
+    const question = String(body.question || '').trim().slice(0, 1000);
+    if (!question) throw new HttpError(400, 'No question given.');
+    openSse(res);
+    await streamText(askPrompt({
+      question,
+      history: Array.isArray(body.history) ? body.history.slice(-12) : [],
+      level: body.level,
+    }), res, pickModel(body));
   },
 
   'POST /api/ai/assess': async (req, res, body) => {
@@ -190,9 +221,14 @@ const routes = {
     if (!body.subscription?.endpoint) throw new HttpError(400, 'No subscription.');
     const subs = await loadSubs();
     const next = subs.filter((s) => s.subscription.endpoint !== body.subscription.endpoint);
+    // The routine is what the app sends now; `times` is kept for a browser
+    // still running an older build, and converted on the spot.
+    const routine = Array.isArray(body.routine) && body.routine.length
+      ? body.routine.filter((s) => s?.id && validTime(s.time))
+      : fromTimes(Array.isArray(body.times) ? body.times : ['20:00']);
     next.push({
       subscription: body.subscription,
-      times: Array.isArray(body.times) && body.times.length ? body.times : ['20:00'],
+      routine,
       timezoneOffset: Number(body.timezoneOffset) || 0,
       lastFired: {},
       createdAt: Date.now(),
@@ -394,23 +430,58 @@ if (webpush) {
     for (const entry of subs) {
       const local = new Date(Date.now() - entry.timezoneOffset * 60_000);
       const day = local.toISOString().slice(0, 10);
-      const mins = local.getUTCHours() * 60 + local.getUTCMinutes();
-      for (const time of entry.times) {
-        const [h, m] = time.split(':').map(Number);
-        const slot = h * 60 + m;
-        if (mins < slot || mins - slot > 30) continue;
-        if (entry.lastFired?.[time] === day) continue;
-        entry.lastFired = { ...entry.lastFired, [time]: day };
-        changed = true;
-        try {
-          await webpush.sendNotification(entry.subscription, JSON.stringify({
-            title: 'Time to review',
-            body: 'Your words are waiting — two minutes keeps the streak.',
-            view: 'learn',
-          }));
-        } catch { /* dropped on the next pushAll sweep */ }
-      }
+
+      const step = dueStep(entry.routine, {
+        now: new Date(local.getUTCFullYear(), local.getUTCMonth(), local.getUTCDate(),
+                      local.getUTCHours(), local.getUTCMinutes()),
+        today: day,
+        fired: entry.lastFired || {},
+      });
+      if (!step) continue;
+
+      entry.lastFired = { ...entry.lastFired, [step.id]: day };
+      changed = true;
+
+      // The server knows the clock, not the learner's deck — nothing personal
+      // is uploaded — so a word card draws from the shipped modules and the
+      // review card speaks in general terms. cardFor is the same function the
+      // in-app reminder uses, so the wording never drifts between the two.
+      const card = cardFor(step, {
+        due: 1, doneToday: 0, dailyGoal: 0,
+        word: step.action === 'word' ? await randomStudyWord() : null,
+        quote: quoteFor(day),
+      });
+      if (!card) continue;
+
+      try {
+        await webpush.sendNotification(entry.subscription, JSON.stringify({
+          title: card.title, body: card.body, view: card.view,
+        }));
+      } catch { /* dropped on the next pushAll sweep */ }
     }
     if (changed) await saveSubs(subs);
   }, 60_000).unref?.();
+}
+
+/**
+ * A word for a lock-screen card, from the modules this server already hosts.
+ *
+ * Read once and kept — the packs do not change while the process is up.
+ */
+let wordPool = null;
+async function randomStudyWord() {
+  if (!wordPool) {
+    try {
+      const dir = path.join(APP_DIR, 'data', 'modules');
+      const index = JSON.parse(await fsp.readFile(path.join(dir, "index.json"), "utf8"));
+      const packs = await Promise.all(index.slice(0, 3).map((m) =>
+        fsp.readFile(path.join(dir, m.file), 'utf8').then(JSON.parse)));
+      wordPool = packs.flatMap((p) => p.words).filter((w) => w.w && w.d);
+    } catch {
+      wordPool = [];
+    }
+  }
+  if (!wordPool.length) return null;
+  const pick = wordPool[Math.floor(Math.random() * wordPool.length)];
+  return { term: pick.w, pos: pick.p || '', definition: pick.d };
 }

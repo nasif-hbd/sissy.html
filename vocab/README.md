@@ -22,6 +22,8 @@ vocab/
 │   ├── app.js          controller — wires DOM to the modules below
 │   ├── catalog.js      module packs + dictionary lookup (lazy)
 │   ├── placement.js    the adaptive level check (pure, testable)
+│   ├── routine.js      the day's steps and their notification copy
+│   ├── chat.js         reads an open question well enough to answer offline
 │   ├── advice.js       turns a level into a study plan
 │   ├── xp.js           the points economy, levels and rankings
 │   ├── exam.js         question generation and marking
@@ -133,7 +135,7 @@ Hover styling is behind `(hover: hover) and (pointer: fine)`, so touch devices
 never inherit a stuck hover state. Every control clears a 44px target on touch
 sizes, and quiz results are marked with a glyph as well as a colour.
 
-`tests/devices.mjs` drives all eight screens at eight viewport shapes — a 320px
+`tests/devices.mjs` drives all nine screens at eight viewport shapes — a 320px
 phone through a 1680px desktop, including landscape — and fails on horizontal
 overflow, a sub-30px tap target, or an icon that doesn't paint. It needs a
 browser, so it sits outside `node --test`:
@@ -322,6 +324,60 @@ streak. It replaced four stat tiles that on a fresh install all read "0", and it
 deliberately repeats neither the header (words, learned) nor the card above it
 (current streak).
 
+## Ask — the tutor you can talk to
+
+Everywhere else the AI answers a question the app chose. The Ask tab lets the
+learner choose, which is a different job: they arrive with "what's the
+difference between affect and effect", or a sentence they are unsure of, and no
+menu covers that.
+
+With Claude connected the conversation (last twelve turns) goes to
+`POST /api/ai/ask`, streamed. Without it, `js/chat.js` reads the question well
+enough to answer the common shapes from the dictionary already on the device —
+"what does X mean", "X vs Y", "use X in a sentence", "synonyms for X" — and says
+plainly when a question is beyond that rather than inventing an answer.
+
+The parsing is the part that can fail silently: mis-read the question and it
+confidently answers a different one. `tests/chat.test.mjs` pins it, including
+that an open question yields *no* word rather than a wrong one, so it falls
+through to Claude instead of being answered about some stray token.
+
+## Your routine, and words on the lock screen
+
+Reminders used to be a flat list of times that all showed the same nag. A
+routine is that list with intent attached: what happens at 07:30 is a different
+thing from what happens at 21:00, and the notification says so.
+
+Each step is a time plus one of five actions — review what is due, carry on a
+module, practise, **a word on the lock screen**, or **a line to keep going**.
+Steps are edited in place in Settings, sorted by time, and each carries its own
+copy and its own destination when tapped.
+
+**On the lock screen.** A web app cannot draw a lock-screen widget on any
+platform — that needs a native app, and this is deliberately not one. What it
+can do is fire a notification, and a notification lands on the lock screen on
+Android and iOS and in the notification centre on Windows and macOS. A
+notification carrying a word and its meaning does the job a widget would:
+
+    resilient
+    (adjective) able to recover quickly from difficulty
+
+Those two step types are marked `passive` and drop the action buttons — they are
+things to read, not tasks.
+
+**When they arrive.** Local reminders fire while a tab is open; that is the
+platform, not a limitation of the app, and the builder says so under the list
+rather than letting someone rely on a 07:00 card that never comes. With the
+proxy running and VAPID keys set, the same routine is pushed server-side and
+arrives with the app closed. The push scheduler imports `cardFor` from
+`js/routine.js` — the same function the in-app reminder uses — so the wording
+cannot drift between the two paths. The server never receives the learner's
+deck: a pushed word card is drawn from the module packs it already hosts.
+
+`tests/routine.test.mjs` covers the firing rules, because a reminder that fires
+twice, at the wrong hour, or silently never is the kind of bug nobody reports
+and everybody resents.
+
 ## The level check
 
 The learner used to pick their own CEFR level from a dropdown, which is a guess
@@ -434,6 +490,7 @@ The browser **never** holds an API key. `js/ai.js` speaks to your own proxy;
 |---|---|---|
 | Add a word → full study card | `POST /api/ai/word` | structured JSON |
 | Level check → written read-out | `POST /api/ai/assess` | SSE stream |
+| An open question, with history | `POST /api/ai/ask` | SSE stream |
 | Generate a quiz item with real distractors | `POST /api/ai/quiz` | structured JSON |
 | Suggest what to learn next | `POST /api/ai/suggest` | structured JSON |
 | Mark a sentence the learner wrote | `POST /api/ai/coach` | streamed |
@@ -442,9 +499,17 @@ The browser **never** holds an API key. `js/ai.js` speaks to your own proxy;
 The JSON routes use **structured outputs** (`output_config.format` with a JSON
 schema), so the browser gets a guaranteed shape and needs no defensive parsing.
 The two conversational routes stream, and arrive token by token in the UI.
-Default model: **`claude-opus-5`**, effort `low` — these are short, tightly
-specified generations. `LEXIO_MODEL` overrides it; clients may request a model
-only from an allowlist in `pickModel()`.
+Default model: **`claude-haiku-4-5`** — the cheapest tier, and the right one
+here. Every call is short and tightly specified: a definition, one quiz item, a
+paragraph of feedback. At $1/$5 per million tokens it is a fifth of Opus 5's
+input price. Settings offers Sonnet 5 and Opus 5 for anyone who wants them, and
+`LEXIO_MODEL` overrides the default; clients may only request a model from the
+allowlist in `pickModel()`.
+
+One trap worth knowing if you change the model: **`output_config.effort` is
+rejected outright by Haiku 4.5 and Sonnet 4.5.** Sending it anyway turns every
+route into a 400. `outputConfig()` in `proxy.mjs` gates it by model, so the
+parameter goes only to models that take it.
 
 Prompts and schemas are all in `server/prompts.mjs`, under one shared tutor
 system prompt. Re-target the app — a different language, an exam board, a
@@ -478,7 +543,7 @@ app to become usable.
 ## Testing
 
 ```bash
-cd vocab && node --test              # scheduler, tracking, design, XP, exams, tutor, placement: 94 tests, no deps
+cd vocab && node --test              # scheduler, tracking, design, XP, exams, tutor, placement, routine, chat: 133 tests, no deps
 cd server && npm run smoke         # every proxy route against a live server
 ```
 

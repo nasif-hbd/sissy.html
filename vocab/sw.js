@@ -9,7 +9,7 @@
  * Bump CACHE when you change any shell file — the old cache is dropped on
  * activate.
  */
-const CACHE = 'lexio-v7';
+const CACHE = 'lexio-v8';
 /**
  * Every file the app needs to start with no network.
  *
@@ -32,6 +32,8 @@ const SHELL = [
   './js/local.js',
   './js/notify.js',
   './js/placement.js',
+  './js/routine.js',
+  './js/chat.js',
   './js/srs.js',
   './js/stats.js',
   './js/store.js',

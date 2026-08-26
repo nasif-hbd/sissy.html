@@ -66,6 +66,8 @@ export function switchView(name) {
   $('#goalbar').hidden = !GOAL_VIEWS.has(name);
   window.scrollTo({ top: 0, behavior: 'instant' });
   location.hash = name;
+  // The chat sizes itself to the viewport, which it can only do once visible.
+  if (name === 'ask') sizeChat();
 }
 
 // ── header + goal ──────────────────────────────────────────────────────────
@@ -417,6 +419,41 @@ function drawMods(data, handlers) {
   $('#homeModsEmpty').hidden = rows.length > 0;
   $('#homeContinue').hidden = !data.continue;
   if (data.continue) $('#homeContinue').textContent = data.continue.label;
+}
+
+// ── ask ────────────────────────────────────────────────────────────────────
+
+/**
+ * Make the chat fill whatever is left of the screen, so the input bar sits at
+ * the bottom rather than floating halfway up an empty conversation.
+ *
+ * Measured rather than assumed: the header, the view padding and the safe-area
+ * inset all differ by device, and any constant that works on one is wrong on
+ * the next.
+ */
+export function sizeChat() {
+  const chat = $('#view-ask .chat');
+  if (!chat || chat.offsetParent === null) return;
+  const top = chat.getBoundingClientRect().top;
+  const room = Math.max(320, window.innerHeight - top - 24);
+  chat.style.setProperty('--chat-min', `${Math.round(room)}px`);
+}
+
+/** The conversation. Re-rendered on every token, so it has to stay cheap. */
+export function renderChat(messages) {
+  const log = $('#chatLog');
+  const intro = $('#chatIntro');
+
+  const bubbles = messages.map((m) => el('div', {
+    class: ['bubble', `bubble--${m.role}`, m.pending ? 'is-pending' : '', m.failed ? 'is-failed' : '']
+      .filter(Boolean).join(' '),
+  }, m.text || (m.pending ? '…' : '')));
+
+  log.replaceChildren(intro, ...bubbles);
+  // Follow the answer as it streams. The page scrolls, not the log, so this
+  // pins the newest bubble above the sticky input bar.
+  const last = bubbles.at(-1);
+  if (last) last.scrollIntoView({ block: 'end', behavior: 'instant' });
 }
 
 // ── the level check ────────────────────────────────────────────────────────

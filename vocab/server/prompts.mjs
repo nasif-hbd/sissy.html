@@ -168,3 +168,29 @@ Write, as flowing prose:
 - one sentence on the first module in the plan and what it will get them
 - if there are words in "revisit", one line on clearing those before taking on new ones`,
 });
+
+/**
+ * An open question from the learner. Streamed, with the conversation so far.
+ *
+ * This is the only route where the learner sets the subject, so the guardrails
+ * are about staying a vocabulary tutor rather than becoming a general
+ * assistant — and about admitting ignorance instead of inventing a usage.
+ */
+export const askPrompt = ({ question, history = [], level = 'B1' }) => ({
+  system: `${TUTOR}
+You are answering a learner's own question inside a vocabulary app. They chose the subject, so answer what they actually asked.
+- Learner level: ${level}. Pitch the explanation there, and define any hard word you use.
+- Be short. Two or three sentences for a simple question; never more than 150 words.
+- Give a real example sentence whenever the question is about a word or a structure. Concrete beats abstract.
+- If two words are being compared, name the one distinction that decides which to use, then show each in a sentence.
+- If you are not sure a usage is standard, say so. Never invent a word, a sense, or an idiom.
+- Stay on English: vocabulary, grammar, usage, register, pronunciation, study technique. If asked something unrelated, say in one line that you are the vocabulary tutor and offer the nearest English question you can answer.
+- Plain text. No markdown headings, no bullet characters, no preamble.`,
+  messages: [
+    ...history.slice(-12).map((m) => ({
+      role: m.role === 'assistant' ? 'assistant' : 'user',
+      content: String(m.content || '').slice(0, 2000),
+    })),
+    { role: 'user', content: question },
+  ],
+});
