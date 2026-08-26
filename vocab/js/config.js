@@ -68,7 +68,18 @@ export const THEMES = [
 export const AI = {
   defaultMode: 'mock',
   defaultEndpoint: 'http://localhost:8787',
-  defaultModel: 'claude-opus-5',
+  /**
+   * The cheapest model that does this job well. Every call is short and
+   * tightly specified — a definition, one quiz item, a paragraph of feedback —
+   * so Haiku 4.5 at $1/$5 per million tokens is the right tier, not a
+   * compromise. Settings offers the others.
+   */
+  defaultModel: 'claude-haiku-4-5',
+  models: [
+    { id: 'claude-haiku-4-5', label: 'Haiku 4.5 — fastest and cheapest' },
+    { id: 'claude-sonnet-5', label: 'Sonnet 5 — a step up' },
+    { id: 'claude-opus-5', label: 'Opus 5 — the most capable' },
+  ],
   routes: {
     word: '/api/ai/word',
     quiz: '/api/ai/quiz',
@@ -76,6 +87,7 @@ export const AI = {
     suggest: '/api/ai/suggest',
     report: '/api/ai/report',
     assess: '/api/ai/assess',
+    ask: '/api/ai/ask',
     health: '/api/health',
   },
   timeoutMs: 45_000,

@@ -7,6 +7,7 @@
  * `Store.state`, `Store.commit()` and `Store.on()`.
  */
 import { APP, DEFAULTS, AI } from './config.js';
+import { DEFAULT_ROUTINE, fromTimes } from './routine.js';
 import { SEED_WORDS } from './data/seed.js';
 
 /** YYYY-MM-DD in the user's own timezone (never UTC — streaks are local). */
@@ -35,7 +36,7 @@ function freshState() {
       dailyGoal: DEFAULTS.dailyGoal,
       newPerDay: DEFAULTS.newPerDay,
       speech: true,
-      reminders: { enabled: false, times: [...DEFAULTS.reminderTimes], lastFired: {} },
+      reminders: { enabled: false, routine: DEFAULT_ROUTINE.map((s, i) => ({ ...s, id: `default-${i}` })), lastFired: {} },
       push: { enabled: false, endpoint: null },
       ai: { mode: AI.defaultMode, endpoint: AI.defaultEndpoint, model: AI.defaultModel },
     },
@@ -108,6 +109,19 @@ function migrate(s) {
   if (!s.settings?.ai) s.settings = { ...freshState().settings, ...(s.settings || {}) };
   // The level check arrived after the first release; older saves have no field.
   if (s.placement === undefined) s.placement = null;
+  // The default model moved to the cheapest tier. Anyone still carrying the old
+  // default never chose it, so move them; a deliberate pick is left alone.
+  if (s.settings?.ai?.model === 'claude-opus-5') s.settings.ai.model = AI.defaultModel;
+  // Reminders grew from a flat list of times into a routine of steps. Convert
+  // rather than discard — someone chose those times.
+  const rem = s.settings?.reminders;
+  if (rem && !rem.routine) {
+    rem.routine = rem.times?.length
+      ? fromTimes(rem.times)
+      : DEFAULT_ROUTINE.map((step, i) => ({ ...step, id: `default-${i}` }));
+    delete rem.times;
+    rem.lastFired = {};   // the old keys were times, the new ones are step ids
+  }
   // themes were system/light/dark before they were named
   const renamed = { system: 'auto', light: 'paper', dark: 'ink' };
   if (renamed[s.settings?.theme]) s.settings.theme = renamed[s.settings.theme];

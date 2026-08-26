@@ -9,7 +9,7 @@
  */
 import { APP, AI as AICFG, THEMES } from './config.js';
 import { Store, refreshStreak, makeSrs, dayKey } from './store.js';
-import { schedule, buildQueue, bucket, plannedSession } from './srs.js';
+import { schedule, buildQueue, bucket, plannedSession, queueCounts } from './srs.js';
 import { makeSessionTimer, reportPayload, weakest, summary, window as windowStats, recentDays } from './stats.js';
 import { Notifier, Push } from './notify.js';
 import { AIClient } from './ai.js';
@@ -17,7 +17,7 @@ import {
   $, $$, el, icon, toast, applyTheme, switchView, renderHeader, renderQueueSummary,
   renderCard, renderEmptyQueue, renderWordList, renderProgress, renderSuggestions,
   renderModules, renderModuleDetail, renderHome, renderXp, practicePool, actionSheet,
-  renderPlacementQuestion, renderPlacementResult, renderLevelSummary,
+  renderPlacementQuestion, renderPlacementResult, renderLevelSummary, renderChat, sizeChat,
 } from './ui.js';
 import { Catalog } from './catalog.js';
 import { AWARDS, award, claimDailyBonuses, standing, moduleStandings, bestDays } from './xp.js';
@@ -28,6 +28,8 @@ import {
   poolByBand, startPlacement, nextQuestion, answerPlacement, placementDone, estimate, BANDS,
 } from './placement.js';
 import { buildPlan } from './advice.js';
+import { ACTIONS, makeStep, sortRoutine, validTime, cardFor, quoteFor } from './routine.js';
+import { STARTERS, contextFor } from './chat.js';
 
 // ── session state ──────────────────────────────────────────────────────────
 const session = {
@@ -70,6 +72,7 @@ async function boot() {
     onFinished: () => { render(); loadModules(); },
   });
   wireWords();
+  wireAsk();
   wireAssess();
   wireProgress();
   wireSettings();
@@ -864,6 +867,68 @@ async function suggestWords() {
   }
 }
 
+// ── ask ────────────────────────────────────────────────────────────────────
+
+/** The conversation. Lives for the session; nothing is sent anywhere but the proxy. */
+const chat = { messages: [], busy: false };
+
+function wireAsk() {
+  $('#chatForm').addEventListener('submit', (e) => {
+    e.preventDefault();
+    sendQuestion($('#chatInput').value);
+  });
+  // The bar has to be re-measured whenever the chat becomes visible or the
+  // window changes shape.
+  window.addEventListener('resize', sizeChat);
+  window.addEventListener('orientationchange', sizeChat);
+  $('#chatStarters').replaceChildren(...STARTERS.map((q) =>
+    el('button', { class: 'chip chip--tap', type: 'button', onclick: () => sendQuestion(q) }, q)));
+  drawChatMode();
+}
+
+function drawChatMode() {
+  $('#chatMode').textContent = AIClient.isLive
+    ? 'Claude is connected — ask anything about English.'
+    : 'Answering from the dictionary on your device. Turn on Claude in Settings for open questions.';
+}
+
+async function sendQuestion(text) {
+  const question = String(text || '').trim();
+  if (!question || chat.busy) return;
+
+  $('#chatInput').value = '';
+  $('#chatIntro').hidden = true;
+  chat.busy = true;
+  $('#chatSend').disabled = true;
+
+  chat.messages.push({ role: 'you', text: question });
+  const reply = { role: 'tutor', text: '', pending: true };
+  chat.messages.push(reply);
+  drawChat();
+
+  try {
+    // The history is taken before the pending reply is appended, so the model
+    // never sees its own half-written answer.
+    const history = contextFor(chat.messages.slice(0, -2));
+    await AIClient.ask({ question, history, level: Store.state.profile.level },
+      (t) => { reply.text += t; drawChat(); });
+    if (!reply.text) reply.text = 'No answer came back. Try again.';
+  } catch (err) {
+    reply.text = `Could not reach Claude: ${err.message}`;
+    reply.failed = true;
+  } finally {
+    reply.pending = false;
+    chat.busy = false;
+    $('#chatSend').disabled = false;
+    drawChat();
+    $('#chatInput').focus();
+  }
+}
+
+function drawChat() {
+  renderChat(chat.messages);
+}
+
 // ── the level check ────────────────────────────────────────────────────────
 
 /**
@@ -1087,20 +1152,30 @@ function wireSettings() {
     else if (result === 'denied') toast('Blocked in browser settings.', 'bad');
     refreshNotifyState();
   });
+  // The test fires whatever the next step would say, so you see the real thing
+  // rather than a placeholder that proves nothing about your routine.
   $('#notifyTest').addEventListener('click', async () => {
-    const sent = await Notifier.show('Lexio', 'This is what a reminder looks like.', { actions: false });
-    if (!sent) toast('Enable notifications first.', 'bad');
+    const routine = sortRoutine(Store.state.settings.reminders.routine || []);
+    const step = routine[0] || { id: 'test', time: '09:00', action: 'word' };
+    const card = previewCard(step) || {
+      title: 'Lexio', body: 'This is what a reminder looks like.', view: 'learn',
+    };
+    const sent = await Notifier.show(card.title, card.body,
+      { data: { view: card.view }, actions: !card.quiet });
+    if (!sent) toast('Turn on reminders first.', 'bad');
   });
-  $('#addTimeBtn').addEventListener('click', () => {
-    const value = $('#newTime').value;
-    if (!value) return;
-    Store.commit((st) => {
-      const times = st.settings.reminders.times;
-      if (!times.includes(value)) times.push(value);
-      times.sort();
-    });
-    renderTimes();
+
+  $('#newAction').replaceChildren(...Object.entries(ACTIONS).map(([id, a]) =>
+    el('option', { value: id, text: a.label })));
+
+  $('#addStepBtn').addEventListener('click', () => {
+    const time = $('#newTime').value;
+    if (!validTime(time)) { toast('Pick a time first.', 'bad'); return; }
+    const step = makeStep(time, $('#newAction').value);
+    Store.commit((st) => { st.settings.reminders.routine = [...(st.settings.reminders.routine || []), step]; });
+    renderRoutine();
     Notifier.start();
+    toast(`Added ${ACTIONS[step.action].label.toLowerCase()} at ${time}.`);
   });
   $('#pushToggle').addEventListener('change', async (e) => {
     try {
@@ -1151,7 +1226,10 @@ function wireSettings() {
 
   // AI — one choice, one status line, the server fields only when they matter.
   $('#aiEndpoint').value = s.ai.endpoint || AICFG.defaultEndpoint;
-  $('#aiModel').value = s.ai.model || AICFG.defaultModel;
+  const modelSelect = $('#aiModel');
+  modelSelect.replaceChildren(...AICFG.models.map((m) =>
+    el('option', { value: m.id, text: m.label })));
+  modelSelect.value = s.ai.model || AICFG.defaultModel;
 
   const showAIMode = (mode) => {
     for (const btn of $$('#aiModePicker .seg__btn')) {
@@ -1181,8 +1259,8 @@ function wireSettings() {
     Store.set('settings.ai.endpoint', e.target.value.trim());
     refreshAIStatus();
   });
-  $('#aiModel').addEventListener('change', (e) =>
-    Store.set('settings.ai.model', e.target.value.trim() || AICFG.defaultModel));
+  modelSelect.addEventListener('change', (e) =>
+    Store.set('settings.ai.model', e.target.value || AICFG.defaultModel));
   $('#aiTest').addEventListener('click', refreshAIStatus);
 
   showAIMode(s.ai.mode);
@@ -1216,22 +1294,100 @@ function wireSettings() {
     toast('Reset to the starter deck.');
   });
 
-  renderTimes();
+  renderRoutine();
 }
 
-function renderTimes() {
-  const times = Store.state.settings.reminders.times || [];
-  $('#reminderTimes').replaceChildren(...times.map((t) =>
-    el('span', { class: 'time-chip' }, t,
-      el('button', {
-        'aria-label': `Remove ${t}`,
-        onclick: () => {
-          Store.commit((s) => {
-            s.settings.reminders.times = s.settings.reminders.times.filter((x) => x !== t);
-          });
-          renderTimes();
-        },
-      }, icon('close')))));
+/**
+ * The routine builder: one row per step, each editable in place.
+ *
+ * Editing time and action inline rather than behind a dialog keeps the whole
+ * day visible while you rearrange it, which is the only reason to have a
+ * builder rather than a list of times.
+ */
+function renderRoutine() {
+  const routine = sortRoutine(Store.state.settings.reminders.routine || []);
+  const list = $('#routineList');
+
+  if (!routine.length) {
+    list.replaceChildren(el('p', { class: 'hint', text: 'No steps yet — add one below.' }));
+    updateRoutineNote(routine);
+    return;
+  }
+
+  list.replaceChildren(...routine.map((step) => {
+    const meta = ACTIONS[step.action] || ACTIONS.review;
+
+    const time = el('input', {
+      class: 'input input--time', type: 'time', value: step.time,
+      onchange: (e) => {
+        if (!validTime(e.target.value)) { e.target.value = step.time; return; }
+        editStep(step.id, { time: e.target.value });
+      },
+    });
+
+    const action = el('select', { class: 'input input--select', onchange: (e) => editStep(step.id, { action: e.target.value }) },
+      ...Object.entries(ACTIONS).map(([id, a]) =>
+        el('option', { value: id, text: a.label, ...(id === step.action ? { selected: 'selected' } : {}) })));
+
+    return el('div', { class: 'step' },
+      el('div', { class: 'step__row' }, time, action,
+        el('button', {
+          class: 'icon-btn icon-btn--sm', type: 'button', 'aria-label': `Remove the ${step.time} step`,
+          onclick: () => {
+            Store.commit((st) => {
+              st.settings.reminders.routine = st.settings.reminders.routine.filter((x) => x.id !== step.id);
+            });
+            renderRoutine();
+          },
+        }, icon('close'))),
+      el('p', { class: 'step__hint', text: meta.hint }));
+  }));
+
+  updateRoutineNote(routine);
+}
+
+/** What a step would say right now — used by the test button. */
+function previewCard(step) {
+  const state = Store.state;
+  const counts = queueCounts(state);
+  const words = Object.values(state.words).filter((w) => w.definition);
+  return cardFor(step, {
+    due: counts.due, learning: counts.learning, fresh: counts.new,
+    doneToday: state.days[dayKey()]?.reviews || 0,
+    dailyGoal: state.settings.dailyGoal,
+    word: words[Math.floor(Math.random() * words.length)] || null,
+    quote: quoteFor(dayKey()),
+    moduleTitle: session.continueSet?.module?.title || '',
+    setNumber: (session.continueSet?.index ?? 0) + 1,
+  });
+}
+
+function editStep(id, patch) {
+  Store.commit((s) => {
+    s.settings.reminders.routine = s.settings.reminders.routine.map((step) =>
+      (step.id === id ? { ...step, ...patch } : step));
+  });
+  renderRoutine();
+}
+
+/**
+ * The honest note under the builder.
+ *
+ * Local reminders only fire while a tab is open — that is the platform, not a
+ * bug, and someone building a 7am routine deserves to know before they rely on
+ * it rather than after it silently does not arrive.
+ */
+function updateRoutineNote(routine) {
+  const note = $('#routineNote');
+  const cards = routine.filter((s) => ACTIONS[s.action]?.passive).length;
+  const parts = [];
+  if (cards) {
+    parts.push(`${cards} of these ${cards === 1 ? 'is a card' : 'are cards'} you only read — they land on your lock screen.`);
+  }
+  parts.push(Store.state.settings.push?.enabled
+    ? 'Server push is on, so these arrive whether or not the app is open.'
+    : 'These fire while Lexio is open in a tab. For them to arrive with the app closed, turn on server push above.');
+  note.textContent = parts.join(' ');
 }
 
 function refreshNotifyState() {

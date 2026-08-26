@@ -54,6 +54,7 @@ const THEMES = [...new Set([...css.matchAll(/:root\[data-theme="(\w+)"\]/g)].map
    every theme or that theme silently inherits the default palette. */
 const STRUCTURAL = new Set([
   '--sans', '--text', '--mono', '--radius', '--radius-sm', '--tap', '--maxw', '--rail',
+  '--chat-min',
 ]);
 
 test('the default palette declares a full set of tokens', () => {

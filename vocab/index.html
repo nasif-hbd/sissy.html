@@ -38,6 +38,7 @@
     <symbol id="i-modules" viewBox="0 0 24 24"><path d="M12 3.5l8.5 4.2-8.5 4.2-8.5-4.2z"/><path d="M3.5 12.2l8.5 4.2 8.5-4.2"/><path d="M3.5 16.4l8.5 4.1 8.5-4.1"/></symbol>
     <symbol id="i-bulb" viewBox="0 0 24 24"><path d="M9 17h6M10 20h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9V17h7v-3.1A6 6 0 0 0 12 3z"/></symbol>
     <symbol id="i-flame" viewBox="0 0 24 24"><path d="M13 3c.5 3-1.5 4.5-3 6S7 12 7 14.5A5 5 0 0 0 17 15c0-2.5-1.5-4-2.5-5.5C15.5 10 17 11 17.5 13c1-3 .5-7-4.5-10z"/></symbol>
+    <symbol id="i-plane" viewBox="0 0 24 24"><path d="M20 4L3.5 10.5l6.5 2.5 2.5 6.5z"/><path d="M20 4l-10 9"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
 </svg>
 
@@ -385,6 +386,27 @@
       </div>
     </section>
 
+    <!-- ───────────────────────── Ask ───────────────────────── -->
+    <section class="view view--chat" id="view-ask" data-view="ask" hidden>
+      <div class="chat">
+        <div class="chat__log" id="chatLog">
+          <div class="chat__intro" id="chatIntro">
+            <svg class="ico ico--lg" aria-hidden="true"><use href="#i-bulb"/></svg>
+            <h2>Ask about any word</h2>
+            <p class="hint" id="chatMode"></p>
+            <div class="chips" id="chatStarters"></div>
+          </div>
+        </div>
+        <form class="chat__bar" id="chatForm">
+          <input class="input" id="chatInput" type="text" autocomplete="off"
+                 placeholder="What does “resilient” mean?" aria-label="Ask the tutor">
+          <button class="btn btn--primary" id="chatSend" type="submit" aria-label="Send">
+            <svg class="ico" aria-hidden="true"><use href="#i-plane"/></svg>
+          </button>
+        </form>
+      </div>
+    </section>
+
     <!-- ───────────────────────── Words ───────────────────────── -->
     <section class="view" id="view-words" data-view="words" hidden>
       <div class="stack">
@@ -496,13 +518,17 @@
             <button class="btn btn--quiet" id="notifyTest" type="button">Send a test</button>
           </div>
           <label class="field">
-            <span>Reminder times</span>
-            <div class="times" id="reminderTimes"></div>
+            <span>Your routine</span>
+            <p class="hint">What happens, and exactly when. A word or a line arrives on your
+               lock screen; the rest open the app where you left it.</p>
+            <div class="routine" id="routineList"></div>
           </label>
           <div class="row">
             <input class="input" id="newTime" type="time" value="20:00">
-            <button class="btn btn--quiet" id="addTimeBtn" type="button">Add</button>
+            <select class="input input--select" id="newAction"></select>
+            <button class="btn btn--quiet" id="addStepBtn" type="button">Add step</button>
           </div>
+          <p class="hint" id="routineNote"></p>
           <label class="check">
             <input type="checkbox" id="pushToggle">
             <span>Also use server push (works when the app is closed — needs the proxy running)</span>
@@ -566,7 +592,7 @@
             </label>
             <label class="field">
               <span>Model</span>
-              <input class="input" id="aiModel" type="text" placeholder="claude-opus-5">
+              <select class="input input--select" id="aiModel"></select>
             </label>
             <div class="row">
               <button class="btn btn--quiet btn--sm" id="aiTest" type="button">Test connection</button>
@@ -596,6 +622,7 @@
     <button class="tab is-active" data-tab="home"><svg class="ico" aria-hidden="true"><use href="#i-home"/></svg><span class="tab__label">Home</span></button>
     <button class="tab" data-tab="learn"><svg class="ico" aria-hidden="true"><use href="#i-study"/></svg><span class="tab__label">Learn</span></button>
     <button class="tab" data-tab="modules"><svg class="ico" aria-hidden="true"><use href="#i-modules"/></svg><span class="tab__label">Modules</span></button>
+    <button class="tab" data-tab="ask"><svg class="ico" aria-hidden="true"><use href="#i-bulb"/></svg><span class="tab__label">Ask</span></button>
     <button class="tab" data-tab="words"><svg class="ico" aria-hidden="true"><use href="#i-index"/></svg><span class="tab__label">Words</span></button>
     <button class="tab" data-tab="progress"><svg class="ico" aria-hidden="true"><use href="#i-ledger"/></svg><span class="tab__label">Progress</span></button>
     <button class="tab" data-tab="settings"><svg class="ico" aria-hidden="true"><use href="#i-setup"/></svg><span class="tab__label">Settings</span></button>

@@ -16,6 +16,7 @@
 import { AI } from './config.js';
 import { Store } from './store.js';
 import { localWord, localExplain, localCoach, localSuggest, localReport, localAssess } from './local.js';
+import { localAnswer, OFFLINE_MISS } from './chat.js';
 
 const cfg = () => Store.state.settings.ai;
 
@@ -97,6 +98,21 @@ export const AIClient = {
     if (!this.isLive) return replay(localCoach(term, sentence), onToken);
     return stream(this.url(AI.routes.coach),
       { term, definition, sentence, level, model: cfg().model }, onToken);
+  },
+
+  /**
+   * An open question from the learner, with the conversation so far.
+   *
+   * Offline this answers from the dictionary where the question is about a
+   * word, and says plainly when it cannot rather than guessing.
+   */
+  async ask({ question, history = [], level }, onToken) {
+    if (!this.isLive) {
+      const answer = await localAnswer(question).catch(() => null);
+      return replay(answer || OFFLINE_MISS, onToken);
+    }
+    return stream(this.url(AI.routes.ask),
+      { question, history, level, model: cfg().model }, onToken);
   },
 
   /**
