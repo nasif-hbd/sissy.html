@@ -76,41 +76,51 @@
           <div class="module__meter"><i id="homeGoalFill"></i></div>
           <p class="hint" id="homeGoalHint" hidden></p>
           <button class="btn btn--primary btn--wide" id="homeStart">Start learning</button>
-          <div class="row row--even">
-            <button class="btn btn--quiet" id="homeModules"><svg class="ico" aria-hidden="true"><use href="#i-modules"/></svg>Modules</button>
-            <button class="btn btn--quiet" id="homePractice"><svg class="ico" aria-hidden="true"><use href="#i-drill"/></svg>Practise</button>
+          <button class="btn btn--quiet btn--wide" id="homePractice"><svg class="ico" aria-hidden="true"><use href="#i-drill"/></svg>Practise instead</button>
+        </div>
+
+        <!-- The habit: the streak, and the seven days behind it. Replaces both
+             a "Streak: 0" tile and a bar chart that was empty most weeks. -->
+        <div class="card card--tight">
+          <div class="row row--between">
+            <p class="streak-line">
+              <svg class="ico" aria-hidden="true"><use href="#i-flame"/></svg>
+              <b id="homeStreakBig">0</b><span id="homeStreakWord">days in a row</span>
+            </p>
+            <span class="hint" id="homeWeekCount"></span>
           </div>
+          <div class="week" id="homeWeek"></div>
         </div>
 
-        <div class="card" id="homeContinueCard" hidden>
-          <h3 class="card__title">Carry on where you left off</h3>
-          <p class="hint" id="homeContinueText"></p>
-          <button class="btn btn--primary btn--wide" id="homeContinue">Continue</button>
-        </div>
-
+        <!-- Where you stand: the XP level you have earned, and the CEFR level
+             the check measured. Two different things, so both are named. -->
         <div class="card card--tight" id="homeLevelCard">
           <div class="row row--between">
-            <div>
-              <h3 class="card__title">Your level</h3>
-              <p class="hint" id="homeLevelLine">Not checked yet</p>
+            <div class="grow">
+              <h3 class="card__title">Level <span id="homeXpLevel">1</span> · <span id="homeXpTitle">Beginner</span></h3>
+              <p class="hint" id="homeXpNext">100 XP to the next level</p>
             </div>
-            <b class="level-badge" id="homeLevelBadge">?</b>
+            <b class="level-badge" id="homeLevelBadge" hidden></b>
           </div>
+          <div class="module__meter"><i id="homeXpFill"></i></div>
+          <p class="hint" id="homeLevelLine"></p>
           <button class="btn btn--quiet btn--wide" id="homeAssess">Check my level</button>
         </div>
 
-        <div class="tiles">
-          <div class="tile"><span class="tile__label">This week</span><b class="tile__value" id="homeWeek">0</b><span class="tile__foot" id="homeWeekFoot">reviews</span></div>
-          <div class="tile"><span class="tile__label">This month</span><b class="tile__value" id="homeMonth">0</b><span class="tile__foot" id="homeMonthFoot">reviews</span></div>
-          <div class="tile"><span class="tile__label">Streak</span><b class="tile__value" id="homeStreak">0</b><span class="tile__foot" id="homeStreakFoot">days in a row</span></div>
-          <div class="tile"><span class="tile__label">Words learned</span><b class="tile__value" id="homeLearned">0</b><span class="tile__foot" id="homeLearnedFoot">so far</span></div>
+        <!-- The path. Home never showed the modules the whole app is built
+             around; it showed a Continue button only mid-set. -->
+        <div class="card">
+          <div class="row row--between">
+            <h3 class="card__title">Your modules</h3>
+            <button class="btn btn--quiet btn--sm" id="homeModulesAll">See all</button>
+          </div>
+          <p class="hint" id="homeModsEmpty" hidden>Nothing started yet. Open a module and
+             learn ten words at a time — each set ends in a short exam that earns XP.</p>
+          <div class="mods" id="homeMods"></div>
+          <button class="btn btn--primary btn--wide" id="homeContinue" hidden>Continue</button>
         </div>
 
-        <div class="card">
-          <h3 class="card__title">Last 7 days</h3>
-          <div class="bars" id="homeBars"></div>
-          <p class="hint" id="homeBarsEmpty" hidden>Review some words and the week fills in here.</p>
-        </div>
+        <p class="statline" id="homeStats"></p>
       </div>
     </section>
 

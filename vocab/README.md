@@ -292,6 +292,36 @@ attributed to the module a word came from, so the board shows where the effort
 is really going. It is all on-device — there are no accounts and nothing is
 sent anywhere.
 
+## The home screen
+
+Home answers four questions, in the order a learner asks them.
+
+**What do I do now?** The Today card: reviews done against the daily goal, and
+one primary button that names what pressing it will actually do — "Review 2
+words", "Learn 10 new words", "Study ahead". The goal counter and the button
+measure different things (the day's target, and the queue waiting), so each
+names its own unit; unlabelled beside each other they read as a bug.
+
+**Am I keeping it up?** The streak, over seven day marks. A week with two study
+days looks like a week with two study days — the bar chart this replaced looked
+identical to an empty one, and sat beside a "Streak: 0" tile saying the same
+thing twice.
+
+**Where do I stand?** The XP level earned, and the CEFR level measured by the
+check — two different things, so both are named. The CEFR badge stays hidden
+until the check has been sat; a large "?" next to "Level 3" read as though the
+XP level were the unknown one.
+
+**What am I working on?** The modules with work in them, most recently touched
+first, each with its passed-set count, plus one Continue button for the set left
+part-way through. Home never showed this before, though module → set → exam is
+the loop the whole app is built around.
+
+Under it, one line for the longer view — reviews this month, accuracy, best
+streak. It replaced four stat tiles that on a fresh install all read "0", and it
+deliberately repeats neither the header (words, learned) nor the card above it
+(current streak).
+
 ## The level check
 
 The learner used to pick their own CEFR level from a dropdown, which is a guess
