@@ -10,19 +10,34 @@
  * activate.
  */
 const CACHE = 'lexio-v7';
+/**
+ * Every file the app needs to start with no network.
+ *
+ * Keep this complete: a module missing here still works online (the fetch
+ * handler caches it on first use) but a cold first launch offline fails on it.
+ * Eight modules added after this list was written were missing from it.
+ */
 const SHELL = [
   './',
   './index.html',
   './styles.css',
   './manifest.webmanifest',
   './js/app.js',
+  './js/advice.js',
+  './js/ai.js',
+  './js/catalog.js',
   './js/config.js',
-  './js/store.js',
+  './js/exam.js',
+  './js/lesson.js',
+  './js/local.js',
+  './js/notify.js',
+  './js/placement.js',
   './js/srs.js',
   './js/stats.js',
+  './js/store.js',
+  './js/translate.js',
   './js/ui.js',
-  './js/ai.js',
-  './js/notify.js',
+  './js/xp.js',
   './js/data/seed.js',
   './fonts/space-grotesk.woff2',
   './data/modules/index.json',
