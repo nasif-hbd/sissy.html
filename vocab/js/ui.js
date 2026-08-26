@@ -341,9 +341,10 @@ export function renderModuleDetail(module, sets, results, handlers = {}) {
   }));
 }
 
-/** The home screen: today, then the wider picture. */
-export function renderHome(data) {
+/** The home screen: what to do now, the habit, where you stand, and the path. */
+export function renderHome(data, handlers = {}) {
   $('#homeCount').textContent = data.countLine;
+
   const meter = $('#homeGoalFill');
   meter.style.width = `${Math.round(data.goalPct * 100)}%`;
   meter.classList.toggle('is-done', Boolean(data.goalDone));
@@ -354,29 +355,68 @@ export function renderHome(data) {
   $('#homeGoalHint').hidden = !data.goalHint;
   $('#homeStart').textContent = data.startLabel;
 
-  $('#homeWeek').textContent = data.week.reviews;
-  $('#homeWeekFoot').textContent = `reviews · ${data.week.xp} XP`;
-  $('#homeMonth').textContent = data.month.reviews;
-  $('#homeMonthFoot').textContent = `reviews · ${data.month.xp} XP`;
-  $('#homeStreak').textContent = data.streak;
-  $('#homeStreakFoot').textContent = data.streak === 1 ? 'day in a row' : 'days in a row';
-  $('#homeLearned').textContent = data.learned;
-  $('#homeLearnedFoot').textContent = `of ${data.total} words`;
+  drawWeek(data);
+  drawStanding(data);
+  drawMods(data, handlers);
 
-  const peak = Math.max(1, ...data.days.map((d) => d.reviews));
-  const anyReviews = data.days.some((d) => d.reviews);
-  $('#homeBars').hidden = !anyReviews;
-  $('#homeBarsEmpty').hidden = anyReviews;
-  $('#homeBars').replaceChildren(...data.days.map((d) =>
-    el('div', { class: 'bar', title: `${d.key}: ${d.reviews} reviews` },
-      el('i', {
-        class: d.reviews ? '' : 'is-empty',
-        style: `height:${d.reviews ? Math.max(6, (d.reviews / peak) * 100) : 3}%`,
-      }),
-      el('span', { text: d.label }))));
+  $('#homeStats').textContent = data.stats;
+}
 
-  $('#homeContinueCard').hidden = !data.continue;
-  if (data.continue) $('#homeContinueText').textContent = data.continue.text;
+/**
+ * The streak, and the week that produced it.
+ *
+ * Seven days as filled or hollow marks reads at a glance and carries the same
+ * information the old bar chart did — but a week with two study days looks like
+ * a week with two study days rather than like an empty chart.
+ */
+function drawWeek(data) {
+  $('#homeStreakBig').textContent = data.streak;
+  $('#homeStreakWord').textContent = data.streak === 1 ? 'day in a row' : 'days in a row';
+  $('#homeStreakBig').parentElement.classList.toggle('is-cold', data.streak === 0);
+  $('#homeWeekCount').textContent = data.week.reviews
+    ? `${data.week.reviews} review${data.week.reviews === 1 ? '' : 's'} this week`
+    : 'nothing this week yet';
+
+  const last = data.days.length - 1;
+  $('#homeWeek').replaceChildren(...data.days.map((d, i) => el('div', {
+    class: ['day', d.reviews ? 'is-on' : '', i === last ? 'is-today' : ''].filter(Boolean).join(' '),
+    title: `${d.key}: ${d.reviews} review${d.reviews === 1 ? '' : 's'}`,
+  }, el('i', {}), el('span', { text: d.label }))));
+}
+
+/** The XP level earned, and the CEFR level measured — two different things. */
+function drawStanding(data) {
+  $('#homeXpLevel').textContent = data.xp.level;
+  $('#homeXpTitle').textContent = data.xp.title;
+  $('#homeXpNext').textContent = `${data.xp.need - data.xp.into} XP to level ${data.xp.level + 1} · ${data.xp.total} earned`;
+  $('#homeXpFill').style.width = `${Math.round(data.xp.pct * 100)}%`;
+
+  // The badge carries the measured CEFR level. Before the check is sat there is
+  // nothing to carry, and a big "?" sitting beside "Level 3" read as though the
+  // XP level itself were unknown — so it stays away until it means something.
+  const badge = $('#homeLevelBadge');
+  badge.hidden = !data.placement;
+  if (data.placement) badge.textContent = data.placement.level;
+}
+
+/**
+ * Modules with work in them, most recently touched first, plus one Continue
+ * button for the set the learner was part-way through.
+ */
+function drawMods(data, handlers) {
+  const rows = data.mods || [];
+  $('#homeMods').replaceChildren(...rows.map((m) => el('button', {
+    class: 'mod', type: 'button', onclick: () => handlers.onModule?.(m),
+  },
+    el('div', { class: 'mod__head' },
+      el('span', { class: 'mod__name', text: m.title }),
+      el('span', { class: 'mod__count', text: `${m.done}/${m.sets}` })),
+    el('div', { class: 'module__meter' },
+      el('i', { style: `width:${Math.round((m.done / Math.max(1, m.sets)) * 100)}%` })))));
+
+  $('#homeModsEmpty').hidden = rows.length > 0;
+  $('#homeContinue').hidden = !data.continue;
+  if (data.continue) $('#homeContinue').textContent = data.continue.label;
 }
 
 // ── the level check ────────────────────────────────────────────────────────
@@ -463,23 +503,25 @@ function drawBands(node, perBand, wide) {
 
 /** The level summary shown on Home and Progress without re-sitting the exam. */
 export function renderLevelSummary(placement) {
-  const badgeText = placement ? placement.level : '?';
-  for (const id of ['#homeLevelBadge', '#progressLevelBadge']) {
-    const node = $(id);
-    if (node) node.textContent = badgeText;
-  }
+  const home = $('#homeLevelBadge');
+  home.hidden = !placement;
+  if (placement) home.textContent = placement.level;
+  const onProgress = $('#progressLevelBadge');
+  if (onProgress) onProgress.textContent = placement ? placement.level : '?';
 
   const when = placement
     ? new Date(placement.at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
     : null;
-  $('#homeLevelLine').textContent = placement
-    ? `${placement.level} · checked ${when}`
-    : 'Not checked yet';
+  // The button already says "Check my level" when there is nothing to report,
+  // so an extra line saying the same is noise.
+  const line = $('#homeLevelLine');
+  line.hidden = !placement;
+  if (placement) line.textContent = `Measured ${placement.level} on ${when}`;
   $('#homeAssess').textContent = placement ? 'Check again' : 'Check my level';
 
-  const line = $('#progressLevelLine');
-  if (line) {
-    line.textContent = placement
+  const progressLine = $('#progressLevelLine');
+  if (progressLine) {
+    progressLine.textContent = placement
       ? `${placement.level} on ${when} — ${placement.correct} of ${placement.answered} right, ${CONFIDENCE[placement.confidence]}.`
       : 'You have not sat the level check yet.';
   }

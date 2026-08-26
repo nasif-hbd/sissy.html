@@ -8,7 +8,7 @@
  *   ai.js     Claude calls     ui.js     rendering
  */
 import { APP, AI as AICFG, THEMES } from './config.js';
-import { Store, refreshStreak, makeSrs, dayKey, daysAgoKey } from './store.js';
+import { Store, refreshStreak, makeSrs, dayKey } from './store.js';
 import { schedule, buildQueue, bucket, plannedSession } from './srs.js';
 import { makeSessionTimer, reportPayload, weakest, summary, window as windowStats, recentDays } from './stats.js';
 import { Notifier, Push } from './notify.js';
@@ -544,21 +544,22 @@ function wireWords() {
 function wireHome() {
   $('#homeStart').addEventListener('click', () => { switchView('learn'); nextCard(); });
   $('#homePractice').addEventListener('click', () => { switchView('practice'); ensurePracticeSeed(); });
-  $('#homeModules').addEventListener('click', () => { switchView('modules'); loadModules(); });
+  // "See all" on the modules card is the one route to the module list from
+  // here; the Today card used to carry a second, and the rail a third.
+  $('#homeModulesAll').addEventListener('click', () => { switchView('modules'); loadModules(); });
   $('#homeContinue').addEventListener('click', () => {
     const next = session.continueSet;
     if (next) startSet(next.module, next.index);
   });
 }
 
-/** Today first, then the week and the month — the tracking the home screen is for. */
+/** What to do now, the habit behind it, where you stand, and the path you are on. */
 function drawHome(state) {
   const s = summary(state);
   const goal = state.settings.dailyGoal;
   const doneToday = s.today.reviews;
   const xpToday = state.xp?.byDay?.[dayKey()] || 0;
   const week = windowStats(state, 7);
-  const month = windowStats(state, 30);
   const plan = plannedSession(state, { newAllowance: newLeftToday(state) });
 
   renderHome({
@@ -575,16 +576,64 @@ function drawHome(state) {
       ? 'Daily goal reached. Anything more is a bonus.'
       : '',
     startLabel: startLabel(plan),
-    week: { reviews: week.reviews, xp: xpInWindow(state, 7) },
-    month: { reviews: month.reviews, xp: xpInWindow(state, 30) },
+
     streak: state.streak.current || 0,
-    learned: s.known,
-    total: s.total,
+    week: { reviews: week.reviews },
     days: recentDays(state, 7),
+    xp: { ...standing(state.xp?.total || 0), total: state.xp?.total || 0 },
+    mods: startedModules(state),
+    placement: state.placement || null,
     continue: session.continueSet
-      ? { text: `${session.continueSet.module.title} — set ${session.continueSet.index + 1} of ${session.continueSet.total}` }
+      ? { label: `Continue — ${session.continueSet.module.title}, set ${session.continueSet.index + 1}` }
       : null,
-  });
+    stats: statLine(s, state),
+  }, { onModule: openModuleById });
+}
+
+/**
+ * One line where four tiles used to be.
+ *
+ * The tiles showed This week / This month / Streak / Words learned, three of
+ * which now live in the cards above, and on a fresh install all four read "0" —
+ * four boxes of nothing.
+ */
+function statLine(s, state) {
+  const month = windowStats(state, 30);
+  // The header already carries "N words · N learned" on every screen, and the
+  // card above carries the current streak — so this adds the longer view
+  // instead of repeating either.
+  const parts = [`${month.reviews} review${month.reviews === 1 ? '' : 's'} this month`];
+  if (s.accuracy7 != null) parts.push(`${Math.round(s.accuracy7 * 100)}% accurate this week`);
+  if (s.longest) parts.push(`best streak ${s.longest} day${s.longest === 1 ? '' : 's'}`);
+  return parts.join(' · ');
+}
+
+/**
+ * Modules the learner has actually started, best progress first.
+ *
+ * `state.lessons` is the record of sets attempted, keyed by module, so it is
+ * the honest answer to "what am I working on" — the deck alone cannot say,
+ * because words from a passed set are indistinguishable from words added by
+ * hand.
+ */
+function startedModules(state) {
+  const lessons = state.lessons || {};
+  return Object.entries(lessons)
+    .map(([id, sets]) => {
+      const entry = moduleManifest.find((m) => m.id === id);
+      if (!entry) return null;
+      const results = Object.values(sets);
+      return {
+        id,
+        title: entry.title,
+        done: results.filter((r) => r?.passed).length,
+        sets: Math.ceil((entry.count || 0) / SET_WORDS) || results.length,
+        at: Math.max(0, ...results.map((r) => r?.at || 0)),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.at - a.at)
+    .slice(0, 4);
 }
 
 /**
@@ -609,12 +658,6 @@ function startLabel(plan) {
 function newLeftToday(state) {
   const used = state.days[dayKey()]?.learned || 0;
   return Math.max(0, state.settings.newPerDay - used);
-}
-
-function xpInWindow(state, days) {
-  let total = 0;
-  for (let i = 0; i < days; i += 1) total += state.xp?.byDay?.[daysAgoKey(i)] || 0;
-  return total;
 }
 
 // ── modules ────────────────────────────────────────────────────────────────
