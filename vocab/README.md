@@ -448,7 +448,7 @@ app to become usable.
 ## Testing
 
 ```bash
-cd vocab && node --test              # scheduler, tracking, design, XP, exams, tutor, placement: 89 tests, no deps
+cd vocab && node --test              # scheduler, tracking, design, XP, exams, tutor, placement: 94 tests, no deps
 cd server && npm run smoke         # every proxy route against a live server
 ```
 

@@ -421,6 +421,13 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
    the lines above and below them. */
 .card .module__meter { margin: 12px 0 10px; }
 
+/* The day's counter, sitting on the same line as the card's title. */
+.today__count {
+  font-family: var(--sans); font-size: 13px; font-weight: 600;
+  font-variant-numeric: tabular-nums; color: var(--ink-3); white-space: nowrap;
+}
+.module__meter i.is-done { background: var(--ok); }
+
 .facts b {
   font-family: var(--sans); font-size: 15px; font-weight: 700; color: var(--ink);
   font-variant-numeric: tabular-nums; margin-right: 4px;

@@ -343,8 +343,13 @@ export function renderModuleDetail(module, sets, results, handlers = {}) {
 
 /** The home screen: today, then the wider picture. */
 export function renderHome(data) {
-  $('#homeToday').textContent = data.todayLine;
-  $('#homeGoalFill').style.width = `${Math.round(data.goalPct * 100)}%`;
+  $('#homeCount').textContent = data.countLine;
+  const meter = $('#homeGoalFill');
+  meter.style.width = `${Math.round(data.goalPct * 100)}%`;
+  meter.classList.toggle('is-done', Boolean(data.goalDone));
+  // An empty track is a grey bar that says nothing; it appears once there is
+  // something in it to read.
+  meter.parentElement.hidden = data.goalPct === 0;
   $('#homeGoalHint').textContent = data.goalHint;
   $('#homeGoalHint').hidden = !data.goalHint;
   $('#homeStart').textContent = data.startLabel;
