@@ -24,6 +24,7 @@ vocab/
 │   ├── placement.js    the adaptive level check (pure, testable)
 │   ├── routine.js      the day's steps and their notification copy
 │   ├── chat.js         reads an open question well enough to answer offline
+│   ├── testlab.js      the Test section: five modes over two subjects
 │   ├── advice.js       turns a level into a study plan
 │   ├── xp.js           the points economy, levels and rankings
 │   ├── exam.js         question generation and marking
@@ -41,6 +42,7 @@ vocab/
 ├── server/             the only place an API key exists
 │   ├── proxy.mjs       Node server: Claude routes + push + static app
 │   ├── prompts.mjs     every prompt and output schema
+│   ├── gemini.mjs      the Gemini half, over raw REST
 │   └── smoke.mjs       hits each route and prints the wire shapes
 └── tests/             scheduler, tracking and design-system tests
 ```
@@ -135,7 +137,7 @@ Hover styling is behind `(hover: hover) and (pointer: fine)`, so touch devices
 never inherit a stuck hover state. Every control clears a 44px target on touch
 sizes, and quiz results are marked with a glyph as well as a colour.
 
-`tests/devices.mjs` drives all nine screens at eight viewport shapes — a 320px
+`tests/devices.mjs` drives all ten screens at eight viewport shapes — a 320px
 phone through a 1680px desktop, including landscape — and fails on horizontal
 overflow, a sub-30px tap target, or an icon that doesn't paint. It needs a
 browser, so it sits outside `node --test`:
@@ -324,6 +326,41 @@ streak. It replaced four stat tiles that on a fresh install all read "0", and it
 deliberately repeats neither the header (words, learned) nor the card above it
 (current streak).
 
+## The Test section
+
+Five ways to be examined, on two subjects, over fourteen word packs.
+
+**Two subjects.** Vocabulary tests the packs; Grammar tests a bank shipped with
+the app — 54 items across 28 topics from present simple to inversion, each
+carrying the rule it tests, so a wrong answer is explained without an API call.
+
+**Five modes**, chosen because they are genuinely different demands rather than
+one question dressed five ways: recognition (flashcards), discrimination
+(quiz), production in context (in a sentence), sustained recall under a mark
+(written exam) and orthography (spelling). A learner can pass a quiz on a word
+they cannot spell or use in a sentence. Spelling is offered for vocabulary only
+— "spell this grammar rule" is not a thing, and the picker does not pretend
+otherwise.
+
+**Fourteen packs in three groups.** School runs Grade 1–5 through University;
+Exams covers IELTS, IELTS General Training, SAT and Admission (BD); Work & life
+holds the rest.
+
+The school packs were the hard ones. There is no grade column in the data, so
+level is inferred from difficulty band and synonym centrality — a word many
+entries point at as a synonym is one children meet early. That alone was not
+enough: the default scorer rewards well-documented entries, which is a property
+of a good dictionary rather than an easy word, and Grade 1–5 filled up with
+"terrorist", "admonition" and "acrobatics". The lower grades now carry a
+curated core of about 500 words each and rank by simplicity; the upper ones
+rank by the scorer but filter out roman numerals, initialisms and place names,
+which is what "xii", "nsu" and "uzbeg" were doing in Grade 9–10.
+
+`js/testlab.js` holds everything that decides what a question is, and
+`tests/testlab.test.mjs` pins the parts that fail silently: a spelling prompt
+must never contain the word it asks for, a synonym item must never offer a real
+synonym as a wrong answer, and a flashcard round must not be scored 0%.
+
 ## Ask — the tutor you can talk to
 
 Everywhere else the AI answers a question the app chose. The Ask tab lets the
@@ -341,6 +378,18 @@ The parsing is the part that can fail silently: mis-read the question and it
 confidently answers a different one. `tests/chat.test.mjs` pins it, including
 that an open question yields *no* word rather than a wrong one, so it falls
 through to Claude instead of being answered about some stray token.
+
+## Feedback
+
+A floating button on every screen. Feedback is kept on the device and posted to
+your own proxy when one is configured — there is no third-party form and no
+analytics, because this app collects nothing and a feedback button is not a good
+reason to start. "Copy it instead" puts the report on the clipboard for anyone
+running without a server.
+
+Each report carries the screen, the engine, the level and the viewport size,
+which is what turns "the quiz is broken" into something reproducible. It carries
+no deck contents and nothing identifying.
 
 ## Your routine, and words on the lock screen
 
@@ -499,6 +548,23 @@ The browser **never** holds an API key. `js/ai.js` speaks to your own proxy;
 The JSON routes use **structured outputs** (`output_config.format` with a JSON
 schema), so the browser gets a guaranteed shape and needs no defensive parsing.
 The two conversational routes stream, and arrive token by token in the UI.
+### Two engines, one rule
+
+The app can run on **Claude** or **Gemini**, chosen in Settings, and every AI
+surface uses whichever is picked. Both go through your proxy, and the rule does
+not change with the vendor: **an API key in the browser is a key every visitor
+can read and spend.** `GEMINI_API_KEY` and `ANTHROPIC_API_KEY` live on the
+server; the browser sends only which engine it wants, and the proxy honours it
+only if it holds that key — so a client set to Gemini against a Claude-only
+server gets a clear error rather than a silent switch to a model nobody chose.
+
+Gemini goes over raw REST (`server/gemini.mjs`) rather than a package: the two
+calls this app makes are a JSON request and an SSE stream, and a dependency for
+that is a worse trade than thirty lines of fetch. Its structured-output support
+rejects the JSON-Schema keywords it does not implement, so schemas are trimmed
+before they are sent. Errors are scrubbed before they are forwarded, because the
+Gemini key travels in the URL and an unedited error echoes it back.
+
 Default model: **`claude-haiku-4-5`** — the cheapest tier, and the right one
 here. Every call is short and tightly specified: a definition, one quiz item, a
 paragraph of feedback. At $1/$5 per million tokens it is a fifth of Opus 5's
@@ -543,7 +609,7 @@ app to become usable.
 ## Testing
 
 ```bash
-cd vocab && node --test              # scheduler, tracking, design, XP, exams, tutor, placement, routine, chat: 133 tests, no deps
+cd vocab && node --test              # scheduler, tracking, design, XP, exams, tutor, placement, routine, chat, tests: 156 tests, no deps
 cd server && npm run smoke         # every proxy route against a live server
 ```
 

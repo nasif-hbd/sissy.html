@@ -7,7 +7,7 @@
  *   stats.js  tracking         notify.js reminders
  *   ai.js     Claude calls     ui.js     rendering
  */
-import { APP, AI as AICFG, THEMES } from './config.js';
+import { APP, AI as AICFG, THEMES, PROVIDERS } from './config.js';
 import { Store, refreshStreak, makeSrs, dayKey } from './store.js';
 import { schedule, buildQueue, bucket, plannedSession, queueCounts } from './srs.js';
 import { makeSessionTimer, reportPayload, weakest, summary, window as windowStats, recentDays } from './stats.js';
@@ -18,6 +18,8 @@ import {
   renderCard, renderEmptyQueue, renderWordList, renderProgress, renderSuggestions,
   renderModules, renderModuleDetail, renderHome, renderXp, practicePool, actionSheet,
   renderPlacementQuestion, renderPlacementResult, renderLevelSummary, renderChat, sizeChat,
+  renderTestSubjects, renderTestPacks, renderTestModes, renderTestQuestion,
+  showTestFeedback, renderTestResult,
 } from './ui.js';
 import { Catalog } from './catalog.js';
 import { AWARDS, award, claimDailyBonuses, standing, moduleStandings, bestDays } from './xp.js';
@@ -30,6 +32,7 @@ import {
 import { buildPlan } from './advice.js';
 import { ACTIONS, makeStep, sortRoutine, validTime, cardFor, quoteFor } from './routine.js';
 import { STARTERS, contextFor } from './chat.js';
+import { SUBJECTS, modesFor, buildRound, markOne, markRound } from './testlab.js';
 
 // ── session state ──────────────────────────────────────────────────────────
 const session = {
@@ -72,6 +75,8 @@ async function boot() {
     onFinished: () => { render(); loadModules(); },
   });
   wireWords();
+  wireFeedback();
+  wireTest();
   wireAsk();
   wireAssess();
   wireProgress();
@@ -108,7 +113,7 @@ async function boot() {
 
   // Exposed deliberately: handy in the console, and the hook the browser tests
   // use to reach internals. Drop this line if you'd rather keep it sealed.
-  window.Lexio = { Store, Notifier, Push, AIClient, session, render, lesson: currentLesson, placement: () => placementRun };
+  window.Lexio = { Store, Notifier, Push, AIClient, session, render, lesson: currentLesson, placement: () => placementRun, lab: () => lab };
 
   console.info(`${APP.name} ready — ${Object.keys(Store.state.words).length} words in deck.`);
 }
@@ -867,6 +872,286 @@ async function suggestWords() {
   }
 }
 
+// ── feedback ───────────────────────────────────────────────────────────────
+
+/**
+ * The feedback sheet.
+ *
+ * Feedback is kept on the device and sent to your proxy when one is configured.
+ * There is no third-party form and no analytics: this app collects nothing, and
+ * a feedback button is not a good reason to start.
+ *
+ * "Copy it instead" is the escape hatch for anyone with no server — the report
+ * lands on the clipboard, with the context that makes it actionable, and they
+ * can paste it wherever they like.
+ */
+let feedbackKind = 'idea';
+
+function wireFeedback() {
+  $('#feedbackBtn').addEventListener('click', openFeedback);
+  $('#feedbackCancel').addEventListener('click', closeFeedback);
+  $('#feedbackSheet').addEventListener('click', (e) => {
+    if (e.target === $('#feedbackSheet')) closeFeedback();
+  });
+  for (const btn of $$('#feedbackKind .seg__btn')) {
+    btn.addEventListener('click', () => {
+      feedbackKind = btn.dataset.kind;
+      for (const b of $$('#feedbackKind .seg__btn')) b.classList.toggle('is-active', b === btn);
+    });
+  }
+  $('#feedbackSend').addEventListener('click', sendFeedback);
+  $('#feedbackCopy').addEventListener('click', copyFeedback);
+}
+
+function openFeedback() {
+  $('#feedbackSheet').hidden = false;
+  $('#feedbackNote').textContent = AIClient.isLive
+    ? 'Sent to your own server. Nothing goes anywhere else.'
+    : 'Saved on this device. Connect a proxy in Settings to send it, or copy it below.';
+  $('#feedbackText').focus();
+}
+
+const closeFeedback = () => { $('#feedbackSheet').hidden = true; };
+
+/**
+ * The report, with the context that makes it useful.
+ *
+ * Which screen, which engine and which level turn "the quiz is broken" into
+ * something reproducible. No deck contents and nothing identifying.
+ */
+function feedbackReport() {
+  const text = $('#feedbackText').value.trim();
+  return {
+    kind: feedbackKind,
+    text,
+    at: new Date().toISOString(),
+    context: {
+      view: location.hash.replace('#', '') || 'home',
+      provider: AIClient.provider,
+      level: Store.state.profile.level,
+      words: Object.keys(Store.state.words).length,
+      screen: `${window.innerWidth}x${window.innerHeight}`,
+      version: APP.storageKey,
+    },
+  };
+}
+
+async function sendFeedback() {
+  const report = feedbackReport();
+  if (!report.text) { toast('Write something first.', 'bad'); return; }
+
+  Store.commit((s) => { (s.feedback ||= []).push(report); s.feedback = s.feedback.slice(-50); });
+
+  if (!AIClient.isLive) {
+    closeFeedback();
+    $('#feedbackText').value = '';
+    toast('Saved on this device — copy it to send it on.');
+    return;
+  }
+  const btn = $('#feedbackSend');
+  btn.disabled = true;
+  try {
+    const res = await fetch(AIClient.url('/api/feedback'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(report),
+    });
+    if (!res.ok) throw new Error(`server responded ${res.status}`);
+    toast('Thank you — sent.');
+    $('#feedbackText').value = '';
+    closeFeedback();
+  } catch (err) {
+    toast(`Kept on this device — ${err.message}.`, 'bad');
+    closeFeedback();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function copyFeedback() {
+  const report = feedbackReport();
+  if (!report.text) { toast('Write something first.', 'bad'); return; }
+  const lines = [
+    `Lexio feedback — ${report.kind}`,
+    report.text,
+    '',
+    `screen ${report.context.view} · ${report.context.screen} · ${report.context.provider} · level ${report.context.level}`,
+  ].join('\n');
+  try {
+    await navigator.clipboard.writeText(lines);
+    toast('Copied to the clipboard.');
+  } catch {
+    // Clipboard access is refused in some browsers without a user gesture it
+    // recognises; showing the text is better than failing silently.
+    $('#feedbackText').value = lines;
+    $('#feedbackText').select();
+    toast('Select and copy the text above.');
+  }
+}
+
+// ── test ───────────────────────────────────────────────────────────────────
+
+/**
+ * The Test section: subject → pack → mode → round.
+ *
+ * Held in one object rather than five, so quitting halfway leaves nothing
+ * behind and "Change test" is a single reset.
+ */
+const lab = {
+  subject: null, pack: null, mode: null,
+  questions: [], at: 0, answers: [], checked: false,
+  grammar: null,
+};
+
+function wireTest() {
+  $('#testBackSubject').addEventListener('click', () => showTestStep('subject'));
+  $('#testBackPack').addEventListener('click', () =>
+    showTestStep(lab.subject === 'grammar' ? 'subject' : 'pack'));
+  $('#testQuit').addEventListener('click', () => showTestStep('subject'));
+  $('#testChange').addEventListener('click', () => showTestStep('subject'));
+  $('#testAgain').addEventListener('click', () => startRound(lab.subject, lab.pack, lab.mode));
+  $('#testSubmit').addEventListener('click', checkAnswer);
+  $('#testNext').addEventListener('click', nextTestQuestion);
+  $('#testExplain').addEventListener('click', explainQuestion);
+  $('#testTypeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') checkAnswer(); });
+
+  renderTestSubjects(SUBJECTS, (id) => {
+    lab.subject = id;
+    // Grammar has one shipped bank, so there is no pack to choose.
+    if (id === 'grammar') { lab.pack = null; showTestStep('mode'); }
+    else showTestStep('pack');
+  });
+}
+
+/** Which panel of the Test tab is showing. */
+function showTestStep(step) {
+  $('#testPickSubject').hidden = step !== 'subject';
+  $('#testPickPack').hidden = step !== 'pack';
+  $('#testPickMode').hidden = step !== 'mode';
+  $('#testRun').hidden = step !== 'run';
+  $('#testResult').hidden = step !== 'result';
+
+  if (step === 'pack') loadTestPacks();
+  if (step === 'mode') {
+    const name = lab.subject === 'grammar' ? 'Grammar' : (lab.pack?.title || 'Vocabulary');
+    $('#testModeSub').textContent = `Testing: ${name}`;
+    renderTestModes(modesFor(lab.subject), (id) => startRound(lab.subject, lab.pack, id));
+  }
+  switchView('test');
+}
+
+async function loadTestPacks() {
+  try {
+    const manifest = await Catalog.modules();
+    moduleManifest = manifest;
+    renderTestPacks(manifest, (pack) => { lab.pack = pack; showTestStep('mode'); });
+  } catch (err) {
+    toast(`Could not load the packs: ${err.message}`, 'bad');
+  }
+}
+
+/** Build and start a round. */
+async function startRound(subject, pack, mode) {
+  lab.subject = subject; lab.pack = pack; lab.mode = mode;
+  try {
+    let words = [];
+    let grammar = [];
+    if (subject === 'grammar') {
+      lab.grammar ??= await Catalog.grammar();
+      grammar = lab.grammar;
+    } else {
+      words = (await Catalog.pack(pack.id)).words;
+    }
+    const questions = buildRound({ subject, mode, words, grammar });
+    if (!questions.length) { toast('Not enough material for that test.', 'bad'); return; }
+    lab.questions = questions;
+    lab.at = 0;
+    lab.answers = [];
+    showTestStep('run');
+    drawQuestion();
+  } catch (err) {
+    toast(`Could not start the test: ${err.message}`, 'bad');
+  }
+}
+
+function drawQuestion() {
+  lab.checked = false;
+  renderTestQuestion(lab, (index) => {
+    // A choice answers immediately; typed answers wait for Check.
+    lab.answers[lab.at] = index;
+    checkAnswer();
+  });
+}
+
+function checkAnswer() {
+  if (lab.checked) { nextTestQuestion(); return; }
+  const q = lab.questions[lab.at];
+  if (!q) return;
+
+  if (q.kind === 'type') lab.answers[lab.at] = $('#testTypeInput').value;
+  if (q.kind === 'write') lab.answers[lab.at] = $('#testWriteInput').value;
+  if (q.kind === 'flashcard') lab.answers[lab.at] = null;
+
+  lab.checked = true;
+  const result = q.kind === 'flashcard' ? { correct: null } : markOne(q, lab.answers[lab.at]);
+  showTestFeedback(q, result);
+}
+
+function nextTestQuestion() {
+  lab.at += 1;
+  if (lab.at >= lab.questions.length) { finishRound(); return; }
+  drawQuestion();
+}
+
+function finishRound() {
+  const result = markRound(lab.questions, lab.answers);
+  // Flashcards carry no marks, so they earn nothing — saying "0%" after a
+  // revision round would read as a failure rather than as "not a test".
+  if (result.total > 0) {
+    award(result.xp, { module: lab.pack?.id || 'grammar' });
+    Store.bumpDay({ reviews: result.total, correct: result.correct });
+    for (const q of lab.questions) {
+      if (q.kind === 'flashcard') continue;
+      Store.logReview({ wordId: q.term || q.topic, correct: true, grade: 2, mode: `test:${lab.mode}` });
+    }
+  }
+  renderTestResult(lab, result);
+  showTestStep('result');
+  render();
+}
+
+/** "Explain this" — why the right answer is right. */
+async function explainQuestion() {
+  const q = lab.questions[lab.at];
+  if (!q) return;
+  const body = $('#testAiBody');
+  const btn = $('#testExplain');
+  $('#testAiSlot').hidden = false;
+  $('#testAiTitle').textContent = AIClient.isLive ? AIClient.providerLabel : 'From the dictionary';
+  body.textContent = '';
+  body.classList.add('cursor');
+  btn.disabled = true;
+
+  // A grammar item ships with its own rule, so it never needs the network.
+  if (q.subject === 'grammar' && q.why) {
+    body.textContent = q.why;
+    body.classList.remove('cursor');
+    btn.disabled = false;
+    return;
+  }
+  try {
+    await AIClient.ask({
+      question: `In one short paragraph, explain the English word "${q.term}" and why it means what it does. Learner level ${Store.state.profile.level}.`,
+      history: [], level: Store.state.profile.level,
+    }, (t) => { body.textContent += t; });
+  } catch (err) {
+    body.textContent = `Could not reach the tutor: ${err.message}`;
+  } finally {
+    body.classList.remove('cursor');
+    btn.disabled = false;
+  }
+}
+
 // ── ask ────────────────────────────────────────────────────────────────────
 
 /** The conversation. Lives for the session; nothing is sent anywhere but the proxy. */
@@ -1224,18 +1509,36 @@ function wireSettings() {
   level.value = Store.state.profile.level;
   level.addEventListener('change', (e) => Store.set('profile.level', e.target.value));
 
-  // AI — one choice, one status line, the server fields only when they matter.
+  // AI — one choice of engine, one status line, server fields only when needed.
   $('#aiEndpoint').value = s.ai.endpoint || AICFG.defaultEndpoint;
   const modelSelect = $('#aiModel');
-  modelSelect.replaceChildren(...AICFG.models.map((m) =>
-    el('option', { value: m.id, text: m.label })));
-  modelSelect.value = s.ai.model || AICFG.defaultModel;
 
-  const showAIMode = (mode) => {
+  $('#aiModePicker').replaceChildren(...Object.entries(PROVIDERS).map(([id, p]) =>
+    el('button', {
+      class: 'seg__btn', type: 'button', role: 'tab', 'data-ai': id,
+      onclick: () => {
+        Store.set('settings.ai.provider', id);
+        // `mode` is what older code and older saves read.
+        Store.set('settings.ai.mode', id === 'built-in' ? 'mock' : 'proxy');
+        showAIProvider(id);
+        refreshAIStatus();
+        drawChatMode();
+      },
+    }, p.label)));
+
+  const showAIProvider = (id) => {
     for (const btn of $$('#aiModePicker .seg__btn')) {
-      btn.classList.toggle('is-active', btn.dataset.ai === mode);
+      btn.classList.toggle('is-active', btn.dataset.ai === id);
     }
-    $('#aiProxyFields').hidden = mode !== 'proxy';
+    $('#aiProviderBlurb').textContent = PROVIDERS[id]?.blurb || '';
+    $('#aiProxyFields').hidden = !PROVIDERS[id]?.needsProxy;
+
+    // Each engine has its own models; showing Claude's list under Gemini would
+    // only invite a request the proxy has to reject.
+    const models = id === 'gemini' ? AICFG.geminiModels : AICFG.models;
+    modelSelect.replaceChildren(...models.map((m) => el('option', { value: m.id, text: m.label })));
+    const saved = id === 'gemini' ? s.ai.geminiModel : s.ai.model;
+    modelSelect.value = models.some((m) => m.id === saved) ? saved : models[0].id;
   };
 
   async function refreshAIStatus() {
@@ -1248,22 +1551,18 @@ function wireSettings() {
     dot.dataset.state = !AIClient.isLive || /^Connected/.test(msg) ? 'ok' : 'bad';
   }
 
-  for (const btn of $$('#aiModePicker .seg__btn')) {
-    btn.addEventListener('click', () => {
-      Store.set('settings.ai.mode', btn.dataset.ai);
-      showAIMode(btn.dataset.ai);
-      refreshAIStatus();
-    });
-  }
   $('#aiEndpoint').addEventListener('change', (e) => {
     Store.set('settings.ai.endpoint', e.target.value.trim());
     refreshAIStatus();
   });
-  modelSelect.addEventListener('change', (e) =>
-    Store.set('settings.ai.model', e.target.value || AICFG.defaultModel));
+  modelSelect.addEventListener('change', (e) => {
+    Store.set(AIClient.provider === 'gemini' ? 'settings.ai.geminiModel' : 'settings.ai.model',
+      e.target.value);
+    refreshAIStatus();
+  });
   $('#aiTest').addEventListener('click', refreshAIStatus);
 
-  showAIMode(s.ai.mode);
+  showAIProvider(AIClient.provider);
   refreshAIStatus();
 
   // data

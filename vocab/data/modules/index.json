@@ -1,9 +1,64 @@
 [
   {
+    "id": "grade-1-5",
+    "title": "Grade 1–5",
+    "blurb": "The first few thousand words: short, everyday, and the ones everything else is built on.",
+    "level": "A1–A2",
+    "group": "School",
+    "count": 516,
+    "file": "grade-1-5.json"
+  },
+  {
+    "id": "grade-6-8",
+    "title": "Grade 6–8",
+    "blurb": "Middle-school English — longer words, and the first abstract ones.",
+    "level": "A2–B1",
+    "group": "School",
+    "count": 523,
+    "file": "grade-6-8.json"
+  },
+  {
+    "id": "grade-9-10",
+    "title": "Grade 9–10",
+    "blurb": "The vocabulary secondary-school reading and writing starts to assume.",
+    "level": "B1–B2",
+    "group": "School",
+    "count": 400,
+    "file": "grade-9-10.json"
+  },
+  {
+    "id": "grade-11-12",
+    "title": "Grade 11–12",
+    "blurb": "Higher-secondary English: argument, analysis and the words essays need.",
+    "level": "B2–C1",
+    "group": "School",
+    "count": 400,
+    "file": "grade-11-12.json"
+  },
+  {
+    "id": "university",
+    "title": "University",
+    "blurb": "Academic register — the words lectures, papers and seminars run on.",
+    "level": "C1–C2",
+    "group": "School",
+    "count": 400,
+    "file": "university.json"
+  },
+  {
+    "id": "ielts-gt",
+    "title": "IELTS General Training",
+    "blurb": "The everyday and workplace English GT tests, rather than the academic register of Academic.",
+    "level": "B1–B2",
+    "group": "Exams",
+    "count": 400,
+    "file": "ielts-gt.json"
+  },
+  {
     "id": "ielts",
     "title": "IELTS",
     "blurb": "Academic vocabulary that carries marks in Writing Task 2 and Reading.",
     "level": "B2–C1",
+    "group": "Exams",
     "count": 400,
     "file": "ielts.json"
   },
@@ -12,6 +67,7 @@
     "title": "SAT",
     "blurb": "The judgement-and-degree words American college tests keep coming back to.",
     "level": "C1",
+    "group": "Exams",
     "count": 400,
     "file": "sat.json"
   },
@@ -20,6 +76,7 @@
     "title": "Admission (BD)",
     "blurb": "Synonym-and-antonym drilling for Bangladeshi university admission tests.",
     "level": "B2–C1",
+    "group": "Exams",
     "count": 400,
     "file": "admission-bd.json"
   },
@@ -28,6 +85,7 @@
     "title": "Job & Workplace",
     "blurb": "Interviews, email, contracts and the language of getting things done.",
     "level": "B1–C1",
+    "group": "Work & life",
     "count": 400,
     "file": "job.json"
   },
@@ -36,6 +94,7 @@
     "title": "Native & Everyday",
     "blurb": "The plain, high-frequency words that make speech sound unforced.",
     "level": "A2–B1",
+    "group": "Work & life",
     "count": 400,
     "file": "native.json"
   },
@@ -44,6 +103,7 @@
     "title": "Elite",
     "blurb": "Rare and literary words — the ones that make a reader stop.",
     "level": "C2",
+    "group": "Work & life",
     "count": 400,
     "file": "elite.json"
   },
@@ -52,6 +112,7 @@
     "title": "Science & Medicine",
     "blurb": "The vocabulary of labs, bodies and papers — useful well beyond exams.",
     "level": "B2–C1",
+    "group": "Work & life",
     "count": 400,
     "file": "science.json"
   },
@@ -60,6 +121,7 @@
     "title": "Compounds & Phrases",
     "blurb": "Hyphenated and multi-word entries — the ones dictionaries hide at the back.",
     "level": "B1–C1",
+    "group": "Work & life",
     "count": 400,
     "file": "phrasal.json"
   }

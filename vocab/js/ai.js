@@ -13,7 +13,7 @@
  *                    data: {"type":"text_delta","text":"…"}
  *                    data: {"type":"done"} | {"type":"error","error":"…"}
  */
-import { AI } from './config.js';
+import { AI, PROVIDERS } from './config.js';
 import { Store } from './store.js';
 import { localWord, localExplain, localCoach, localSuggest, localReport, localAssess } from './local.js';
 import { localAnswer, OFFLINE_MISS } from './chat.js';
@@ -22,7 +22,16 @@ const cfg = () => Store.state.settings.ai;
 
 export const AIClient = {
   get mode() { return cfg().mode; },
-  get isLive() { return cfg().mode === 'proxy'; },
+  /**
+   * Which engine is answering. `mode` is kept for older saved settings, where
+   * 'proxy' always meant Claude.
+   */
+  get provider() {
+    const p = cfg().provider || (cfg().mode === 'proxy' ? 'anthropic' : 'built-in');
+    return PROVIDERS[p] ? p : 'built-in';
+  },
+  get isLive() { return this.provider !== 'built-in'; },
+  get providerLabel() { return PROVIDERS[this.provider]?.label || 'Built-in'; },
 
   url(route) {
     const base = (cfg().endpoint || '').replace(/\/+$/, '');
@@ -36,9 +45,12 @@ export const AIClient = {
       const res = await fetch(this.url(AI.routes.health), { signal: timeout(6000) });
       if (!res.ok) return `Proxy responded ${res.status}. Check the server logs.`;
       const body = await res.json();
-      return body.hasKey
-        ? `Connected — proxy ready, model ${body.model}.`
-        : 'Proxy is up but has no ANTHROPIC_API_KEY set.';
+      const info = body.providers?.[this.provider];
+      const name = PROVIDERS[this.provider]?.label || this.provider;
+      if (!info) return `Proxy is up, but it does not offer ${name}.`;
+      return info.ready
+        ? `Connected — ${name} ready on ${info.model}.`
+        : `Proxy is up but has no key for ${name}.`;
     } catch {
       return 'Cannot reach the proxy. Is it running? (npm start in vocab/server)';
     }
@@ -49,7 +61,7 @@ export const AIClient = {
   /** Full dictionary entry for a word: definition, examples, mnemonic… */
   async enrichWord(term, opts = {}) {
     if (!this.isLive) return localWord(term, opts.level);
-    return post(this.url(AI.routes.word), { term, level: opts.level, model: cfg().model });
+    return post(this.url(AI.routes.word), { term, level: opts.level, model: cfg().model, provider: this.provider });
   },
 
   /** A multiple-choice item for `word`, with plausible distractors. */
@@ -61,6 +73,7 @@ export const AIClient = {
       distractors: pool.map((w) => w.term).slice(0, 8),
       level: opts.level,
       model: cfg().model,
+      provider: this.provider,
     });
   },
 
@@ -73,6 +86,7 @@ export const AIClient = {
       struggling: opts.struggling || [],
       count: opts.count || 6,
       model: cfg().model,
+      provider: this.provider,
     });
   },
 
@@ -90,6 +104,7 @@ export const AIClient = {
       level: opts.level,
       sentence: `Explain "${word.term}" to a ${opts.level || 'B1'} learner: two short sentences of plain English, one natural example sentence, then one memory hook.`,
       model: cfg().model,
+      provider: this.provider,
     }, onToken);
   },
 
@@ -97,7 +112,7 @@ export const AIClient = {
   async coach({ term, definition, sentence, level }, onToken) {
     if (!this.isLive) return replay(localCoach(term, sentence), onToken);
     return stream(this.url(AI.routes.coach),
-      { term, definition, sentence, level, model: cfg().model }, onToken);
+      { term, definition, sentence, level, model: cfg().model, provider: this.provider }, onToken);
   },
 
   /**
@@ -112,7 +127,7 @@ export const AIClient = {
       return replay(answer || OFFLINE_MISS, onToken);
     }
     return stream(this.url(AI.routes.ask),
-      { question, history, level, model: cfg().model }, onToken);
+      { question, history, level, model: cfg().model, provider: this.provider }, onToken);
   },
 
   /**
@@ -122,13 +137,13 @@ export const AIClient = {
    */
   async assess(payload, onToken) {
     if (!this.isLive) return replay(localAssess(payload), onToken);
-    return stream(this.url(AI.routes.assess), { ...payload, model: cfg().model }, onToken);
+    return stream(this.url(AI.routes.assess), { ...payload, model: cfg().model, provider: this.provider }, onToken);
   },
 
   /** Weekly progress write-up from the tracking snapshot. */
   async report(payload, onToken) {
     if (!this.isLive) return replay(localReport(payload), onToken);
-    return stream(this.url(AI.routes.report), { stats: payload, model: cfg().model }, onToken);
+    return stream(this.url(AI.routes.report), { stats: payload, model: cfg().model, provider: this.provider }, onToken);
   },
 };
 

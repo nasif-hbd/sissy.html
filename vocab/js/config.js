@@ -65,6 +65,28 @@ export const THEMES = [
  * `proxy` — the browser calls YOUR server, which holds the Anthropic API key
  *           and calls the Claude API. Never ship a key to the browser.
  */
+/**
+ * The engines the app can use.
+ *
+ * `built-in` needs nothing. The other two both go through your proxy, because
+ * an API key in the browser is a key every visitor can read and spend — that
+ * rule does not change with the vendor.
+ */
+export const PROVIDERS = {
+  'built-in': {
+    label: 'Built-in', blurb: 'Answers from the dictionary on this device. No key, no network, no cost.',
+    needsProxy: false,
+  },
+  anthropic: {
+    label: 'Claude', blurb: 'Your proxy calls the Anthropic API. Needs ANTHROPIC_API_KEY on the server.',
+    needsProxy: true,
+  },
+  gemini: {
+    label: 'Gemini', blurb: 'Your proxy calls the Google Gemini API. Needs GEMINI_API_KEY on the server.',
+    needsProxy: true,
+  },
+};
+
 export const AI = {
   defaultMode: 'mock',
   defaultEndpoint: 'http://localhost:8787',
@@ -75,6 +97,12 @@ export const AI = {
    * compromise. Settings offers the others.
    */
   defaultModel: 'claude-haiku-4-5',
+  /** Gemini's cheapest tiers. Ids move; GEMINI_MODEL on the server overrides. */
+  geminiModels: [
+    { id: 'gemini-2.0-flash-lite', label: 'Flash Lite — fastest and cheapest' },
+    { id: 'gemini-2.0-flash', label: 'Flash — a step up' },
+    { id: 'gemini-2.5-flash', label: 'Flash 2.5 — the most capable of these' },
+  ],
   models: [
     { id: 'claude-haiku-4-5', label: 'Haiku 4.5 — fastest and cheapest' },
     { id: 'claude-sonnet-5', label: 'Sonnet 5 — a step up' },

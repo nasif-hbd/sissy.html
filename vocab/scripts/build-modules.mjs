@@ -284,9 +284,217 @@ function score(r) {
 // which of the remaining dataset entries may top the pack up to TARGET.
 const seeds = (s) => s.trim().split(/\s+/);
 
+/**
+ * School-level packs.
+ *
+ * There is no grade column in the data, so the level is inferred from two
+ * things the data does have: the difficulty band, and synonym centrality — a
+ * word many entries point at as a synonym is one children meet early, and one
+ * nobody points at is one you meet at university. Length breaks the remaining
+ * ties, because short words are learned first in every language.
+ *
+ * `cap` keeps a pack from drifting upward: without it the scorer, which rewards
+ * synonyms and translations, fills a Grade 1–5 pack with well-documented long
+ * words nobody teaches a seven-year-old.
+ */
+/**
+ * Junk that survives the general cleaning but must never reach a school pack.
+ *
+ * The upper packs sit at low centrality, where the dataset's tail lives: roman
+ * numerals, initialisms, transliterated place names and slang all look like
+ * ordinary short words to a filter that only checks a-z. Grade 9–10 came back
+ * holding "xii", "nsu", "blah" and "uzbeg" before this existed.
+ */
+const ROMAN = /^(?=[mdclxvi]+$)m*(c[md]|d?c{0,3})(x[cl]|l?x{0,3})(i[xv]|v?i{0,3})$/;
+const schoolSafe = (r, minLen) =>
+  r.w.length >= minLen
+  && /^[a-z]+$/.test(r.w)
+  && !ROMAN.test(r.w)
+  && /[aeiou]/.test(r.w)                       // an initialism has no vowel run
+  && !/^[bcdfghjklmnpqrstvwxz]{3}/.test(r.w)   // nsu, pbs, cxl…
+  && /^(noun|verb|adjective|adverb)$/.test(r.p)
+  && r.d.length >= 20 && r.d.length <= 140
+  && !/\b(city|town|province|county|capital|river|island|dynasty|deity|genus|surname|a state|a region)\b/i.test(r.d);
+
+const gradePack = ({ id, title, blurb, level, bands, minCentral, maxCentral,
+                     cap, minLen = 3, seeds: core = [], academic = false }) => ({
+  group: 'School', id, title, blurb, level,
+  seeds: core,
+  want: (r) => bands.includes(r.x)
+    && central(r.w) >= minCentral
+    && (maxCentral === undefined || central(r.w) <= maxCentral)
+    && r.w.length <= cap
+    && schoolSafe(r, minLen)
+    // A word worth teaching at any level has at least one synonym recorded;
+    // the tail of the dataset is mostly entries with none.
+    && (!academic || r.s.length >= 1),
+  /**
+   * School packs rank by simplicity, not by how well documented a word is.
+   *
+   * The default scorer rewards synonyms, translations and examples, which are
+   * properties of a good dictionary entry rather than of an easy word — left to
+   * it, Grade 1–5 filled up with "terrorist", "admonition" and "acrobatics".
+   * Centrality first, then brevity: the words other entries keep pointing at,
+   * shortest first.
+   */
+  /**
+   * Lower packs rank by simplicity; upper packs by the default scorer.
+   *
+   * Preferring short words is right for a seven-year-old and wrong for a
+   * university list, where it just surfaces the shortest obscure entries. Above
+   * Grade 8 a well-documented word — synonyms, translations, a real example —
+   * is the better bet.
+   */
+  rank: academic ? undefined : (r) => central(r.w) * 4 - r.w.length * 2 - Math.floor(r.d.length / 20),
+});
+
 const MODULES = [
+  gradePack({
+    id: 'grade-1-5', title: 'Grade 1–5', level: 'A1–A2', cap: 8,
+    blurb: 'The first few thousand words: short, everyday, and the ones everything else is built on.',
+    bands: ['Easy'], minCentral: 5,
+    // Primary-school vocabulary is a known list, not something to infer. These
+    // are the concrete nouns, plain verbs and basic adjectives a child meets
+    // first; the top-up only fills what the core leaves.
+    seeds: seeds(`
+      able above afraid after again against alone along already always angry animal answer
+      apple arm around arrive ask asleep aunt away baby back bad bag ball banana basket bath
+      beach bear beautiful because bed bee before begin behind bell below beside best better
+      between big bird birthday black blue boat body bone book boot bottle bowl box boy branch
+      brave bread break breakfast bridge bright bring brother brown brush build burn bus busy
+      butter button buy cake call camera candle cap car card care careful carry cat catch chair
+      chalk cheap cheese chicken child chin city clap class clean clear climb clock close cloth
+      cloud coat cold colour comb come cook cool copy corner cost count country cover cow crayon
+      cry cup cut dance dark daughter day dear deep desk dinner dirty dish doctor dog doll door
+      down draw dream dress drink drive drop dry duck each ear early earth east easy eat egg
+      eight elbow empty end enough enter evening every eye face fall family famous fan far farm
+      fast fat father feed feel fence field fight fill find finger finish fire first fish five
+      fix flag floor flower fly follow food foot forest forget fork four fox free fresh friend
+      frog front fruit full fun game garden gate gift girl give glad glass glove goat gold good
+      grass great green grow guess hair half hand happy hard hat head hear heart heavy help
+      hide high hill hold hole home honey hope horse hot hour house hungry hurry hurt ice idea
+      important inside iron island jump keep key kick kind king kitchen knee knife knock know
+      ladder lake lamp land large last late laugh lazy leaf learn leave left leg lemon lesson
+      letter lie life light like line lion lip listen little live long look lose loud love
+      lunch make man many map mark market meal mean meat meet melt milk mind minute mirror miss
+      mistake mix money monkey month moon morning mother mountain mouse mouth move much music
+      name near neck need needle nest never new news next nice night nine noise north nose note
+      now number nurse ocean office often oil old once onion only open orange order other out
+      outside over paint pair paper parent park part pass pen pencil people pick picture piece
+      pig pink place plane plant plate play please pocket point poor pot potato pour present
+      press pretty price prize proud pull push put queen question quick quiet rabbit rain read
+      ready red rest rich ride right ring river road rock roof room root rope round rule run
+      sad safe salt same sand save say school sea seat second see seed sell send seven shake
+      shape sheep shelf shine ship shirt shoe shop short shoulder shout show shut sick side
+      sign silver sing sister sit six skin sky sleep slow small smell smile smoke snake snow
+      soap sock soft some son song soon sorry sound soup south speak spell spend spoon spring
+      square stamp stand star start stay step stick stone stop store storm story straight
+      street strong study sugar summer sun sweet swim table tail take talk tall taste teach
+      team tear teeth tell ten thank thick thin thing think third thirsty three throw thumb
+      tiger time tired today toe together tomato tomorrow tonight tooth top touch towel town
+      toy train travel tree true try turn twelve twenty two ugly uncle under until use usual
+      very village visit voice wait wake walk wall want warm wash watch water wave weak wear
+      week west wet wheel when where white whole why wide wife wild win wind window wing winter
+      wise wish woman wood wool word work world write wrong yard year yellow yes yesterday
+      young zero
+    `),
+  }),
+  gradePack({
+    id: 'grade-6-8', title: 'Grade 6–8', level: 'A2–B1', cap: 11,
+    blurb: 'Middle-school English — longer words, and the first abstract ones.',
+    bands: ['Easy', 'Moderate'], minCentral: 3, maxCentral: 20,
+    seeds: seeds(`
+      ability absent accept accident account achieve active actual admire admit advance
+      adventure advice affect afford agree ahead aim allow alone amount ancient announce annual
+      anxious apart apology appear apply approach argue arrange arrive article artist ashamed
+      assist assume attach attack attempt attend attention attract average avoid aware balance
+      basic battle behave belief benefit blame border borrow bother brain branch brief brilliant
+      broad bury cancel capable capture careless cause ceiling celebrate central century certain
+      challenge champion character charge cheerful choice citizen claim clever climate collect
+      combine comfort command comment common compare compete complain complete concern condition
+      confident confuse connect consider constant contain continue control convince courage
+      create crime crowd cruel culture curious current custom damage danger decide declare
+      decrease defend degree delay delight deliver demand deny depend describe desert deserve
+      design desire destroy detail develop device difference difficult direct disagree disappear
+      discover discuss disease distance disturb divide double doubt dozen drift drown eager
+      earn edge effect effort elect else emotion employ empty encourage energy engine enormous
+      entire envy equal escape essential establish event evidence exact examine example excite
+      excuse exercise exist expand expect expense experience explain explore express extra
+      failure faith familiar fault favour fear feature fever figure final flavour float flood
+      focus force forgive formal fortune forward frequent friendly frighten further gather
+      general generous gentle gesture giant glance global goal govern gradual grateful greedy
+      guard guess guide habit handle happen harbour harm health honest honour horrible however
+      huge human humour hunt ignore illness image imagine immediate import impress improve
+      include increase indeed indicate industry influence inform injure innocent insect insist
+      inspect instant instead intend interest introduce invent invite involve iron island issue
+      journey judge justice knowledge labour lack language later lately lead leak legal leisure
+      level limit local locate lonely loose lower loyal luck luggage machine magic maintain
+      major manage manner material matter measure medicine member memory mention mercy message
+      metal method middle mild military modern moment monitor mood moral motion movement muscle
+      narrow nation native nature nearby neat necessary neglect neighbour nervous neutral noble
+      normal notice nowhere obey object observe obtain obvious occasion occupy occur offer
+      official operate opinion oppose option ordinary organise origin owe pack pain palace panic
+      parcel particular partner passage patient pattern pause peace perform perhaps period
+      permit person persuade physical pity plain pleasant plenty poison polite pollute popular
+      portion position possess possible pour poverty powder power practical praise prefer
+      prepare present prevent previous private prize probable problem produce profit progress
+      promise proper propose protect proud provide public punish purchase purpose quality
+      quantity quarrel quarter rapid rare reach realise reason receive recent recognise record
+      recover reduce refer reflect refuse regard region regret regular reject relate relax
+      release relief remain remark remind remove repair repeat replace reply report represent
+      request require rescue research reserve resist respect respond result retire return
+      reveal reward risk rough route royal rubbish rural sacrifice satisfy scarce scatter scene
+      schedule scheme science search secret section secure select sense sensible separate
+      series serious servant service settle severe shallow shame share shelter shift shock
+      shortage sight signal silence similar simple sincere single situation skill slight
+      society soil solid solve sorrow source spare special specific spectacle spirit spoil
+      spread stable staff standard state steady steep stiff store storm strange stranger
+      strength stress stretch strict struggle stubborn subject succeed sudden suffer suggest
+      suitable summary supply support suppose surface surround survive suspect swallow sweep
+      switch symbol system talent target task temper temporary tend tension terrible thorough
+      threat thrill tidy tight tiny tool total tough trade tradition traffic transfer translate
+      transport trap treasure treat trial trouble trust truth typical unable unique unite
+      universe unusual upset urgent useful usual vacant vain valley valuable variety various
+      vast vehicle victory view violent virtue visible vision volume voyage wander warn waste
+      weapon weather weigh welcome whole wisdom witness wonder worth wound wrap
+    `),
+  }),
+  gradePack({
+    id: 'grade-9-10', title: 'Grade 9–10', level: 'B1–B2', cap: 12, minLen: 5,
+    blurb: 'The vocabulary secondary-school reading and writing starts to assume.',
+    bands: ['Moderate'], minCentral: 1, academic: true,
+  }),
+  gradePack({
+    id: 'grade-11-12', title: 'Grade 11–12', level: 'B2–C1', cap: 14, minLen: 6,
+    blurb: 'Higher-secondary English: argument, analysis and the words essays need.',
+    bands: ['Advanced'], minCentral: 0, academic: true,
+  }),
+  gradePack({
+    id: 'university', title: 'University', level: 'C1–C2', cap: 18, minLen: 7,
+    blurb: 'Academic register — the words lectures, papers and seminars run on.',
+    bands: ['Advanced', 'God Level'], minCentral: 0, academic: true,
+  }),
   {
-    id: 'ielts', title: 'IELTS', blurb: 'Academic vocabulary that carries marks in Writing Task 2 and Reading.',
+    group: 'Exams', id: 'ielts-gt', title: 'IELTS General Training',
+    blurb: 'The everyday and workplace English GT tests, rather than the academic register of Academic.',
+    level: 'B1–B2',
+    seeds: seeds(`
+      accommodation advertise apply appointment arrange assist attend available bill book
+      borrow budget cancel charge cheque colleague community commute complain confirm contact
+      convenient council customer delay deliver deposit discount enquire equipment estimate
+      expense facility flatmate furnish guarantee hire household inconvenience insurance
+      invoice landlord lease leisure maintenance neighbour notice occupation overtime parcel
+      permit postpone premises queue receipt recommend refund register reliable rent repair
+      reserve resident retail routine schedule shift staff subscription supervisor supply
+      tenant timetable transfer utility vacancy volunteer wage warranty workplace
+    `),
+    want: (r) => ['Easy', 'Moderate'].includes(r.x)
+      && central(r.w) >= 2
+      && /\b(work|job|home|house|money|pay|buy|shop|travel|health|social|daily|service|customer|letter|apply)\b/i
+        .test(`${r.d} ${r.s.join(' ')}`),
+  },
+  {
+    group: 'Exams', id: 'ielts', title: 'IELTS', blurb: 'Academic vocabulary that carries marks in Writing Task 2 and Reading.',
     level: 'B2–C1',
     seeds: seeds(`
       analyse approach area assess assume authority available benefit concept consist context contract
@@ -307,7 +515,7 @@ const MODULES = [
     want: (r) => ['Advanced', 'Moderate'].includes(r.x) && /^(noun|verb|adjective)$/.test(r.p),
   },
   {
-    id: 'sat', title: 'SAT', blurb: 'The judgement-and-degree words American college tests keep coming back to.',
+    group: 'Exams', id: 'sat', title: 'SAT', blurb: 'The judgement-and-degree words American college tests keep coming back to.',
     level: 'C1',
     seeds: seeds(`
       abate aberrant abstain adulterate advocate aesthetic amalgamate ambivalent ameliorate anachronism
@@ -341,7 +549,7 @@ const MODULES = [
     want: (r) => ['Advanced', 'God Level'].includes(r.x) && /^(adjective|verb|noun)$/.test(r.p),
   },
   {
-    id: 'admission-bd', title: 'Admission (BD)', blurb: 'Synonym-and-antonym drilling for Bangladeshi university admission tests.',
+    group: 'Exams', id: 'admission-bd', title: 'Admission (BD)', blurb: 'Synonym-and-antonym drilling for Bangladeshi university admission tests.',
     level: 'B2–C1',
     seeds: seeds(`
       abolish abundant accelerate accord acute adamant adverse affable affluent alleviate allude aloof
@@ -372,7 +580,7 @@ const MODULES = [
     want: (r) => r.s.length >= 2 && ['Advanced', 'Moderate'].includes(r.x),
   },
   {
-    id: 'job', title: 'Job & Workplace', blurb: 'Interviews, email, contracts and the language of getting things done.',
+    group: 'Work & life', id: 'job', title: 'Job & Workplace', blurb: 'Interviews, email, contracts and the language of getting things done.',
     level: 'B1–C1',
     seeds: seeds(`
       accountable acquire agenda allocate appraisal assign audit authorise benchmark bid billing
@@ -392,7 +600,7 @@ const MODULES = [
     want: (r) => /\b(business|company|employ|work|office|money|payment|contract|market|trade|manage|profit|commercial|industry|職)\b/i.test(`${r.d} ${r.s.join(' ')}`),
   },
   {
-    id: 'native', title: 'Native & Everyday', blurb: 'The plain, high-frequency words that make speech sound unforced.',
+    group: 'Work & life', id: 'native', title: 'Native & Everyday', blurb: 'The plain, high-frequency words that make speech sound unforced.',
     level: 'A2–B1',
     seeds: seeds(`
       afford agree allow almost already although always amount answer appear arrive attend
@@ -422,7 +630,7 @@ const MODULES = [
     want: (r) => central(r.w) >= 3 && ['Easy', 'Moderate'].includes(r.x),
   },
   {
-    id: 'elite', title: 'Elite', blurb: 'Rare and literary words — the ones that make a reader stop.',
+    group: 'Work & life', id: 'elite', title: 'Elite', blurb: 'Rare and literary words — the ones that make a reader stop.',
     level: 'C2',
     seeds: seeds(`
       abstruse acerbic acumen adumbrate aplomb apocryphal apotheosis arcane assiduity atavistic
@@ -446,7 +654,7 @@ const MODULES = [
     want: (r) => r.x === 'God Level' && central(r.w) <= 1,
   },
   {
-    id: 'science', title: 'Science & Medicine', blurb: 'The vocabulary of labs, bodies and papers — useful well beyond exams.',
+    group: 'Work & life', id: 'science', title: 'Science & Medicine', blurb: 'The vocabulary of labs, bodies and papers — useful well beyond exams.',
     level: 'B2–C1',
     seeds: seeds(`
       abdomen acute aerobic ailment ambient amplitude analgesic anatomy antibody antigen aorta
@@ -466,7 +674,7 @@ const MODULES = [
     want: (r) => /\b(medical|medicine|disease|body|cell|chemical|physics|biolog|organ|blood|nerve|scien|clinical|surg)\w*/i.test(`${r.d} ${r.s.join(' ')}`),
   },
   {
-    id: 'phrasal', title: 'Compounds & Phrases', blurb: 'Hyphenated and multi-word entries — the ones dictionaries hide at the back.',
+    group: 'Work & life', id: 'phrasal', title: 'Compounds & Phrases', blurb: 'Hyphenated and multi-word entries — the ones dictionaries hide at the back.',
     level: 'B1–C1',
     seeds: [],
     // Hyphenated forms are excluded from the main pool by the headword rule,
@@ -509,9 +717,10 @@ for (const mod of MODULES) {
   const seedHits = picked.length;
 
   // 2. top up by score, preferring words no other module has taken
+  const rank = mod.rank || score;
   const rest = source
     .filter((r) => mod.want(r) && !picked.includes(r))
-    .sort((a, b) => score(b) - score(a) || a.w.localeCompare(b.w));
+    .sort((a, b) => rank(b) - rank(a) || a.w.localeCompare(b.w));
   for (const r of rest) {
     if (picked.length >= TARGET) break;
     if (claimed.has(r.w)) continue;
@@ -526,8 +735,11 @@ for (const mod of MODULES) {
   const file = `${mod.id}.json`;
   fs.writeFileSync(path.join(OUT_MODULES, file),
     JSON.stringify({ id: mod.id, title: mod.title, blurb: mod.blurb, level: mod.level, words: picked }));
-  manifest.push({ id: mod.id, title: mod.title, blurb: mod.blurb, level: mod.level, count: picked.length, file });
-  console.log(`${mod.title.padEnd(22)} ${String(picked.length).padStart(4)} words  (${seedHits} from the curated core)`);
+  manifest.push({
+    id: mod.id, title: mod.title, blurb: mod.blurb, level: mod.level,
+    group: mod.group || 'Work & life', count: picked.length, file,
+  });
+  console.log(`${(mod.group || "").padEnd(12)} ${mod.title.padEnd(24)} ${String(picked.length).padStart(4)} words  (${seedHits} core)`);
 }
 
 fs.writeFileSync(path.join(OUT_MODULES, 'index.json'), JSON.stringify(manifest, null, 2));

@@ -421,6 +421,137 @@ function drawMods(data, handlers) {
   if (data.continue) $('#homeContinue').textContent = data.continue.label;
 }
 
+// ── test ───────────────────────────────────────────────────────────────────
+
+/** Step 1: vocabulary or grammar. */
+export function renderTestSubjects(subjects, onPick) {
+  $('#testSubjects').replaceChildren(...Object.entries(subjects).map(([id, s]) =>
+    el('button', { class: 'pick', type: 'button', onclick: () => onPick(id) },
+      el('div', { class: 'pick__title', text: s.label }),
+      el('div', { class: 'pick__why', text: s.hint }))));
+}
+
+/** Step 2: the word packs, under the group headings from the manifest. */
+export function renderTestPacks(manifest, onPick) {
+  const groups = new Map();
+  for (const pack of manifest) {
+    const key = pack.group || 'Other';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(pack);
+  }
+
+  $('#testPacks').replaceChildren(...[...groups].map(([name, packs]) =>
+    el('div', { class: 'pack-group' },
+      el('p', { class: 'board__head', text: name }),
+      el('div', { class: 'picks' }, ...packs.map((pack) =>
+        el('button', { class: 'pick', type: 'button', onclick: () => onPick(pack) },
+          el('div', { class: 'pick__head' },
+            el('span', { class: 'pick__title', text: pack.title }),
+            el('span', { class: 'pick__level', text: pack.level })),
+          el('div', { class: 'pick__why', text: `${pack.count} words · ${pack.blurb}` })))))));
+}
+
+/** Step 3: the five ways to be tested. */
+export function renderTestModes(modes, onPick) {
+  $('#testModes').replaceChildren(...modes.map(([id, mode]) =>
+    el('button', { class: 'pick pick--mode', type: 'button', onclick: () => onPick(id) },
+      icon(mode.icon.replace(/^i-/, '')),
+      el('div', {},
+        el('div', { class: 'pick__title', text: mode.label }),
+        el('div', { class: 'pick__why', text: mode.hint })))));
+}
+
+/** One question, whichever of the four shapes it is. */
+export function renderTestQuestion(lab, onChoose) {
+  const q = lab.questions[lab.at];
+  if (!q) return;
+
+  $('#testCount').textContent = `${lab.at + 1} of ${lab.questions.length}`;
+  $('#testFill').style.width = `${Math.round((lab.at / lab.questions.length) * 100)}%`;
+  $('#testTag').textContent = q.topic || TAGS[q.tag] || (q.kind === 'write' ? 'Write it' : 'Recall');
+  $('#testLevel').textContent = q.level || '';
+  $('#testLevel').hidden = !q.level;
+  $('#testPrompt').textContent = q.prompt;
+
+  $('#testHint').textContent = q.hint || '';
+  $('#testHint').hidden = !q.hint;
+  $('#testFeedback').hidden = true;
+  $('#testAiSlot').hidden = true;
+  $('#testNext').hidden = true;
+  $('#testSubmit').hidden = false;
+  $('#testSubmit').textContent = q.kind === 'flashcard' ? 'Show the answer' : 'Check';
+  $('#testTools').hidden = q.subject !== 'grammar' && q.kind === 'flashcard';
+
+  const options = $('#testOptions');
+  options.hidden = q.kind !== 'choice';
+  options.replaceChildren(...(q.kind === 'choice'
+    ? q.options.map((text, i) => el('button', { class: 'option', type: 'button', onclick: () => onChoose(i) }, text))
+    : []));
+  // A choice answers by being tapped; there is nothing for Check to do.
+  if (q.kind === 'choice') $('#testSubmit').hidden = true;
+
+  $('#testTypeField').hidden = q.kind !== 'type';
+  $('#testWriteField').hidden = q.kind !== 'write';
+  $('#testFlashBack').hidden = true;
+  if (q.kind === 'type') { $('#testTypeInput').value = ''; $('#testTypeInput').focus(); }
+  if (q.kind === 'write') {
+    $('#testWriteInput').value = '';
+    $('#testWriteInput').placeholder = `Write a sentence using “${q.term}” — it means ${q.definition}`;
+  }
+}
+
+const TAGS = { meaning: 'What it means', recall: 'Which word', synonym: 'Closest in meaning' };
+
+/** After Check: mark it, show why, and offer the next one. */
+export function showTestFeedback(q, result) {
+  $('#testSubmit').hidden = true;
+  $('#testNext').hidden = false;
+  $('#testNext').textContent = 'Next';
+  $('#testTools').hidden = false;
+
+  if (q.kind === 'flashcard') {
+    $('#testFlashBack').hidden = false;
+    $('#testFlashAnswer').textContent = q.answer;
+    $('#testFlashDetail').textContent = q.detail || '';
+    return;
+  }
+
+  for (const [i, btn] of [...$$('#testOptions .option')].entries()) {
+    btn.disabled = true;
+    if (i === q.answerIndex) btn.classList.add('is-correct');
+  }
+
+  const box = $('#testFeedback');
+  box.hidden = false;
+  box.className = `feedback ${result.correct ? 'is-ok' : 'is-bad'}`;
+  box.textContent = result.notes
+    ? result.notes.join('\n')
+    : result.correct
+      ? 'Right.'
+      : `Not quite — the answer is “${result.expected}”.`;
+
+  // A grammar item ships with its rule, so show it without being asked.
+  if (!result.correct && q.why) {
+    $('#testAiSlot').hidden = false;
+    $('#testAiTitle').textContent = 'The rule';
+    $('#testAiBody').textContent = q.why;
+  }
+}
+
+/** The mark at the end. */
+export function renderTestResult(lab, result) {
+  const graded = result.total > 0;
+  $('#testScore').textContent = graded ? `${result.percent}%` : 'Done';
+  $('#testLine').textContent = graded
+    ? `${result.correct} of ${result.total} right — ${result.passed ? 'passed' : 'not passed yet'}.`
+    : `${lab.questions.length} cards reviewed. Flashcards are not marked.`;
+  $('#testXp').textContent = result.xp ? `+${result.xp} XP` : '';
+
+  const wrong = result.wrong || [];
+  $('#testWrongBox').hidden = !wrong.length;
+  $('#testWrong').replaceChildren(...wrong.map((t) => el('span', { class: 'chip', text: t })));
+}
+
 // ── ask ────────────────────────────────────────────────────────────────────
 
 /**
