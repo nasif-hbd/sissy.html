@@ -22,8 +22,32 @@
   "harvested": {
     "example sentence": 429
   },
-  "seedsDroppedByFilter": 110,
+  "seedsDroppedByFilter": 319,
   "modules": [
+    {
+      "id": "grade-1-5",
+      "count": 516
+    },
+    {
+      "id": "grade-6-8",
+      "count": 523
+    },
+    {
+      "id": "grade-9-10",
+      "count": 400
+    },
+    {
+      "id": "grade-11-12",
+      "count": 400
+    },
+    {
+      "id": "university",
+      "count": 400
+    },
+    {
+      "id": "ielts-gt",
+      "count": 400
+    },
     {
       "id": "ielts",
       "count": 400
@@ -58,5 +82,5 @@
     }
   ],
   "dictionary": 95000,
-  "generatedAt": "2026-08-24"
+  "generatedAt": "2026-08-27"
 }

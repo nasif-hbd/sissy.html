@@ -38,7 +38,11 @@ function freshState() {
       speech: true,
       reminders: { enabled: false, routine: DEFAULT_ROUTINE.map((s, i) => ({ ...s, id: `default-${i}` })), lastFired: {} },
       push: { enabled: false, endpoint: null },
-      ai: { mode: AI.defaultMode, endpoint: AI.defaultEndpoint, model: AI.defaultModel },
+      ai: {
+        provider: 'built-in',
+        mode: AI.defaultMode, endpoint: AI.defaultEndpoint,
+        model: AI.defaultModel, geminiModel: AI.geminiModels[0].id,
+      },
     },
     words: {},   // id -> word record
     srs: {},     // id -> scheduling record
@@ -112,6 +116,10 @@ function migrate(s) {
   // The default model moved to the cheapest tier. Anyone still carrying the old
   // default never chose it, so move them; a deliberate pick is left alone.
   if (s.settings?.ai?.model === 'claude-opus-5') s.settings.ai.model = AI.defaultModel;
+  // The single Claude/built-in switch became a choice of three engines.
+  const ai = s.settings?.ai;
+  if (ai && !ai.provider) ai.provider = ai.mode === 'proxy' ? 'anthropic' : 'built-in';
+  if (ai && !ai.geminiModel) ai.geminiModel = AI.geminiModels[0].id;
   // Reminders grew from a flat list of times into a routine of steps. Convert
   // rather than discard — someone chose those times.
   const rem = s.settings?.reminders;

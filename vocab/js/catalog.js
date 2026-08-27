@@ -8,11 +8,13 @@
  */
 const MODULES_URL = 'data/modules';
 const DICT_URL = 'data/dict';
+const GRAMMAR_URL = 'data/grammar/bank.json';
 
 const packs = new Map();     // id  -> pack
 const shards = new Map();    // key -> words
 let manifest = null;
 let dictIndex = null;
+let grammarBank = null;
 
 async function getJson(url) {
   const res = await fetch(url);
@@ -25,6 +27,12 @@ export const Catalog = {
   async modules() {
     if (!manifest) manifest = await getJson(`${MODULES_URL}/index.json`);
     return manifest;
+  },
+
+  /** The shipped grammar bank. One file, fetched when the Test tab needs it. */
+  async grammar() {
+    grammarBank ??= (await getJson(GRAMMAR_URL)).items;
+    return grammarBank;
   },
 
   /** One module with its words. Fetched the first time it is opened. */

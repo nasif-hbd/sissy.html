@@ -378,6 +378,40 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 .range::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); border: 3px solid var(--card); }
 .range:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 
+/* ── the feedback button ────────────────────────────────────────────────── */
+/* Fixed to the corner on every screen, above the toasts but below the sheet.
+   It sits clear of the safe-area inset so it is not under a home indicator. */
+.fab {
+  position: fixed; z-index: 45;
+  right: calc(16px + env(safe-area-inset-right));
+  bottom: calc(16px + env(safe-area-inset-bottom));
+  display: flex; align-items: center; gap: 8px;
+  min-height: var(--tap); padding: 0 16px; cursor: pointer;
+  background: var(--card); color: var(--ink); border: 1px solid var(--edge);
+  border-radius: 999px; box-shadow: var(--shadow-lift);
+  font-family: var(--sans); font-size: 14px; font-weight: 600;
+}
+.fab .ico { color: var(--accent); }
+@media (hover: hover) { .fab:hover { background: var(--accent-soft); border-color: var(--accent); } }
+/* On a phone the label costs more than it earns next to the tab rail. */
+@media (max-width: 560px) {
+  .fab { padding: 0; width: var(--tap); justify-content: center; }
+  .fab__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+}
+.sheet__panel--form { gap: 11px; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+.sheet__panel--form .input--area { width: 100%; }
+
+/* ── the test lab ───────────────────────────────────────────────────────── */
+.pack-group + .pack-group { margin-top: 18px; }
+.pick__head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.pick__level {
+  flex: none; font-family: var(--sans); font-size: 11.5px; font-weight: 600;
+  color: var(--accent); background: var(--accent-soft);
+  padding: 2px 8px; border-radius: 999px;
+}
+.pick--mode { display: flex; align-items: flex-start; gap: 12px; }
+.pick--mode .ico { flex: none; margin-top: 2px; color: var(--accent); }
+
 /* ── ask: the tutor conversation ────────────────────────────────────────── */
 /* The page scrolls and the input bar sticks to the bottom of it. A fixed-height
    log needs a magic number for the header and the view padding, and gets it

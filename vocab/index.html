@@ -386,6 +386,107 @@
       </div>
     </section>
 
+    <!-- ───────────────────────── Test ───────────────────────── -->
+    <section class="view" id="view-test" data-view="test" hidden>
+      <div class="stack">
+
+        <!-- 1 · subject -->
+        <div id="testPickSubject">
+          <div class="card card--tight">
+            <h3 class="card__title">What are you testing?</h3>
+            <p class="hint">Pick one. You can switch at any time.</p>
+          </div>
+          <div class="picks" id="testSubjects"></div>
+        </div>
+
+        <!-- 2 · pack (vocabulary only) -->
+        <div id="testPickPack" hidden>
+          <button class="btn btn--quiet btn--sm btn--inline" id="testBackSubject"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg>Back</button>
+          <div class="card card--tight">
+            <h3 class="card__title">Choose a word pack</h3>
+            <p class="hint">Whatever you are studying for.</p>
+          </div>
+          <div id="testPacks"></div>
+        </div>
+
+        <!-- 3 · mode -->
+        <div id="testPickMode" hidden>
+          <button class="btn btn--quiet btn--sm btn--inline" id="testBackPack"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg>Back</button>
+          <div class="card card--tight">
+            <h3 class="card__title" id="testModeTitle">How do you want to be tested?</h3>
+            <p class="hint" id="testModeSub"></p>
+          </div>
+          <div class="picks" id="testModes"></div>
+        </div>
+
+        <!-- 4 · running -->
+        <div id="testRun" hidden>
+          <div class="lesson__bar">
+            <button class="btn btn--quiet btn--sm" id="testQuit">Stop</button>
+            <div class="lesson__meter"><i id="testFill"></i></div>
+            <span class="lesson__count" id="testCount"></span>
+          </div>
+
+          <div class="card" id="testCard">
+            <div class="row row--between">
+              <span class="pill pill--ghost" id="testTag"></span>
+              <span class="pill" id="testLevel" hidden></span>
+            </div>
+            <p class="prompt" id="testPrompt"></p>
+            <p class="hint" id="testHint" hidden></p>
+
+            <div class="options" id="testOptions" hidden></div>
+
+            <label class="field" id="testTypeField" hidden>
+              <input class="input" id="testTypeInput" type="text" autocomplete="off"
+                     autocapitalize="off" spellcheck="false" placeholder="Type your answer…">
+            </label>
+
+            <label class="field" id="testWriteField" hidden>
+              <textarea class="input input--area" id="testWriteInput" rows="3"
+                        placeholder="Write a sentence using the word…"></textarea>
+            </label>
+
+            <div id="testFlashBack" hidden>
+              <p class="definition" id="testFlashAnswer"></p>
+              <p class="hint" id="testFlashDetail"></p>
+            </div>
+
+            <p class="feedback" id="testFeedback" hidden></p>
+            <div class="ai-slot" id="testAiSlot" hidden>
+              <div class="ai-slot__head"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-bulb"/></svg><span id="testAiTitle">Why</span></div>
+              <div class="ai-slot__body" id="testAiBody"></div>
+            </div>
+
+            <div class="card__actions">
+              <button class="btn btn--primary btn--wide" id="testSubmit">Check</button>
+              <button class="btn btn--primary btn--wide" id="testNext" hidden>Next</button>
+            </div>
+            <div class="card__tools" id="testTools" hidden>
+              <button class="btn btn--quiet btn--sm" id="testExplain" type="button"><svg class="ico" aria-hidden="true"><use href="#i-bulb"/></svg>Explain this</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5 · result -->
+        <div id="testResult" hidden>
+          <div class="card">
+            <p class="result__score" id="testScore">0%</p>
+            <p class="result__line" id="testLine"></p>
+            <p class="result__xp" id="testXp"></p>
+            <div id="testWrongBox" hidden>
+              <p class="board__head">Worth another look</p>
+              <div class="chips" id="testWrong"></div>
+            </div>
+            <div class="row row--even">
+              <button class="btn btn--primary" id="testAgain">Again</button>
+              <button class="btn btn--quiet" id="testChange">Change test</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <!-- ───────────────────────── Ask ───────────────────────── -->
     <section class="view view--chat" id="view-ask" data-view="ask" hidden>
       <div class="chat">
@@ -580,10 +681,8 @@
           <h3 class="card__title">AI help</h3>
           <p class="hint">Explanations, suggested words and the weekly summary. The built-in tutor
              answers from the dictionary on your device; Claude writes them fresh.</p>
-          <div class="seg seg--wide" id="aiModePicker" role="tablist">
-            <button class="seg__btn is-active" data-ai="mock" role="tab">Built-in</button>
-            <button class="seg__btn" data-ai="proxy" role="tab">Claude</button>
-          </div>
+          <div class="seg seg--wide" id="aiModePicker" role="tablist"></div>
+          <p class="hint" id="aiProviderBlurb"></p>
           <p class="status" id="aiStatus"><i class="status__dot"></i><span id="aiStatusText">Checking…</span></p>
           <div id="aiProxyFields" hidden>
             <label class="field">
@@ -622,11 +721,41 @@
     <button class="tab is-active" data-tab="home"><svg class="ico" aria-hidden="true"><use href="#i-home"/></svg><span class="tab__label">Home</span></button>
     <button class="tab" data-tab="learn"><svg class="ico" aria-hidden="true"><use href="#i-study"/></svg><span class="tab__label">Learn</span></button>
     <button class="tab" data-tab="modules"><svg class="ico" aria-hidden="true"><use href="#i-modules"/></svg><span class="tab__label">Modules</span></button>
+    <button class="tab" data-tab="test"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span class="tab__label">Test</span></button>
     <button class="tab" data-tab="ask"><svg class="ico" aria-hidden="true"><use href="#i-bulb"/></svg><span class="tab__label">Ask</span></button>
     <button class="tab" data-tab="words"><svg class="ico" aria-hidden="true"><use href="#i-index"/></svg><span class="tab__label">Words</span></button>
     <button class="tab" data-tab="progress"><svg class="ico" aria-hidden="true"><use href="#i-ledger"/></svg><span class="tab__label">Progress</span></button>
     <button class="tab" data-tab="settings"><svg class="ico" aria-hidden="true"><use href="#i-setup"/></svg><span class="tab__label">Settings</span></button>
   </nav>
+
+  <!-- Feedback: fixed to the corner, above the toasts, on every screen. -->
+  <button class="fab" id="feedbackBtn" type="button" aria-label="Send feedback">
+    <svg class="ico" aria-hidden="true"><use href="#i-pen"/></svg>
+    <span class="fab__label">Feedback</span>
+  </button>
+
+  <div class="sheet" id="feedbackSheet" hidden>
+    <div class="sheet__panel sheet__panel--form">
+      <p class="sheet__title">Tell us what you think</p>
+      <p class="hint">What is confusing, broken, or missing? Be as blunt as you like.</p>
+
+      <div class="seg seg--wide" id="feedbackKind" role="tablist">
+        <button class="seg__btn is-active" data-kind="idea" type="button" role="tab">Idea</button>
+        <button class="seg__btn" data-kind="bug" type="button" role="tab">Something broke</button>
+        <button class="seg__btn" data-kind="word" type="button" role="tab">Bad word entry</button>
+      </div>
+
+      <textarea class="input input--area" id="feedbackText" rows="4"
+                placeholder="I was trying to…"></textarea>
+      <p class="hint" id="feedbackNote"></p>
+
+      <div class="row row--even">
+        <button class="btn btn--primary" id="feedbackSend" type="button">Send</button>
+        <button class="btn btn--quiet" id="feedbackCancel" type="button">Cancel</button>
+      </div>
+      <button class="btn btn--quiet btn--sm btn--wide" id="feedbackCopy" type="button">Copy it instead</button>
+    </div>
+  </div>
 
   <div class="toasts" id="toasts" aria-live="polite"></div>
 </div>

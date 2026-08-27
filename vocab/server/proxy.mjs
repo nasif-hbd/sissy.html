@@ -33,6 +33,7 @@ import {
 // The reminder copy is shared with the app so the wording never drifts between
 // a notification fired in-tab and the same one pushed from here.
 import { dueStep, cardFor, quoteFor, fromTimes, validTime } from '../js/routine.js';
+import { geminiJson, geminiStream, hasGeminiKey, GEMINI_MODEL } from './gemini.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP_DIR = path.resolve(HERE, '..');
@@ -70,6 +71,24 @@ const hasKey = Boolean(process.env.ANTHROPIC_API_KEY || process.env.ANTHROPIC_AU
  * the given JSON schema, so the browser can trust the shape without validation
  * gymnastics. Effort is low — these are short, well-specified generations.
  */
+/**
+ * Which engine answers a request.
+ *
+ * The browser asks for one; the proxy honours it only if it holds that key, so
+ * a client set to Gemini against a Claude-only server gets a clear error rather
+ * than a silent switch to a model it did not choose.
+ */
+function provider(body) {
+  const want = body?.provider === 'gemini' ? 'gemini' : 'anthropic';
+  if (want === 'gemini' && !hasGeminiKey()) {
+    throw new HttpError(503, 'This proxy has no GEMINI_API_KEY set.');
+  }
+  if (want === 'anthropic' && !hasKey) {
+    throw new HttpError(503, 'This proxy has no ANTHROPIC_API_KEY set.');
+  }
+  return want;
+}
+
 async function askJson({ system, user }, schema, model = MODEL) {
   const response = await client.messages.create({
     model,
@@ -91,6 +110,24 @@ async function askJson({ system, user }, schema, model = MODEL) {
  * Streaming request: every text delta is forwarded to the browser as an SSE
  * frame, so feedback appears while it is being written.
  */
+/** Structured output from whichever provider the request named. */
+async function askJsonVia(who, prompt, schema, body) {
+  if (who === 'gemini') return geminiJson(prompt, schema, body?.model || undefined);
+  return askJson(prompt, schema, pickModel(body));
+}
+
+/** Streamed text from whichever provider the request named. */
+async function streamVia(who, prompt, res, body) {
+  if (who !== 'gemini') return streamText(prompt, res, pickModel(body));
+  try {
+    await geminiStream(prompt, (text) => sse(res, { type: 'text_delta', text }));
+    sse(res, { type: 'done' });
+  } catch (err) {
+    sse(res, { type: 'error', error: err.message });
+  }
+  res.end();
+}
+
 async function streamText({ system, user, messages }, res, model = MODEL) {
   const stream = client.messages.stream({
     model,
@@ -120,20 +157,26 @@ async function streamText({ system, user, messages }, res, model = MODEL) {
 
 const routes = {
   'GET /api/health': async (req, res) => {
-    json(res, 200, { ok: true, hasKey, model: MODEL, push: Boolean(vapid.publicKey) });
+    json(res, 200, {
+      ok: true, hasKey, model: MODEL, push: Boolean(vapid.publicKey),
+      providers: {
+        anthropic: { ready: hasKey, model: MODEL },
+        gemini: { ready: hasGeminiKey(), model: GEMINI_MODEL },
+      },
+    });
   },
 
   'POST /api/ai/word': async (req, res, body) => {
-    requireKey();
+    const who = provider(body);
     const term = String(body.term || '').trim().slice(0, 60);
     if (!term) throw new HttpError(400, 'No term given.');
-    json(res, 200, { ok: true, data: await askJson(wordPrompt({ term, level: body.level }), wordSchema, pickModel(body)) });
+    json(res, 200, { ok: true, data: await askJsonVia(who, wordPrompt({ term, level: body.level }), wordSchema, body) });
   },
 
   'POST /api/ai/quiz': async (req, res, body) => {
-    requireKey();
+    const who = provider(body);
     if (!body.term) throw new HttpError(400, 'No term given.');
-    const data = await askJson(quizPrompt(body), quizSchema, pickModel(body));
+    const data = await askJsonVia(who, quizPrompt(body), quizSchema, body);
     // Belt and braces: the schema cannot express "answerIndex is within options".
     if (!Array.isArray(data.options) || data.options.length < 2) {
       throw new HttpError(502, 'Model returned an unusable question.');
@@ -143,45 +186,45 @@ const routes = {
   },
 
   'POST /api/ai/suggest': async (req, res, body) => {
-    requireKey();
-    const data = await askJson(suggestPrompt(body), suggestSchema, pickModel(body));
+    const who = provider(body);
+    const data = await askJsonVia(who, suggestPrompt(body), suggestSchema, body);
     json(res, 200, { ok: true, data: data.words.slice(0, Number(body.count) || 6) });
   },
 
   'POST /api/ai/coach': async (req, res, body) => {
-    requireKey();
+    const who = provider(body);
     if (!body.sentence) throw new HttpError(400, 'No sentence given.');
     openSse(res);
-    await streamText(coachPrompt(body), res, pickModel(body));
+    await streamVia(who, coachPrompt(body), res, body);
   },
 
   'POST /api/ai/ask': async (req, res, body) => {
-    requireKey();
+    const who = provider(body);
     const question = String(body.question || '').trim().slice(0, 1000);
     if (!question) throw new HttpError(400, 'No question given.');
     openSse(res);
-    await streamText(askPrompt({
+    await streamVia(who, askPrompt({
       question,
       history: Array.isArray(body.history) ? body.history.slice(-12) : [],
       level: body.level,
-    }), res, pickModel(body));
+    }), res, body);
   },
 
   'POST /api/ai/assess': async (req, res, body) => {
-    requireKey();
+    const who = provider(body);
     if (!body.estimate) throw new HttpError(400, 'No placement result given.');
     openSse(res);
-    await streamText(assessPrompt({
+    await streamVia(who, assessPrompt({
       estimate: body.estimate,
       plan: body.plan || null,
       deck: body.deck || {},
-    }), res, pickModel(body));
+    }), res, body);
   },
 
   'POST /api/ai/report': async (req, res, body) => {
-    requireKey();
+    const who = provider(body);
     openSse(res);
-    await streamText(reportPrompt({ stats: body.stats || {}, level: body.stats?.level }), res, pickModel(body));
+    await streamVia(who, reportPrompt({ stats: body.stats || {}, level: body.stats?.level }), res, body);
   },
 
   /**
@@ -215,6 +258,23 @@ const routes = {
   // ── push ────────────────────────────────────────────────────────────────
   'GET /api/push/public-key': async (req, res) => {
     json(res, 200, { publicKey: vapid.publicKey || null });
+  },
+
+  /**
+   * Feedback from the app. Appended to a file next to the subscriptions —
+   * this is your server, so it goes nowhere else and needs no third party.
+   */
+  'POST /api/feedback': async (req, res, body) => {
+    const text = String(body.text || '').trim().slice(0, 4000);
+    if (!text) throw new HttpError(400, 'Empty feedback.');
+    const line = JSON.stringify({
+      kind: String(body.kind || 'idea').slice(0, 20),
+      text,
+      context: body.context || {},
+      at: new Date().toISOString(),
+    });
+    await fsp.appendFile(path.join(HERE, 'feedback.jsonl'), `${line}\n`, 'utf8');
+    json(res, 200, { ok: true });
   },
 
   'POST /api/push/subscribe': async (req, res, body) => {
