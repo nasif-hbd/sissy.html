@@ -94,6 +94,18 @@
           <div class="week" id="homeWeek"></div>
         </div>
 
+        <!-- Offered once, dismissible. Nobody wants to be asked twice. -->
+        <div class="card card--tight" id="homeInstallCard" hidden>
+          <div class="row row--between">
+            <div class="grow">
+              <h3 class="card__title">Install Lexio</h3>
+              <p class="hint" id="homeInstallHow"></p>
+            </div>
+            <button class="icon-btn icon-btn--sm" id="homeInstallClose" type="button" aria-label="Not now"></button>
+          </div>
+          <button class="btn btn--primary btn--wide" id="homeInstallGo">Install</button>
+        </div>
+
         <!-- Where you stand: the XP level you have earned, and the CEFR level
              the check measured. Two different things, so both are named. -->
         <div class="card card--tight" id="homeLevelCard">
@@ -699,6 +711,15 @@
             <p class="hint">The API key never touches the browser — the proxy in <code>server/</code>
                holds it. See the README to run it.</p>
           </div>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title">Install Lexio</h3>
+          <p class="status" id="installStatus"><i class="status__dot"></i><span id="installHow"></span></p>
+          <button class="btn btn--primary btn--wide" id="installGo" hidden>Install as an app</button>
+          <ol class="steps" id="installSteps"></ol>
+          <p class="hint" id="installNote" hidden></p>
+          <div class="row row--even" id="installDownloads"></div>
         </div>
 
         <div class="card">

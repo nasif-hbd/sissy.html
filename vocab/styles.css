@@ -378,6 +378,13 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 .range::-moz-range-thumb { width: 20px; height: 20px; border-radius: 50%; background: var(--accent); border: 3px solid var(--card); }
 .range:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; }
 
+/* ── install steps ──────────────────────────────────────────────────────── */
+.steps { margin: 12px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 7px; }
+.steps li { font-size: 14px; line-height: 1.5; color: var(--ink-2); }
+.steps:empty { display: none; }
+#installDownloads:empty { display: none; }
+#installDownloads .btn { text-decoration: none; }
+
 /* ── the feedback button ────────────────────────────────────────────────── */
 /* Fixed to the corner on every screen, above the toasts but below the sheet.
    It sits clear of the safe-area inset so it is not under a home indicator. */
