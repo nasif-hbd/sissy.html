@@ -25,6 +25,7 @@ vocab/
 │   ├── routine.js      the day's steps and their notification copy
 │   ├── chat.js         reads an open question well enough to answer offline
 │   ├── testlab.js      the Test section: five modes over two subjects
+├── desktop/            a 43 KB Windows launcher (one C file) and its build
 │   ├── advice.js       turns a level into a study plan
 │   ├── xp.js           the points economy, levels and rankings
 │   ├── exam.js         question generation and marking
@@ -379,6 +380,27 @@ confidently answers a different one. `tests/chat.test.mjs` pins it, including
 that an open question yields *no* word rather than a wrong one, so it falls
 through to Claude instead of being answered about some stray token.
 
+## Windows desktop build
+
+`desktop/` holds a 43 KB native launcher. Double-clicked, it serves the app on
+loopback and opens the browser at it — one small binary rather than a second
+copy of the app that drifts out of step with the web one.
+
+    cd desktop && ./build.sh          # needs mingw-w64; cross-compiles from Linux
+
+It serves only the `app` folder beside it, binds only to 127.0.0.1, and
+uploads nothing. The path resolver is the security boundary: a decoded request
+is rejected if it contains a parent-directory step, a drive letter or a
+backslash, and the canonicalised result must still sit under the app root.
+Content types matter more than they look — a browser refuses to execute an ES
+module served as `text/plain`, so a wrong type there is a blank page rather
+than a slow one.
+
+It is not code-signed, so SmartScreen will warn on first run. That is worth
+saying plainly rather than hiding: anyone who would rather not run an unsigned
+binary can use Edge or Chrome's "Install this site as an app" instead and get
+the same desktop icon, window and offline support.
+
 ## Feedback
 
 A floating button on every screen. Feedback is kept on the device and posted to
@@ -397,10 +419,10 @@ Reminders used to be a flat list of times that all showed the same nag. A
 routine is that list with intent attached: what happens at 07:30 is a different
 thing from what happens at 21:00, and the notification says so.
 
-Each step is a time plus one of five actions — review what is due, carry on a
-module, practise, **a word on the lock screen**, or **a line to keep going**.
-Steps are edited in place in Settings, sorted by time, and each carries its own
-copy and its own destination when tapped.
+Each step is a time plus one of six actions — review what is due, carry on a
+module, practise, **a word on the lock screen**, **a line to keep going**, or
+**surprise me**. Steps are edited in place in Settings, sorted by time, and
+each carries its own copy and its own destination when tapped.
 
 **On the lock screen.** A web app cannot draw a lock-screen widget on any
 platform — that needs a native app, and this is deliberately not one. What it
@@ -411,8 +433,25 @@ notification carrying a word and its meaning does the job a widget would:
     resilient
     (adjective) able to recover quickly from difficulty
 
-Those two step types are marked `passive` and drop the action buttons — they are
-things to read, not tasks.
+**Surprise me** rotates through six kinds so the card is worth reading twice:
+the word and its meaning, its Bangla and Hindi, a synonym pair, a question to
+answer in your head, a note on how its part of speech behaves, or a line to
+keep going. Two kinds was not variety — the same two things at the same two
+times every day stops being read. Any kind with nothing to show for the word it
+drew falls through to the next, because a card reading "resilient — undefined"
+is worse than no card.
+
+    resilient ≈ tough          notion ≈ idea
+    Also: hardy, adaptable.    Also: concept, impression.
+
+    What does "concise" mean?  undermine
+    Think of it, then open      A verb. Check what it takes as an
+    Lexio to check.             object before you use it.
+
+The passive step types drop the action buttons — they are things to read, not
+tasks. `ACTIONS.surprise` is marked `varies`, because unlike the others it has
+no single destination: a word card opens Learn, a quote opens Home. A test
+caught that inconsistency when the field still claimed one fixed view.
 
 **When they arrive.** Local reminders fire while a tab is open; that is the
 platform, not a limitation of the app, and the builder says so under the list
@@ -609,7 +648,7 @@ app to become usable.
 ## Testing
 
 ```bash
-cd vocab && node --test              # scheduler, tracking, design, XP, exams, tutor, placement, routine, chat, tests: 156 tests, no deps
+cd vocab && node --test              # scheduler, tracking, design, XP, exams, tutor, placement, routine, chat, tests: 163 tests, no deps
 cd server && npm run smoke         # every proxy route against a live server
 ```
 
