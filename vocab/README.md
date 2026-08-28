@@ -25,6 +25,7 @@ vocab/
 │   ├── routine.js      the day's steps and their notification copy
 │   ├── chat.js         reads an open question well enough to answer offline
 │   ├── testlab.js      the Test section: five modes over two subjects
+│   ├── install.js      what each platform can do about installing
 ├── desktop/            a 43 KB Windows launcher (one C file) and its build
 │   ├── advice.js       turns a level into a study plan
 │   ├── xp.js           the points economy, levels and rankings
@@ -380,6 +381,29 @@ confidently answers a different one. `tests/chat.test.mjs` pins it, including
 that an open question yields *no* word rather than a wrong one, so it falls
 through to Claude instead of being answered about some stray token.
 
+## Installing it
+
+Three ways in, and the app offers whichever one the visitor's device can
+actually do.
+
+**The landing page** (`/index.html`, the site root) reads the platform and
+shows one route: an Install button where the browser gives us a real
+`beforeinstallprompt`, Share → Add to Home Screen on iOS, File → Add to Dock on
+Safari, the ⋮ menu on Android, and the Windows download alongside on Windows.
+
+**Inside the app**, Settings carries the same offer permanently, and Home shows
+it once — dismissible, and the dismissal sticks. Nobody wants to be asked twice.
+
+`js/install.js` does the detection, and `platformOf()` is pure so every branch
+is tested against real user-agent strings. The branches matter more than they
+look: one "Install" button everywhere silently does nothing for everyone on
+Safari and Firefox, and a captured `beforeinstallprompt` is trusted over the
+user agent because the event is proof where the string is a guess. Three traps
+the tests hold shut — an iPad reports itself as a Mac and is caught by its
+touch points; Chrome on iOS is Safari underneath and still cannot add to the
+Home Screen; and Safari installs through Add to Dock, so pointing a Safari user
+at Chrome's address-bar icon sends them hunting for a button that is not there.
+
 ## Windows desktop build
 
 `desktop/` holds a 43 KB native launcher. Double-clicked, it serves the app on
@@ -648,7 +672,7 @@ app to become usable.
 ## Testing
 
 ```bash
-cd vocab && node --test              # scheduler, tracking, design, XP, exams, tutor, placement, routine, chat, tests: 163 tests, no deps
+cd vocab && node --test              # scheduler, tracking, design, XP, exams, tutor, placement, routine, chat, tests, install: 176 tests, no deps
 cd server && npm run smoke         # every proxy route against a live server
 ```
 

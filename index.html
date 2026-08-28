@@ -2,43 +2,216 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Lexio — English Vocabulary Trainer</title>
-<meta name="description" content="Lexio — learn English vocabulary with spaced repetition, reminders, progress tracking and AI help.">
-<!-- GitHub Pages serves this repo at /sissy.html/ ; the app lives in /vocab/.
-     Meta refresh first (works with JS disabled), script second (instant, and
-     replaces the history entry so Back doesn't bounce). -->
-<meta http-equiv="refresh" content="0; url=./vocab/">
-<link rel="canonical" href="https://nasif-hbd.github.io/sissy.html/vocab/">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Get Lexio — English vocabulary trainer</title>
+<meta name="description" content="Install Lexio on your phone, tablet or computer. A free English vocabulary trainer with 95,000 words, spaced repetition and offline support.">
+<link rel="canonical" href="https://nasif-hbd.github.io/sissy.html/">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23ed6b1f'/><text x='32' y='44' font-family='system-ui' font-size='32' font-weight='700' fill='%23fff' text-anchor='middle'>Lx</text></svg>">
+<meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
 <style>
-  :root { color-scheme: light dark; }
+  /* One page, one stylesheet. It has to load before anything on a slow phone,
+     and it is the first thing anyone sees of the app. */
+  :root {
+    --paper: #f4f5f7; --card: #fff; --ink: #16181d; --ink-2: #4a5160; --ink-3: #8f95a0;
+    --edge: #e6e8ec; --accent: #ed6b1f; --accent-soft: #fdeee1; --accent-ink: #fff;
+    --radius: 16px; --shadow: 0 1px 2px rgb(23 26 31 / .05), 0 8px 22px -14px rgb(23 26 31 / .28);
+    color-scheme: light dark;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #0e1116; --card: #171b22; --ink: #eef1f6; --ink-2: #b6bdc9; --ink-3: #737c8a;
+      --edge: #262c37; --accent: #5aa9ff; --accent-soft: #16273c; --accent-ink: #0e1116;
+      --shadow: 0 1px 2px rgb(0 0 0 / .4), 0 10px 26px -14px rgb(0 0 0 / .8);
+    }
+  }
+  * { box-sizing: border-box; }
   body {
-    margin: 0; min-height: 100dvh;
-    display: grid; place-content: center; gap: 14px; justify-items: center;
-    background: #f6f7f9; color: #16181d;
-    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    text-align: center; padding: 24px;
+    margin: 0; padding: 0 20px 64px; background: var(--paper); color: var(--ink);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+    -webkit-font-smoothing: antialiased;
   }
-  @media (prefers-color-scheme: dark) { body { background: #0d0f14; color: #eef1f6; } }
+  .wrap { max-width: 620px; margin: 0 auto; }
+
+  header { text-align: center; padding: 52px 0 32px; }
   .mark {
-    display: grid; place-items: center; width: 56px; height: 56px;
-    border-radius: 16px; background: #4f46e5; color: #fff; font-weight: 700; font-size: 20px;
+    display: grid; place-items: center; width: 68px; height: 68px; margin: 0 auto 18px;
+    border-radius: 20px; background: var(--accent); color: var(--accent-ink);
+    font-size: 26px; font-weight: 700; letter-spacing: -.02em;
   }
-  h1 { font-size: 20px; margin: 0; letter-spacing: -.01em; }
-  p { margin: 0; opacity: .65; font-size: 14px; }
-  a { color: #4f46e5; }
-  .go {
-    display: inline-flex; align-items: center; min-height: 44px; padding: 0 20px;
-    margin-top: 6px; border-radius: 10px; background: #4f46e5; color: #fff;
-    text-decoration: none; font-weight: 600;
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 10px; letter-spacing: -.02em; }
+  .tagline { margin: 0; color: var(--ink-2); font-size: 17px; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--edge); border-radius: var(--radius);
+    box-shadow: var(--shadow); padding: 22px; margin-bottom: 16px;
   }
+  h2 { font-size: 17px; margin: 0 0 4px; letter-spacing: -.01em; }
+  .sub { margin: 0 0 16px; color: var(--ink-3); font-size: 14px; }
+
+  .btn {
+    display: flex; align-items: center; justify-content: center; gap: 9px;
+    width: 100%; min-height: 52px; padding: 0 20px; margin-bottom: 10px;
+    border: 1px solid var(--edge); border-radius: 12px; background: var(--card);
+    color: var(--ink); font: inherit; font-weight: 600; text-decoration: none; cursor: pointer;
+  }
+  .btn--go { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+  .btn:last-child { margin-bottom: 0; }
+  .btn small { display: block; font-weight: 400; font-size: 12.5px; opacity: .75; }
+  .btn__text { text-align: left; }
+  @media (hover: hover) { .btn:hover { border-color: var(--accent); } }
+
+  ol { margin: 14px 0 0; padding-left: 22px; }
+  ol li { margin-bottom: 8px; color: var(--ink-2); font-size: 15px; }
+  .note {
+    margin: 14px 0 0; padding: 12px 14px; border-radius: 10px;
+    background: var(--accent-soft); color: var(--ink-2); font-size: 14px; line-height: 1.5;
+  }
+
+  .grid { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+  .feat { padding: 14px; border-radius: 12px; background: var(--paper); }
+  .feat b { display: block; font-size: 14.5px; margin-bottom: 2px; }
+  .feat span { font-size: 13px; color: var(--ink-3); line-height: 1.45; }
+
+  .others { margin-top: 26px; }
+  .others summary { cursor: pointer; color: var(--ink-2); font-size: 14.5px; padding: 8px 0; }
+  .others h3 { font-size: 14px; margin: 18px 0 6px; }
+  .others ol { margin-top: 6px; }
+
+  footer { text-align: center; margin-top: 34px; color: var(--ink-3); font-size: 13px; }
+  footer a { color: var(--accent); }
 </style>
 </head>
 <body>
-  <div class="mark">Lx</div>
-  <h1>Lexio</h1>
-  <p>English vocabulary trainer — opening…</p>
-  <a class="go" href="./vocab/">Open the app</a>
-  <script>location.replace('./vocab/');</script>
+<div class="wrap">
+
+  <header>
+    <div class="mark">Lx</div>
+    <h1>Lexio</h1>
+    <p class="tagline">Learn English vocabulary. 95,000 words, 14 study packs,
+       and everything works offline.</p>
+  </header>
+
+  <!-- Filled in by the script below, for whatever device is reading this. -->
+  <div class="card" id="install">
+    <h2 id="installTitle">Install Lexio</h2>
+    <p class="sub" id="installSub">Working out what your device can do…</p>
+    <a class="btn btn--go" href="./vocab/">
+      <span class="btn__text">Open Lexio<small>Works right now, in this browser</small></span>
+    </a>
+  </div>
+
+  <div class="card">
+    <h2>What you get</h2>
+    <p class="sub">All of it free, and all of it works with no account and no internet.</p>
+    <div class="grid">
+      <div class="feat"><b>14 word packs</b><span>Grade 1–5 up to University, IELTS, IELTS GT, SAT, Admission (BD)</span></div>
+      <div class="feat"><b>Five ways to test</b><span>Flashcards, quiz, in a sentence, written exam, spelling</span></div>
+      <div class="feat"><b>Grammar too</b><span>54 items across 28 topics, each explaining its rule</span></div>
+      <div class="feat"><b>Spaced repetition</b><span>It schedules each word for the day you are about to forget it</span></div>
+      <div class="feat"><b>Words on your lock screen</b><span>A word, a translation or a question, at times you choose</span></div>
+      <div class="feat"><b>Nothing leaves your device</b><span>No account, no analytics, no tracking</span></div>
+    </div>
+  </div>
+
+  <details class="others">
+    <summary>Installing on another device</summary>
+    <div class="card" style="margin-top:12px">
+      <h3>iPhone or iPad</h3>
+      <ol><li>Open this page in <b>Safari</b></li><li>Tap Share (the square with an arrow)</li><li>Tap “Add to Home Screen”</li></ol>
+      <h3>Android</h3>
+      <ol><li>Open this page in <b>Chrome</b></li><li>Tap the ⋮ menu</li><li>Tap “Install app”</li></ol>
+      <h3>Windows, Mac, Linux, ChromeOS</h3>
+      <ol><li>Open this page in <b>Chrome or Edge</b></li><li>Click the install icon in the address bar, or ⋮ → “Install Lexio”</li></ol>
+      <h3>Windows, without a browser install</h3>
+      <ol><li><a href="./download/lexio-windows.zip" download>Download the Windows version</a></li><li>Unzip it anywhere</li><li>Double-click <b>Lexio.exe</b></li></ol>
+      <p class="note">The Windows download is not code-signed, so SmartScreen warns the first time:
+         click “More info” → “Run anyway”. If you would rather not, the browser install above
+         gives you the same app, window and offline support.</p>
+    </div>
+  </details>
+
+  <footer>
+    <p>Free and open source · <a href="https://github.com/nasif-hbd/sissy.html">Source on GitHub</a></p>
+  </footer>
+</div>
+
+<script type="module">
+/*
+ * Show the visitor the one way that works for them.
+ *
+ * The detection is the same module the app uses, so the landing page and
+ * Settings can never disagree about what a device can do.
+ */
+import { platformOf, createInstaller } from './vocab/js/install.js';
+
+const title = document.getElementById('installTitle');
+const sub   = document.getElementById('installSub');
+const card  = document.getElementById('install');
+
+const installer = createInstaller({ onChange: draw });
+draw(installer.state());
+
+function draw(state) {
+  title.textContent = state.installed ? 'Lexio is installed' : `Install on ${state.label}`;
+  sub.textContent = state.how;
+
+  // Rebuild the buttons under the heading, leaving the two <p> in place.
+  for (const el of card.querySelectorAll('.btn, ol, .note')) el.remove();
+
+  if (state.canPrompt) card.append(button('go', 'Install Lexio', 'One tap. It appears with your other apps.', prompt));
+
+  card.append(button(state.canPrompt ? '' : 'go', 'Open Lexio',
+    state.installed ? 'Opens the app you installed' : 'Works right now, in this browser',
+    () => { location.href = './vocab/'; }));
+
+  if (state.os === 'windows' && !state.installed) {
+    card.append(link('./download/lexio-windows.zip', 'Download for Windows',
+      'Unzip and run Lexio.exe — no browser install needed'));
+  }
+
+  // No button to press: the steps are the instruction.
+  if (!state.canPrompt && !state.installed && state.steps.length) {
+    const ol = document.createElement('ol');
+    for (const step of state.steps) {
+      const li = document.createElement('li');
+      li.textContent = step;
+      ol.append(li);
+    }
+    card.append(ol);
+  }
+
+  if (state.note && !state.installed) {
+    const p = document.createElement('p');
+    p.className = 'note';
+    p.textContent = state.note;
+    card.append(p);
+  }
+}
+
+async function prompt() {
+  const outcome = await installer.prompt();
+  if (outcome === 'unavailable') sub.textContent = 'Your browser would not open the install dialog. The steps below still work.';
+}
+
+function button(kind, label, hint, onClick) {
+  const b = document.createElement('button');
+  b.className = `btn${kind ? ' btn--' + kind : ''}`;
+  b.innerHTML = `<span class="btn__text"></span>`;
+  b.firstChild.append(label, Object.assign(document.createElement('small'), { textContent: hint }));
+  b.addEventListener('click', onClick);
+  return b;
+}
+
+function link(href, label, hint) {
+  const a = document.createElement('a');
+  a.className = 'btn';
+  a.href = href;
+  a.setAttribute('download', '');
+  a.innerHTML = `<span class="btn__text"></span>`;
+  a.firstChild.append(label, Object.assign(document.createElement('small'), { textContent: hint }));
+  return a;
+}
+</script>
 </body>
 </html>

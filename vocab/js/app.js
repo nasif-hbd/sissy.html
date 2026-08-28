@@ -19,7 +19,7 @@ import {
   renderModules, renderModuleDetail, renderHome, renderXp, practicePool, actionSheet,
   renderPlacementQuestion, renderPlacementResult, renderLevelSummary, renderChat, sizeChat,
   renderTestSubjects, renderTestPacks, renderTestModes, renderTestQuestion,
-  showTestFeedback, renderTestResult,
+  showTestFeedback, renderTestResult, renderInstall,
 } from './ui.js';
 import { Catalog } from './catalog.js';
 import { AWARDS, award, claimDailyBonuses, standing, moduleStandings, bestDays } from './xp.js';
@@ -33,6 +33,7 @@ import { buildPlan } from './advice.js';
 import { ACTIONS, makeStep, sortRoutine, validTime, cardFor, quoteFor } from './routine.js';
 import { STARTERS, contextFor } from './chat.js';
 import { SUBJECTS, modesFor, buildRound, markOne, markRound } from './testlab.js';
+import { createInstaller } from './install.js';
 
 // ── session state ──────────────────────────────────────────────────────────
 const session = {
@@ -75,6 +76,7 @@ async function boot() {
     onFinished: () => { render(); loadModules(); },
   });
   wireWords();
+  wireInstall();
   wireFeedback();
   wireTest();
   wireAsk();
@@ -871,6 +873,61 @@ async function suggestWords() {
     label.textContent = 'Suggest six';
   }
 }
+
+// ── install ────────────────────────────────────────────────────────────────
+
+/**
+ * Offering the app as an app.
+ *
+ * Chrome and Edge can install in one tap; Safari cannot install at all and
+ * needs the learner to find Share → Add to Home Screen; Firefox does not do it
+ * on the desktop. So the offer is whatever that platform can genuinely do, and
+ * where there is no button there are words instead.
+ */
+let installer = null;
+
+function wireInstall() {
+  installer = createInstaller({ onChange: drawInstall });
+
+  $('#installGo').addEventListener('click', runInstall);
+  $('#homeInstallGo').addEventListener('click', runInstall);
+  $('#homeInstallClose').replaceChildren(icon('close'));
+  $('#homeInstallClose').addEventListener('click', () => {
+    // Asked once. Someone who said no does not want it every time they open
+    // the app, and the offer stays in Settings for whenever they change mind.
+    Store.set('settings.installDismissed', true);
+    drawInstall();
+  });
+
+  drawInstall();
+}
+
+async function runInstall() {
+  const outcome = await installer.prompt();
+  if (outcome === 'accepted') toast('Installing — look for Lexio with your other apps.');
+  else if (outcome === 'dismissed') toast('No problem — it is in Settings when you want it.');
+  else toast('Your browser cannot install from here. The steps are in Settings.', 'bad');
+}
+
+function drawInstall(state = installer?.state()) {
+  if (!state) return;
+  renderInstall(state, {
+    dismissed: Boolean(Store.state.settings.installDismissed),
+    downloads: DOWNLOADS,
+  });
+}
+
+/**
+ * Files offered for download, by platform.
+ *
+ * Relative to the app, so they work wherever the app is hosted; a link is only
+ * shown once its file is actually reachable, or a fresh checkout would offer a
+ * 404.
+ */
+const DOWNLOADS = [
+  { os: 'windows', label: 'Windows download', href: '../download/lexio-windows.zip',
+    note: 'Unzip and run Lexio.exe. No browser install, no runtime.' },
+];
 
 // ── feedback ───────────────────────────────────────────────────────────────
 

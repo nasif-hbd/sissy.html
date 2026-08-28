@@ -421,6 +421,43 @@ function drawMods(data, handlers) {
   if (data.continue) $('#homeContinue').textContent = data.continue.label;
 }
 
+// ── install ────────────────────────────────────────────────────────────────
+
+/**
+ * The install offer, in Settings and (once) on Home.
+ *
+ * A button appears only when the browser has actually given us a prompt to
+ * fire. Everywhere else the steps carry it, because a button that silently
+ * does nothing is worse than a sentence that tells the truth.
+ */
+export function renderInstall(state, { dismissed = false, downloads = [] } = {}) {
+  const status = $('#installStatus');
+  status.dataset.state = state.installed ? 'ok' : state.canPrompt ? 'ok' : 'wait';
+  $('#installHow').textContent = state.how;
+
+  $('#installGo').hidden = !state.canPrompt;
+
+  // Steps are the fallback for platforms with no prompt — and pointless noise
+  // next to a working button, or once the app is already installed.
+  const showSteps = !state.installed && !state.canPrompt && state.steps.length;
+  $('#installSteps').replaceChildren(...(showSteps
+    ? state.steps.map((step) => el('li', { text: step })) : []));
+
+  $('#installNote').textContent = state.note || '';
+  $('#installNote').hidden = !state.note;
+
+  // Only the platform's own download, and only when there is one.
+  const mine = downloads.filter((d) => d.os === state.os);
+  $('#installDownloads').replaceChildren(...mine.map((d) =>
+    el('a', { class: 'btn btn--quiet', href: d.href, download: '' }, icon('download'), d.label)));
+
+  // Home carries the offer once: only when it can be done in one tap, and only
+  // until it is taken or waved away.
+  const onHome = state.canPrompt && !state.installed && !dismissed;
+  $('#homeInstallCard').hidden = !onHome;
+  if (onHome) $('#homeInstallHow').textContent = state.how;
+}
+
 // ── test ───────────────────────────────────────────────────────────────────
 
 /** Step 1: vocabulary or grammar. */
