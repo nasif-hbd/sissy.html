@@ -9,7 +9,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   ACTIONS, DEFAULT_ROUTINE, validTime, minutesOf, makeStep, fromTimes,
-  sortRoutine, dueStep, cardFor, quoteFor, QUOTES,
+  sortRoutine, dueStep, cardFor, quoteFor, QUOTES, SURPRISE_KINDS,
 } from '../js/routine.js';
 
 const at = (h, m = 0) => { const d = new Date(2026, 0, 15, h, m, 0); return d; };
@@ -93,10 +93,10 @@ test('migration keeps every valid time and drops the rest', () => {
   assert.deepEqual(routine.map((s) => s.time), ['09:00', '21:30']);
 });
 
-test('a migrated morning slot is a word card, a later one a review', () => {
+test('a migrated morning slot is a lock-screen card, a later one a review', () => {
   const [morning] = fromTimes(['07:30']);
   const [evening] = fromTimes(['20:00']);
-  assert.equal(morning.action, 'word');
+  assert.ok(ACTIONS[morning.action].passive, 'a morning nudge should be something to read');
   assert.equal(evening.action, 'review');
 });
 
@@ -188,12 +188,30 @@ test('every card routes to a view the app actually has', () => {
   }
 });
 
-test('every action declares a view matching what its card routes to', () => {
+test('every fixed action routes where ACTIONS says it does', () => {
   const ctx = { due: 3, moduleTitle: 'IELTS', setNumber: 2, quote: 'x',
                 word: { term: 'w', definition: 'd' }, dailyGoal: 20 };
   for (const [name, meta] of Object.entries(ACTIONS)) {
+    if (meta.varies) continue;   // a surprise picks its destination per card
     assert.equal(cardFor(step('a', '09:00', name), ctx).view, meta.view,
       `${name}: ACTIONS says ${meta.view}`);
+  }
+});
+
+test('a varying action still routes somewhere the app can open', () => {
+  // It has no single declared view, so the guarantee is weaker but still real:
+  // whatever it picks must be a screen that exists.
+  const views = new Set(['home', 'learn', 'practice', 'modules', 'words', 'progress', 'settings', 'ask', 'test']);
+  const ctx = { quote: 'Keep going.', streak: 2,
+    word: { term: 'resilient', pos: 'adjective', definition: 'able to recover',
+            synonyms: ['tough'], tr: { bn: 'x', hi: 'y' } } };
+  for (let i = 0; i < 200; i += 1) {
+    for (const [name, meta] of Object.entries(ACTIONS)) {
+      if (!meta.varies) continue;
+      const card = cardFor(step('a', '09:00', name), ctx);
+      assert.ok(card, `${name} produced nothing`);
+      assert.ok(views.has(card.view), `${name} routes to unknown view "${card.view}"`);
+    }
   }
 });
 
@@ -214,4 +232,76 @@ test('every quote is a real, short line', () => {
 
 test('an empty quote list returns nothing rather than crashing', () => {
   assert.equal(quoteFor('2026-01-15', []), '');
+});
+
+// ── surprise cards ─────────────────────────────────────────────────────────
+
+const richWord = {
+  term: 'resilient', pos: 'adjective',
+  definition: 'able to recover quickly from difficulty',
+  synonyms: ['tough', 'hardy', 'adaptable'],
+  tr: { bn: 'স্থিতিস্থাপক', hi: 'लचीला' },
+};
+
+/** Force each rotation in turn, so every kind is exercised. */
+const surprise = (ctx, i) =>
+  cardFor(step('s', '08:00', 'surprise'), { ...ctx, pick: () => i / SURPRISE_KINDS.length });
+
+test('a surprise step can produce every kind it advertises', () => {
+  const titles = new Set();
+  const bodies = new Set();
+  for (let i = 0; i < SURPRISE_KINDS.length; i += 1) {
+    const card = surprise({ word: richWord, quote: 'Keep going.', streak: 4 }, i);
+    assert.ok(card, `rotation ${i} produced nothing`);
+    titles.add(card.title);
+    bodies.add(card.body);
+  }
+  assert.equal(titles.size + bodies.size >= SURPRISE_KINDS.length + 2, true,
+    `only ${titles.size} distinct titles across ${SURPRISE_KINDS.length} kinds`);
+});
+
+test('every surprise card is complete — no gaps, no "undefined"', () => {
+  for (let i = 0; i < SURPRISE_KINDS.length; i += 1) {
+    const card = surprise({ word: richWord, quote: 'Keep going.', streak: 3 }, i);
+    assert.ok(card.title && card.body, `rotation ${i} is missing a half`);
+    for (const text of [card.title, card.body]) {
+      assert.ok(!/undefined|null|NaN/.test(text), `leaked a placeholder: ${text}`);
+      assert.ok(text.trim().length > 3, `too short to be a card: ${text}`);
+    }
+    assert.ok(card.quiet, 'a lock-screen card carries no action buttons');
+    assert.ok(['home', 'learn'].includes(card.view));
+  }
+});
+
+test('a surprise falls through to a kind the word can actually fill', () => {
+  // A word with no translation and no synonyms must still produce something,
+  // rather than a card reading "resilient — undefined".
+  const bare = { term: 'thing', definition: 'an object of any kind' };
+  for (let i = 0; i < SURPRISE_KINDS.length; i += 1) {
+    const card = surprise({ word: bare, quote: 'Keep going.' }, i);
+    assert.ok(card, `rotation ${i} gave up entirely`);
+    assert.ok(!/undefined/.test(card.title + card.body));
+  }
+});
+
+test('a surprise with nothing at all to show stays silent', () => {
+  assert.equal(surprise({ word: null, quote: '' }, 0), null);
+  assert.equal(surprise({ word: { term: 'x' }, quote: '' }, 0), null,
+    'a word with no definition, synonyms or translation has nothing to say');
+});
+
+test('the translation card only fires when a translation exists', () => {
+  const noTr = { term: 'thing', pos: 'noun', definition: 'an object', synonyms: ['object'] };
+  for (let i = 0; i < SURPRISE_KINDS.length; i += 1) {
+    const card = surprise({ word: noTr, quote: 'x' }, i);
+    assert.ok(!/Bangla|Hindi/.test(card.body), 'claimed a translation it does not have');
+  }
+  const withTr = surprise({ word: richWord, quote: '' }, 1);
+  assert.ok(withTr, 'a word with translations should still produce a card');
+});
+
+test('surprise is offered in the routine builder like any other step', () => {
+  assert.ok(ACTIONS.surprise, 'the picker cannot offer what ACTIONS does not list');
+  assert.ok(ACTIONS.surprise.passive, 'it is something to read, not a task');
+  assert.equal(makeStep('08:00', 'surprise').action, 'surprise');
 });

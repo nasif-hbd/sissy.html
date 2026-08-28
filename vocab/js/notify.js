@@ -124,7 +124,16 @@ function cardContext(step) {
   if (step.action === 'quote') {
     return { ...base, quote: state.settings.reminders.quote || quoteFor(dayKey()) };
   }
-  if (step.action === 'word') return { ...base, word: pickCardWord(state) };
+  // A surprise card can turn into a translation or a synonym pair, so it needs
+  // the whole word record, not just the term and its meaning.
+  if (step.action === 'word' || step.action === 'surprise') {
+    return {
+      ...base,
+      word: pickCardWord(state),
+      quote: quoteFor(dayKey()),
+      streak: state.streak?.current || 0,
+    };
+  }
   if (step.action === 'module') return { ...base, ...nextModule(state) };
   return base;
 }
