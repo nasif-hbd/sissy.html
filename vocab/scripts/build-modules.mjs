@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Turns the source vocabulary CSV into what the app actually ships:
+ * Turns the sectioned vocabulary workbook into what the app actually ships:
  *
  *   data/modules/index.json   the module manifest the Modules tab lists
  *   data/modules/<id>.json    one pack per module, fetched when opened
@@ -8,46 +8,41 @@
  *                             so adding a word is an offline lookup rather
  *                             than an API call
  *
- *   node scripts/build-modules.mjs path/to/word_meanings_dataset.csv
+ *   node scripts/build-modules.mjs path/to/word_meanings_SECTIONED.xlsx
  *
- * Modules are built from a curated seed list per subject — the words that
- * genuinely belong on an IELTS or SAT list — topped up from the dataset by
- * score. Nothing here is hand-maintained afterwards: re-run it and the packs
- * are rebuilt.
+ * Nothing here is hand-maintained afterwards: re-run it and the packs are
+ * rebuilt.
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { readWorkbook } from './xlsx.mjs';
+import { sameFamily } from './family.mjs';
 
 const SRC = process.argv[2];
-if (!SRC) { console.error('usage: build-modules.mjs <dataset.csv>'); process.exit(1); }
+if (!SRC) { console.error('usage: build-modules.mjs <word_meanings_SECTIONED.xlsx>'); process.exit(1); }
 
 const OUT_MODULES = 'data/modules';
 const OUT_DICT = 'data/dict';
 const TARGET = Number(process.env.MODULE_SIZE || 400);
 
-// ── a small CSV reader: quoted fields, embedded commas and newlines ────────
-function parseCsv(text) {
-  const rows = [];
-  let row = [], field = '', quoted = false;
-  for (let i = 0; i < text.length; i++) {
-    const c = text[i];
-    if (quoted) {
-      if (c === '"') {
-        if (text[i + 1] === '"') { field += '"'; i++; }
-        else quoted = false;
-      } else field += c;
-    } else if (c === '"') quoted = true;
-    else if (c === ',') { row.push(field); field = ''; }
-    else if (c === '\n') { row.push(field); rows.push(row); row = []; field = ''; }
-    else if (c !== '\r') field += c;
-  }
-  if (field || row.length) { row.push(field); rows.push(row); }
-  return rows;
-}
+/* ===========================================================================
+   The sections
 
-const raw = fs.readFileSync(SRC, 'utf8').replace(/^﻿/, '');
-const [header, ...body] = parseCsv(raw);
-const col = Object.fromEntries(header.map((h, i) => [h.trim(), i]));
+   Both of the things a pack is built from used to be guesses. Difficulty came
+   from a column that cut the old CSV into four equal quarters, and exam
+   membership from keyword rules run over the definition — which is how a
+   Grade 1–5 pack ended up holding "terrorist" and "acrobatics".
+
+   This workbook states both outright. Four sheets partition every word by how
+   hard it is; five more mark what a word is studied for. So neither is
+   inferred any more: the tier sheet sets the band, and the subject sheets
+   decide who is on which list.
+=========================================================================== */
+const TIERS = {
+  NORMAL: 'Easy', INTERMEDIATE: 'Moderate', ELITE: 'Advanced', EXCEPTIONAL: 'God Level',
+};
+/** Subject sheets, in no particular order — a word may sit on several. */
+const SECTIONS = ['ACADEMICS', 'IELTS', 'SAT', 'BD_ADMISSION_TEST', 'JOB'];
 
 const squash = (s) => (s || '').replace(/\s+/g, ' ').trim();
 
@@ -66,6 +61,17 @@ const harvested = (rule) => { report.harvested[rule] = (report.harvested[rule] |
 /** Words a vocabulary app aimed at students should not be teaching. */
 const EXPLICIT = /\b(contraceptive|condom|sexual intercourse|copulat\w*|masturbat\w*|genitalia|erotic|pornograph\w*)\b/i;
 const BLOCKED = /\b(ass|asshole|arse|bastard|bitch|bollocks|bugger|cock|crap|cunt|dick|dildo|dyke|fag|faggot|fuck|jism|jizz|nigger|penis|piss|prick|prostitute|pussy|queer|semen|shit|slut|spic|tits|turd|twat|vagina|wanker|whore|wop)\b/i;
+
+/**
+ * Rows whose "definition" describes something other than the ordinary word.
+ *
+ * The workbook carries one sense per headword, and for a handful of common
+ * words that sense is a slang list or a proper noun: "grass — street names for
+ * marijuana", "far — a terrorist organization that seeks to overthrow the
+ * government dominated by Tutsi". There is no better sense in the data to fall
+ * back to, so the entry goes rather than teach that one.
+ */
+const NOT_A_SENSE = /^street names? for\b|\b(terrorist organization|guerrilla group|militant group|paramilitary organization)\b/i;
 
 const TAXONOMIC = /\b(genus|subgenus|family|subfamily|superfamily|order|suborder|phylum|class|tribe|any of (?:various|numerous|several)|type genus|widely distributed|native to|deciduous|evergreen|perennial|annual herb|shrubs?|herbs?|mollusks?|arthropods?|beetles?|moths?|orchids?|ferns?|grasses)\b/i;
 const CITATION = /[;,]?\s*[-–—]{1,2}\s*[A-Z][A-Za-z.'-]*(?:\s+[A-Z][A-Za-z.'-]*){0,2}\s*$/;  // "; --Hippocrates"
@@ -142,35 +148,71 @@ function cleanSynonyms(list, word) {
   return out.slice(0, 4);
 }
 
-const records = body
-  .filter((r) => r.length > 3 && squash(r[col.word]))
-  .map((r) => {
-    report.rows += 1;
-    const word = squash(r[col.word]).toLowerCase();
-    const cleaned = cleanDefinition(r[col.english_meaning], word);
-    return {
-      w: word,
-      p: squash(r[col.part_of_speech]).toLowerCase(),
-      d: cleaned?.definition || '',
-      e: cleaned?.examples || [],
-      s: cleanSynonyms([1, 2, 3, 4, 5].map((n) => r[col[`synonym_${n}`]] || ''), word),
-      bn: cleanTranslation(r[col.bangla_meaning], 'bn'),
-      hi: cleanTranslation(r[col.hindi_meaning], 'hi'),
-      zh: cleanTranslation(r[col.chinese_simplified], 'zh'),
-      x: squash(r[col.difficulty]),
-    };
-  });
+/* ===========================================================================
+   Reading the workbook
 
-console.log(`read ${records.length} rows`);
-
-// One entry per headword: keep the richest (most synonyms + translations).
-const byWord = new Map();
-const richness = (r) => r.s.length + (r.bn ? 2 : 0) + (r.hi ? 1 : 0) + (r.zh ? 1 : 0) + (r.d ? 1 : 0) + r.e.length;
-for (const r of records) {
-  const seen = byWord.get(r.w);
-  if (!seen || richness(r) > richness(seen)) byWord.set(r.w, r);
+   The tier sheets partition the vocabulary, so one pass over them collects
+   every word exactly once and settles its band. The subject sheets then only
+   add labels: their rows are byte-identical to the tier row for the same word,
+   so there is nothing else in them to keep.
+=========================================================================== */
+const book = readWorkbook(SRC);
+for (const sheet of [...Object.keys(TIERS), ...SECTIONS]) {
+  if (!book.sheets.includes(sheet)) {
+    console.error(`workbook has no "${sheet}" sheet; it has: ${book.sheets.join(', ')}`);
+    process.exit(1);
+  }
 }
-console.log(`${byWord.size} unique headwords`);
+
+const sheetRows = new Map();
+for (const [sheet, band] of Object.entries(TIERS)) {
+  let n = 0;
+  for (const row of book.records(sheet)) {
+    const w = squash(row.word).toLowerCase();
+    if (!w || sheetRows.has(w)) continue;
+    sheetRows.set(w, { row, x: band, sec: [] });
+    n += 1;
+  }
+  console.log(`  ${sheet.padEnd(13)} ${String(n).padStart(6)} words → ${band}`);
+}
+for (const sheet of SECTIONS) {
+  let n = 0, orphans = 0;
+  for (const row of book.records(sheet)) {
+    const w = squash(row.word).toLowerCase();
+    if (!w) continue;
+    // A word outside every tier sheet would be a re-export that dropped it;
+    // keep it rather than lose the subject, at the middle band.
+    if (!sheetRows.has(w)) { sheetRows.set(w, { row, x: 'Moderate', sec: [] }); orphans += 1; }
+    const held = sheetRows.get(w);
+    if (!held.sec.includes(sheet)) { held.sec.push(sheet); n += 1; }
+  }
+  console.log(`  ${sheet.padEnd(13)} ${String(n).padStart(6)} tagged${orphans ? ` (${orphans} outside every tier)` : ''}`);
+}
+
+const records = [...sheetRows].map(([word, { row, x, sec }]) => {
+  report.rows += 1;
+  const cleaned = cleanDefinition(row.english_meaning, word);
+  return {
+    w: word,
+    p: squash(row.part_of_speech).toLowerCase(),
+    d: cleaned?.definition || '',
+    e: cleaned?.examples || [],
+    s: cleanSynonyms([1, 2, 3, 4, 5].map((n) => row[`synonym_${n}`] || ''), word),
+    bn: cleanTranslation(row.bangla_meaning, 'bn'),
+    hi: cleanTranslation(row.hindi_meaning, 'hi'),
+    zh: cleanTranslation(row.chinese_simplified, 'zh'),
+    x,
+    sec,
+  };
+});
+
+// The tier sheets are disjoint and each lists a headword once, so this is
+// already one entry per word; the map is for lookup, not de-duplication.
+const byWord = new Map(records.map((r) => [r.w, r]));
+console.log(`\n${byWord.size} headwords read`);
+
+/** Is this word on a subject list? */
+const on = (r, sheet) => r.sec.includes(sheet);
 
 /* ===========================================================================
    What is worth teaching
@@ -186,6 +228,7 @@ function teachable(r) {
   if (r.d.length < 12) return reject('definition too short');
   if (BLOCKED.test(r.d) || EXPLICIT.test(r.d)) return reject('blocked in definition');
   if (TAXONOMIC.test(r.d)) return reject('taxonomic entry');
+  if (NOT_A_SENSE.test(r.d)) return reject('not a sense of the word');
   if (!r.p) return reject('no part of speech');
 
   // Circular only when the word carries the definition. "exempt: grant
@@ -265,6 +308,20 @@ const degrees = [...pool].map((r) => central(r.w)).sort((a, b) => a - b);
 const p = (q) => degrees[Math.floor(degrees.length * q)];
 console.log(`synonym centrality: median ${p(0.5)}, 90th ${p(0.9)}, max ${degrees.at(-1)}`);
 
+/**
+ * "issuing" when "issue" exists, "varied" when "vary" does.
+ *
+ * ACADEMICS lists whole word families, so a pack that runs out of headwords
+ * starts serving their inflections. Ranking them down puts the base form first
+ * and leaves the inflection for the space nothing better fills.
+ */
+function looksInflected(r) {
+  const m = r.w.match(/^(.+?)(ed|ing|es|s|ly|d)$/);
+  if (!m) return false;
+  const [, root] = m;
+  return [root, `${root}e`, `${root}y`].some((base) => base !== r.w && base.length > 2 && byWord.has(base));
+}
+
 /** Higher is more worth a learner's time. */
 function score(r) {
   let n = 0;
@@ -276,22 +333,25 @@ function score(r) {
   n += r.zh ? 1 : 0;
   n += r.w.length >= 5 && r.w.length <= 12 ? 2 : 0;
   if (r.d.length > 30 && r.d.length < 130) n += 1;
+  if (looksInflected(r)) n -= 8;
   return n;
 }
 
 // ── the modules ───────────────────────────────────────────────────────────
-// `seeds` are the words that genuinely define the subject; `want` decides
-// which of the remaining dataset entries may top the pack up to TARGET.
+// A pack is built in three passes. `core` is the subject sheet it is named
+// after — the workbook's own answer to what is on this list. `seeds` is a
+// curated list, for the packs where a person knows something the sheet does
+// not. `want` decides which of the remaining entries may top it up to TARGET.
 const seeds = (s) => s.trim().split(/\s+/);
 
 /**
  * School-level packs.
  *
- * There is no grade column in the data, so the level is inferred from two
- * things the data does have: the difficulty band, and synonym centrality — a
- * word many entries point at as a synonym is one children meet early, and one
- * nobody points at is one you meet at university. Length breaks the remaining
- * ties, because short words are learned first in every language.
+ * The workbook has no grade column either, but it does have the two things a
+ * grade actually depends on: how hard a word is, stated by which tier sheet it
+ * sits on, and whether it is academic, stated by the ACADEMICS sheet. Synonym
+ * centrality and length only break the remaining ties, shortest first, because
+ * short words are learned first in every language.
  *
  * `cap` keeps a pack from drifting upward: without it the scorer, which rewards
  * synonyms and translations, fills a Grade 1–5 pack with well-documented long
@@ -300,26 +360,55 @@ const seeds = (s) => s.trim().split(/\s+/);
 /**
  * Junk that survives the general cleaning but must never reach a school pack.
  *
- * The upper packs sit at low centrality, where the dataset's tail lives: roman
+ * The upper packs sit at low centrality, where the workbook's tail lives: roman
  * numerals, initialisms, transliterated place names and slang all look like
  * ordinary short words to a filter that only checks a-z. Grade 9–10 came back
  * holding "xii", "nsu", "blah" and "uzbeg" before this existed.
  */
 const ROMAN = /^(?=[mdclxvi]+$)m*(c[md]|d?c{0,3})(x[cl]|l?x{0,3})(i[xv]|v?i{0,3})$/;
+/* Subjects that belong in a classroom conversation rather than on a word list a
+   child is handed to memorise. The general BLOCKED rule is about language; this
+   is about topic, and applies to the school packs only — "terrorist" and
+   "bondage" both reached Grade 9–10 on merit before it existed.
+
+   Two regexes, not one, because a definition is not a headword: "terrible —
+   causing fear or dread or terror" and "child — a young person of either sex"
+   are exactly what a school pack wants, and a single rule loses both. */
+const ADULT_WORD = /^(sex|sexes|sexy|sexual|sexuality|erotic|erotica|porn|pornography|bondage|fetish|rape|incest|prostitute|prostitution|brothel|terror|terrorist|terrorism|suicide|murder|murderer|massacre|genocide|torture|narcotic|narcotics|heroin|cocaine|opium|marijuana|cannabis|addict|molest|obscene)$/i;
+const ADULT_SENSE = /\b(sexual\w*|sexuality|erotic\w*|porn\w*|bondage|fetish|incest|prostitut\w*|brothel|marijuana|cannabis|cocaine|heroin|narcotics?|opium)\b/i;
+/** The topic rule. Every word in a school pack passes it, curated or not. */
+const schoolTopic = (r) => !ADULT_WORD.test(r.w) && !ADULT_SENSE.test(r.d);
+
+/* The rest are quality rules for words the scorer picked rather than a person,
+   so they are the tail's problem and not a curated list's: holding "banana",
+   "milk" and "moon" to a 20-character definition emptied Grade 1–5. */
 const schoolSafe = (r, minLen) =>
-  r.w.length >= minLen
+  schoolTopic(r)
+  && r.w.length >= minLen
   && /^[a-z]+$/.test(r.w)
   && !ROMAN.test(r.w)
-  && /[aeiou]/.test(r.w)                       // an initialism has no vowel run
+  && /[aeiouy]/.test(r.w)                      // an initialism has no vowel run
   && !/^[bcdfghjklmnpqrstvwxz]{3}/.test(r.w)   // nsu, pbs, cxl…
   && /^(noun|verb|adjective|adverb)$/.test(r.p)
   && r.d.length >= 20 && r.d.length <= 140
   && !/\b(city|town|province|county|capital|river|island|dynasty|deity|genus|surname|a state|a region)\b/i.test(r.d);
 
 const gradePack = ({ id, title, blurb, level, bands, minCentral, maxCentral,
-                     cap, minLen = 3, seeds: core = [], academic = false }) => ({
+                     cap, minLen = 3, seeds: curated = [], academic = false,
+                     section, prefer }) => ({
   group: 'School', id, title, blurb, level,
-  seeds: core,
+  seeds: curated,
+  /* Seeds used to skip every school rule, which is how "smoke — street names
+     for marijuana" reached Grade 1–5: it is a fine word to teach, but not with
+     the only sense the workbook has for it. */
+  allow: schoolTopic,
+  /* A pack named after a subject sheet takes that sheet as its list — but only
+     its own slice of it. ACADEMICS spans every tier, and without the band check
+     the University pack simply repeated Grade 9–10 word for word. */
+  core: section
+    ? (r) => on(r, section) && bands.includes(r.x) && schoolSafe(r, minLen)
+      && (!academic || r.s.length >= 1)
+    : undefined,
   want: (r) => bands.includes(r.x)
     && central(r.w) >= minCentral
     && (maxCentral === undefined || central(r.w) <= maxCentral)
@@ -338,14 +427,17 @@ const gradePack = ({ id, title, blurb, level, bands, minCentral, maxCentral,
    * shortest first.
    */
   /**
-   * Lower packs rank by simplicity; upper packs by the default scorer.
+   * Lower packs rank by simplicity; upper packs by the default scorer, nudged
+   * toward whichever subject sheet the pack is aiming at.
    *
    * Preferring short words is right for a seven-year-old and wrong for a
    * university list, where it just surfaces the shortest obscure entries. Above
-   * Grade 8 a well-documented word — synonyms, translations, a real example —
-   * is the better bet.
+   * Grade 8 a word on the academic list — or failing that a well-documented one
+   * — is the better bet.
    */
-  rank: academic ? undefined : (r) => central(r.w) * 4 - r.w.length * 2 - Math.floor(r.d.length / 20),
+  rank: academic
+    ? (r) => score(r) + [prefer].flat().filter(Boolean).filter((s) => on(r, s)).length * 40
+    : (r) => central(r.w) * 4 - r.w.length * 2 - Math.floor(r.d.length / 20),
 });
 
 const MODULES = [
@@ -459,20 +551,27 @@ const MODULES = [
       weapon weather weigh welcome whole wisdom witness wonder worth wound wrap
     `),
   }),
+  /* Grade 9–10 upward is the academic word list, split by tier: the ACADEMICS
+     sheet holds every word school and university reading assumes, and which
+     tier a word sits on is how hard it is. So the three packs take one slice
+     each — everyday-and-common, advanced, rare — and no word appears twice. */
   gradePack({
     id: 'grade-9-10', title: 'Grade 9–10', level: 'B1–B2', cap: 12, minLen: 5,
     blurb: 'The vocabulary secondary-school reading and writing starts to assume.',
-    bands: ['Moderate'], minCentral: 1, academic: true,
+    bands: ['Easy', 'Moderate'], minCentral: 1, academic: true,
+    section: 'ACADEMICS', prefer: 'ACADEMICS',
   }),
   gradePack({
     id: 'grade-11-12', title: 'Grade 11–12', level: 'B2–C1', cap: 14, minLen: 6,
     blurb: 'Higher-secondary English: argument, analysis and the words essays need.',
     bands: ['Advanced'], minCentral: 0, academic: true,
+    section: 'ACADEMICS', prefer: ['ACADEMICS', 'IELTS', 'SAT'],
   }),
   gradePack({
-    id: 'university', title: 'University', level: 'C1–C2', cap: 18, minLen: 7,
+    id: 'university', title: 'University', level: 'C1–C2', cap: 18, minLen: 6,
     blurb: 'Academic register — the words lectures, papers and seminars run on.',
-    bands: ['Advanced', 'God Level'], minCentral: 0, academic: true,
+    bands: ['God Level'], minCentral: 0, academic: true,
+    section: 'ACADEMICS', prefer: ['ACADEMICS', 'IELTS', 'SAT'],
   }),
   {
     group: 'Exams', id: 'ielts-gt', title: 'IELTS General Training',
@@ -488,10 +587,9 @@ const MODULES = [
       reserve resident retail routine schedule shift staff subscription supervisor supply
       tenant timetable transfer utility vacancy volunteer wage warranty workplace
     `),
-    want: (r) => ['Easy', 'Moderate'].includes(r.x)
-      && central(r.w) >= 2
-      && /\b(work|job|home|house|money|pay|buy|shop|travel|health|social|daily|service|customer|letter|apply)\b/i
-        .test(`${r.d} ${r.s.join(' ')}`),
+    // GT is the IELTS list minus its academic half — the everyday and workplace
+    // end, which is what the paper actually tests.
+    want: (r) => on(r, 'IELTS') && !on(r, 'ACADEMICS') && ['Easy', 'Moderate'].includes(r.x),
   },
   {
     group: 'Exams', id: 'ielts', title: 'IELTS', blurb: 'Academic vocabulary that carries marks in Writing Task 2 and Reading.',
@@ -512,7 +610,9 @@ const MODULES = [
       predominant preliminary presume prohibit protocol qualitative rational refine reinforce
       subsequent substitute sustain thereby underlie undertake validate whereas widespread
     `),
-    want: (r) => ['Advanced', 'Moderate'].includes(r.x) && /^(noun|verb|adjective)$/.test(r.p),
+    want: (r) => on(r, 'IELTS') && /^(noun|verb|adjective)$/.test(r.p),
+    // Academic first: the half of the IELTS list that carries Task 2 marks.
+    rank: (r) => score(r) + (on(r, 'ACADEMICS') ? 40 : 0),
   },
   {
     group: 'Exams', id: 'sat', title: 'SAT', blurb: 'The judgement-and-degree words American college tests keep coming back to.',
@@ -546,11 +646,14 @@ const MODULES = [
       vacillate venerate veracity verbose vex vigilant vilify vindicate virulent vociferous volatile
       wary whimsical zealous
     `),
-    want: (r) => ['Advanced', 'God Level'].includes(r.x) && /^(adjective|verb|noun)$/.test(r.p),
+    want: (r) => on(r, 'SAT') && /^(adjective|verb|noun)$/.test(r.p),
   },
   {
     group: 'Exams', id: 'admission-bd', title: 'Admission (BD)', blurb: 'Synonym-and-antonym drilling for Bangladeshi university admission tests.',
     level: 'B2–C1',
+    // The workbook's own admission list leads; the curated synonym-and-antonym
+    // words below fill the rest, since the sheet is smaller than a pack.
+    core: (r) => on(r, 'BD_ADMISSION_TEST'),
     seeds: seeds(`
       abolish abundant accelerate accord acute adamant adverse affable affluent alleviate allude aloof
       amiable ample annul apprehend arrogant astute augment authentic aversion belated benign brittle
@@ -582,6 +685,7 @@ const MODULES = [
   {
     group: 'Work & life', id: 'job', title: 'Job & Workplace', blurb: 'Interviews, email, contracts and the language of getting things done.',
     level: 'B1–C1',
+    core: (r) => on(r, 'JOB'),
     seeds: seeds(`
       accountable acquire agenda allocate appraisal assign audit authorise benchmark bid billing
       bonus brief budget candidate capacity clause client collaborate commission commitment competent
@@ -597,7 +701,11 @@ const MODULES = [
       roster salary scope shareholder shortlist stakeholder strategy subordinate subsidiary supervise
       surplus tender tenure turnover vacancy venture verify vocational workflow workload
     `),
-    want: (r) => /\b(business|company|employ|work|office|money|payment|contract|market|trade|manage|profit|commercial|industry|職)\b/i.test(`${r.d} ${r.s.join(' ')}`),
+    // The JOB sheet is a short list, so the definition still does some work
+    // once it and the curated core are in — held to the everyday tiers, or the
+    // top-up drifts into words no workplace has ever used.
+    want: (r) => r.x !== 'God Level'
+      && /\b(business|company|employ|work|office|money|payment|contract|market|trade|manage|profit|commercial|industry)\b/i.test(`${r.d} ${r.s.join(' ')}`),
   },
   {
     group: 'Work & life', id: 'native', title: 'Native & Everyday', blurb: 'The plain, high-frequency words that make speech sound unforced.',
@@ -626,8 +734,9 @@ const MODULES = [
       treat trust turn understand upset usual visit wait wake walk warm warn waste watch wave
       weak wear weigh welcome wet whisper whole wide wild win wipe wish wonder worry wrap
     `),
-    // Central words: the ones other entries keep pointing at as synonyms.
-    want: (r) => central(r.w) >= 3 && ['Easy', 'Moderate'].includes(r.x),
+    // The everyday tier, narrowed to the words other entries keep pointing at
+    // as synonyms.
+    want: (r) => central(r.w) >= 3 && r.x === 'Easy',
   },
   {
     group: 'Work & life', id: 'elite', title: 'Elite', blurb: 'Rare and literary words — the ones that make a reader stop.',
@@ -650,8 +759,12 @@ const MODULES = [
       vainglorious vatic verisimilitude vertiginous vicissitude vituperate voluble wanton winnow
       zeitgeist zephyr
     `),
-    // Peripheral by construction: nobody reaches for these as a synonym.
-    want: (r) => r.x === 'God Level' && central(r.w) <= 1,
+    /* The rarest tier holds 55,000 words — most of the dictionary's tail — so
+       being in it is no longer the whole test. These are the ones nothing else
+       points at as a synonym, no exam list claims, and that are long enough to
+       be a choice rather than an accident. */
+    want: (r) => r.x === 'God Level' && central(r.w) === 0
+      && r.w.length >= 7 && r.sec.length === 0 && r.s.length >= 2,
   },
   {
     group: 'Work & life', id: 'science', title: 'Science & Medicine', blurb: 'The vocabulary of labs, bodies and papers — useful well beyond exams.',
@@ -681,7 +794,8 @@ const MODULES = [
     // so this pack draws its own, held to the same cleaning.
     pool: () => [...byWord.values()].filter((r) =>
       /^[a-z][a-z]+-[a-z][a-z-]+$/.test(r.w) && r.d.length > 15
-      && !TAXONOMIC.test(r.d) && !BLOCKED.test(`${r.w} ${r.d}`) && r.s.length > 0),
+      && !TAXONOMIC.test(r.d) && !NOT_A_SENSE.test(r.d)
+      && !BLOCKED.test(`${r.w} ${r.d}`) && !EXPLICIT.test(r.d) && r.s.length > 0),
     want: () => true,
   },
 ];
@@ -704,23 +818,36 @@ for (const mod of MODULES) {
   const source = mod.pool ? mod.pool() : pool;
   const picked = [];
   const take = (r) => {
-    if (!r || picked.some((p) => p.w === r.w)) return;
+    if (!r || picked.some((p) => p.w === r.w || sameFamily(p.w, r.w))) return;
     picked.push(r);
   };
 
-  // 1. the curated core, in the order written
+  const rank = mod.rank || score;
+  const byRank = (a, b) => rank(b) - rank(a) || a.w.localeCompare(b.w);
+
+  // 1. the subject sheet, where the workbook names the list outright
+  const fromSheet = mod.core ? source.filter(mod.core).sort(byRank) : [];
+  for (const r of fromSheet) {
+    if (picked.length >= TARGET) break;
+    take(r);
+  }
+  const sheetHits = picked.length;
+
+  // 2. the curated core, in the order written. It runs to whatever length it
+  //    was written at when it *is* the list, and only fills the gap when a
+  //    sheet has already spoken.
   for (const w of mod.seeds) {
+    if (sheetHits && picked.length >= TARGET) break;
     const entry = cleanIndex.get(w) || (mod.pool ? source.find((r) => r.w === w) : null);
-    if (entry) take(entry);
+    if (entry && (!mod.allow || mod.allow(entry))) take(entry);
     else if (byWord.has(w)) seedsDropped += 1;
   }
-  const seedHits = picked.length;
+  const seedHits = picked.length - sheetHits;
 
-  // 2. top up by score, preferring words no other module has taken
-  const rank = mod.rank || score;
+  // 3. top up by score, preferring words no other module has taken
   const rest = source
     .filter((r) => mod.want(r) && !picked.includes(r))
-    .sort((a, b) => rank(b) - rank(a) || a.w.localeCompare(b.w));
+    .sort(byRank);
   for (const r of rest) {
     if (picked.length >= TARGET) break;
     if (claimed.has(r.w)) continue;
@@ -732,14 +859,19 @@ for (const mod of MODULES) {
   }
   for (const r of picked) claimed.add(r.w);
 
+  // `sec` is how a pack was chosen, not something the app reads; it stays here.
+  const words = picked.map(({ sec, ...r }) => r);
+
   const file = `${mod.id}.json`;
   fs.writeFileSync(path.join(OUT_MODULES, file),
-    JSON.stringify({ id: mod.id, title: mod.title, blurb: mod.blurb, level: mod.level, words: picked }));
+    JSON.stringify({ id: mod.id, title: mod.title, blurb: mod.blurb, level: mod.level, words }));
   manifest.push({
     id: mod.id, title: mod.title, blurb: mod.blurb, level: mod.level,
     group: mod.group || 'Work & life', count: picked.length, file,
   });
-  console.log(`${(mod.group || "").padEnd(12)} ${mod.title.padEnd(24)} ${String(picked.length).padStart(4)} words  (${seedHits} core)`);
+  const from = [sheetHits && `${sheetHits} from sheet`, seedHits && `${seedHits} curated`]
+    .filter(Boolean).join(', ') || 'all topped up';
+  console.log(`${(mod.group || '').padEnd(12)} ${mod.title.padEnd(24)} ${String(picked.length).padStart(4)} words  (${from})`);
 }
 
 fs.writeFileSync(path.join(OUT_MODULES, 'index.json'), JSON.stringify(manifest, null, 2));

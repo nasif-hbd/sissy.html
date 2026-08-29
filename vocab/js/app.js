@@ -785,7 +785,7 @@ async function addWord() {
   hint.textContent = useAI ? 'Asking Claude for a definition…' : '';
 
   try {
-    // 95,000 words ship with the app, so most additions never need the network.
+    // 117,000 words ship with the app, so most additions never need the network.
     const known = await Catalog.lookup(term).catch(() => null);
     const payload = known
       ? known

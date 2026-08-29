@@ -42,7 +42,7 @@ export const Catalog = {
   },
 
   /**
-   * Look a word up in the shipped dictionary — 95,000 entries, so most words a
+   * Look a word up in the shipped dictionary — 117,000 entries, so most words a
    * learner types are already here and no AI call is needed.
    * Returns a word payload shaped like the AI's, or null.
    */
