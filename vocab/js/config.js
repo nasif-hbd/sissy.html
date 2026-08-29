@@ -32,6 +32,15 @@ export const SRS = {
   /** Interval in days at which a card counts as "mastered" for stats. */
   masteredInterval: 21,
   maxInterval: 365,
+  /**
+   * The most cards one session will serve, however many have come due.
+   *
+   * Without a ceiling, a fortnight away turns into a queue of four hundred, and
+   * the honest thing an app can do at that point — hand it all over — is the
+   * thing that makes people stop. The oldest are served first, so nothing is
+   * skipped, only postponed, and the backlog drains over a few days.
+   */
+  maxSession: 60,
 };
 
 /** Defaults applied to a fresh install; the user can change all of them. */

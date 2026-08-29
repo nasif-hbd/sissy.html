@@ -7,7 +7,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { schedule, bucket, buildQueue, queueCounts, plannedSession, forecast, formatDelta } from '../js/srs.js';
+import { schedule, bucket, buildQueue, queueCounts, plannedSession, forecast, formatDelta, spokenDelta } from '../js/srs.js';
 import { makeSrs } from '../js/store.js';
 import { summary, recentDays, masteryBreakdown, weakest } from '../js/stats.js';
 import { dayKey, daysAgoKey } from '../js/store.js';
@@ -228,3 +228,79 @@ function deck(n, cardState) {
   }
   return state;
 }
+
+test('an interval read aloud is a length of time, not a button label', () => {
+  // "3d" is right on a button and meaningless in speech.
+  assert.equal(spokenDelta(0), 'now');
+  assert.equal(spokenDelta(60 * 1000), '1 minute');
+  assert.equal(spokenDelta(10 * 60 * 1000), '10 minutes');
+  assert.equal(spokenDelta(2 * 60 * 60 * 1000), '2 hours');
+  assert.equal(spokenDelta(24 * 60 * 60 * 1000), '1 day');
+  assert.equal(spokenDelta(3 * 24 * 60 * 60 * 1000), '3 days');
+  assert.equal(spokenDelta(60 * 24 * 60 * 60 * 1000), '2 months');
+  assert.equal(spokenDelta(400 * 24 * 60 * 60 * 1000), '1 year');
+});
+
+/*
+ * A fortnight away used to mean coming back to a queue of four hundred, which
+ * is the point at which people stop. The ceiling serves the oldest first, so
+ * nothing is skipped — only postponed — and the backlog drains over a few days.
+ */
+function backlog(dueCount, { learning = 0, fresh = 0, now = Date.now() } = {}) {
+  const state = { words: {}, srs: {} };
+  for (let i = 0; i < dueCount; i++) {
+    state.words[`d${i}`] = { id: `d${i}`, addedAt: i };
+    // Oldest due first, so the order the queue serves them in is checkable.
+    state.srs[`d${i}`] = { state: 'review', due: now - (dueCount - i) * 86400000, interval: 5, ease: 2.5 };
+  }
+  for (let i = 0; i < learning; i++) {
+    state.words[`l${i}`] = { id: `l${i}`, addedAt: 1000 + i };
+    state.srs[`l${i}`] = { state: 'learning', due: now - 60000, step: 0, ease: 2.5 };
+  }
+  for (let i = 0; i < fresh; i++) {
+    state.words[`n${i}`] = { id: `n${i}`, addedAt: 2000 + i };
+    state.srs[`n${i}`] = { state: 'new', due: 0, ease: 2.5 };
+  }
+  return state;
+}
+
+test('a session is capped, and serves the oldest cards first', () => {
+  const now = Date.now();
+  const state = backlog(400, { fresh: 40, now });
+  const queue = buildQueue(state, { now, limit: 60 });
+  assert.equal(queue.length, 60, 'the ceiling holds');
+  assert.equal(queue[0], 'd0', 'the most overdue card comes first');
+  assert.equal(queue[59], 'd59', 'and the rest follow in due order');
+  assert.ok(!queue.some((id) => id.startsWith('n')), 'a backlog leaves no room for new words');
+});
+
+test('the plan says how much is being held back', () => {
+  const now = Date.now();
+  const plan = plannedSession(backlog(400, { fresh: 40, now }), { now, limit: 60 });
+  assert.equal(plan.total, 60);
+  assert.equal(plan.due, 60);
+  assert.equal(plan.new, 0, 'no new words while 400 are overdue');
+  assert.equal(plan.waiting, 340);
+  assert.equal(plan.heldBack, 340 + 40);
+});
+
+test('learning cards are never held back', () => {
+  // They are minutes away, and there are never many; the ceiling falls on the
+  // due pile instead, or a lapsed card could sit unseen for a day.
+  const now = Date.now();
+  const state = backlog(400, { learning: 8, now });
+  const queue = buildQueue(state, { now, limit: 60 });
+  assert.equal(queue.filter((id) => id.startsWith('l')).length, 8);
+  assert.equal(queue.length, 60, 'and they come out of the ceiling, not on top of it');
+});
+
+test('a small deck is unaffected by the ceiling', () => {
+  const now = Date.now();
+  const state = backlog(12, { fresh: 30, now });
+  const plan = plannedSession(state, { now, newAllowance: 10, limit: 60 });
+  assert.equal(plan.due, 12);
+  assert.equal(plan.new, 10);
+  assert.equal(plan.waiting, 0);
+  assert.equal(plan.heldBack, 20, 'only the new-card allowance holds anything back');
+  assert.equal(buildQueue(state, { now, newAllowance: 10, limit: 60 }).length, 22);
+});

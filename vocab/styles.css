@@ -174,6 +174,56 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
   border-bottom: 1px solid var(--rule);
 }
 .topbar__brand { display: flex; align-items: center; gap: 10px; }
+/* The undo offer. Under the card rather than over it, so nothing is covered
+   and nothing has to be dismissed before the next card can be graded. */
+.undobar {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  margin-top: 10px; padding: 8px 10px 8px 14px;
+  border: 1px solid var(--rule); border-radius: var(--radius-sm);
+  background: var(--paper-sunk);
+  font-size: 13px; color: var(--ink-2);
+  animation: undo-in .16s ease;
+}
+.undobar b { color: var(--ink); font-weight: 600; }
+@keyframes undo-in { from { opacity: 0; transform: translateY(-3px); } }
+@media (prefers-reduced-motion: reduce) { .undobar { animation: none; } }
+
+/* Keyboard shortcuts, named where they are used. A pointer-only device has no
+   keys to press, so the hint would be noise there. */
+.keyhint {
+  margin-top: 10px; text-align: center;
+  font-size: 11.5px; color: var(--ink-3);
+}
+.keyhint kbd {
+  font-family: var(--mono); font-size: 10.5px;
+  padding: 1px 5px; border: 1px solid var(--rule); border-bottom-width: 2px;
+  border-radius: 5px; background: var(--paper-sunk); color: var(--ink-2);
+}
+@media (hover: none) and (pointer: coarse) { .keyhint { display: none; } }
+
+/* ── said, not shown ───────────────────────────────────────────────────────
+   Two things a sighted user gets from layout and colour and a screen-reader
+   user gets from nothing: a way past the eight nav buttons that come first in
+   the DOM, and a place for the app to say what just happened. */
+.skip {
+  position: fixed; top: 8px; left: 8px; z-index: 200;
+  padding: 10px 16px; border-radius: var(--radius-sm);
+  background: var(--accent); color: var(--accent-ink);
+  font-family: var(--sans); font-size: 14px; font-weight: 600; text-decoration: none;
+  transform: translateY(-140%);
+  transition: transform .12s ease;
+}
+.skip:focus { transform: none; }
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+  overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap;
+}
+
+/* The view container takes focus when the tab changes, so a screen reader
+   starts reading the new screen instead of staying where it was. */
+.views:focus { outline: none; }
+
 .brand__mark { display: grid; place-items: center; width: 30px; height: 30px; flex: 0 0 auto; }
 .brand__mark img { width: 100%; height: 100%; display: block; }
 .brand__name { font-family: var(--sans); font-size: 19px; font-weight: 600; letter-spacing: -.015em; }

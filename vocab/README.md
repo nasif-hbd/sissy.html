@@ -381,7 +381,7 @@ deliberately repeats neither the header (words, learned) nor the card above it
 Five ways to be examined, on two subjects, over fourteen word packs.
 
 **Two subjects.** Vocabulary tests the packs; Grammar tests a bank shipped with
-the app — 54 items across 28 topics from present simple to inversion, each
+the app — 200 items across 37 topics from present simple to participle clauses, each
 carrying the rule it tests, so a wrong answer is explained without an API call.
 
 **Five modes**, chosen because they are genuinely different demands rather than
@@ -701,6 +701,71 @@ and no placeholder telling the learner to go and configure a server first. Claud
 is what you turn on for prose that is written fresh for the learner, not for the
 app to become usable.
 
+## What a second look found
+
+Everything below is a measurement, not an impression, and each one is followed
+by what was done about it.
+
+**The grammar bank was three sittings deep.** 54 questions, and seventeen of its
+twenty-eight topics carried exactly one — pick Grammar in the Test tab twice and
+you were answering the same items. It is 200 questions across 37 topics now,
+with a floor of four per topic that `build-grammar.py` asserts and
+`tests/grammar.test.mjs` re-checks against the shipped file. The new items are
+written, not generated: a model asked for 150 grammar questions produces
+plausible ones with two defensible answers, and two of the first draft's
+prompts collided with items already in the bank — which the builder caught.
+
+**Six controls had no name.** A screen reader met the Words filter, the routine
+time and action pickers, the sentence box and the word box as "edit text", and
+"edit text" again. A placeholder is not a label. All of them are named now.
+
+**The navigation never said where you were.** Eight `<button class="tab">` with
+a CSS class for the active one and nothing else — no `aria-current`, no way to
+tell. The class is still the paint; `aria-current="page"` is the part that is
+read. Switching a tab also moves focus into the view, or the next Tab press
+walked back through the whole nav.
+
+**Nothing was announced.** One live region existed, for toasts. Grading a card
+writes nothing to the screen at all — the card simply turns — so a screen-reader
+user got silence. There is an announcer now, and grading says which button was
+pressed, when the word returns and how many are left. `spokenDelta` exists
+because "3d" is right on a button face and is not a length of time out loud.
+
+**The keyboard worked and never said so.** Space, 1–4 and S have always driven a
+review; nothing in the interface mentioned them. The Test tab had no shortcuts
+at all, so a forty-question round was forty trips to the mouse. Both screens
+show their keys now, hidden on touch, and Test answers to 1–4 and Space.
+
+**A misgrade was permanent.** Pressing Easy on a card you did not know is the
+commonest mistake anyone makes with spaced repetition, and it costs a month.
+Grading writes to six places — schedule, day counters, streak, XP, log, queue —
+so undo copies the four parts of state they touch and puts them back rather
+than reversing each write; the streak in particular cannot be recomputed from
+what survives. Twelve seconds to take it back, by button or `Z`.
+
+**A fortnight away meant a wall of four hundred.** `buildQueue` returned every
+due card, so the Today card promised twenty reviews and the next screen handed
+over four hundred — the point at which people stop. A session now stops at 60,
+oldest first, and Home says so: *400 words are overdue. This session takes the
+60 oldest; the rest follow over the next few days.* Nothing is skipped, only
+postponed. Learning cards are never held back; they are minutes away.
+
+**The load is 133 KB, not 366 KB.** Measured against a plain `http.server` the
+app looks three times heavier than it is, because GitHub Pages serves gzip and
+`python3 -m http.server` does not. Compressed, over emulated slow 3G with a 4×
+CPU throttle, the app is usable in 4.5 seconds: 79 KB of JavaScript, a 22 KB
+font, 11 KB of CSS, 9 KB of HTML. The starter deck, 6 KB of that, was being
+fetched on every load to be used on exactly one — it is a dynamic import now,
+read only when there is no saved deck. Deferring the tab-only modules
+(`placement`, `testlab`, `chat`, `local`) would save about 15 KB more; that is
+eight call sites in a 1,787-line file for roughly half a second, and it has not
+been done.
+
+**Nothing to report on two counts.** There is no `innerHTML` anywhere in the
+app, so there is no HTML-injection surface to audit. Offline is complete: with
+the network cut and the page reloaded, the app boots, dictionary lookups
+resolve and an unopened pack still loads.
+
 ## Customising
 
 | Want to change | Edit |
@@ -721,7 +786,8 @@ app to become usable.
 ## Testing
 
 ```bash
-cd vocab && node --test              # scheduler, tracking, design, XP, exams, tutor, placement, routine, chat, tests, install: 176 tests, no deps
+cd vocab && node --test tests/*.test.mjs   # scheduler, undo, tracking, design, XP, exams, tutor, placement, routine,
+                                           # chat, test lab, install, packs, grammar, xlsx: 212 tests, no deps
 cd server && npm run smoke         # every proxy route against a live server
 ```
 

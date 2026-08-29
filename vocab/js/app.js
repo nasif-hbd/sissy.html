@@ -8,13 +8,13 @@
  *   ai.js     Claude calls     ui.js     rendering
  */
 import { APP, AI as AICFG, THEMES, PROVIDERS } from './config.js';
-import { Store, refreshStreak, makeSrs, dayKey } from './store.js';
-import { schedule, buildQueue, bucket, plannedSession, queueCounts } from './srs.js';
+import { Store, refreshStreak, makeSrs, dayKey, snapshot, restore } from './store.js';
+import { schedule, buildQueue, bucket, plannedSession, queueCounts, spokenDelta } from './srs.js';
 import { makeSessionTimer, reportPayload, weakest, summary, window as windowStats, recentDays } from './stats.js';
 import { Notifier, Push } from './notify.js';
 import { AIClient } from './ai.js';
 import {
-  $, $$, el, icon, toast, applyTheme, switchView, renderHeader, renderQueueSummary,
+  $, $$, el, icon, toast, announce, applyTheme, switchView, renderHeader, renderQueueSummary,
   renderCard, renderEmptyQueue, renderWordList, renderProgress, renderSuggestions,
   renderModules, renderModuleDetail, renderHome, renderXp, practicePool, actionSheet,
   renderPlacementQuestion, renderPlacementResult, renderLevelSummary, renderChat, sizeChat,
@@ -60,7 +60,7 @@ const timer = makeSessionTimer((seconds) => Store.bumpDay({ seconds }));
 //  has been initialised — `render()` runs synchronously inside it.)
 
 async function boot() {
-  Store.init();
+  await Store.init();
   refreshStreak(Store.state);
   applyTheme(Store.state.settings.theme);
 
@@ -278,6 +278,35 @@ function reveal() {
   drawCurrentCard();
 }
 
+/**
+ * The last graded card, kept so it can be taken back.
+ *
+ * Pressing Easy on a card you did not actually know is the commonest mistake
+ * anyone makes with spaced repetition, and it is expensive: the card leaves for
+ * a month. Rather than reverse each of the six things grading writes — the
+ * schedule, the day counters, the streak, XP, the log, the queue — this keeps a
+ * copy of the four bits of state they touch and puts them back.
+ */
+let lastGrade = null;
+
+/** Put the deck back exactly as it was before the last grade. */
+function undoGrade() {
+  const shot = lastGrade;
+  if (!shot) return;
+  lastGrade = null;
+  clearTimeout(undoTimer);
+  $('#undoBar').hidden = true;
+
+  Store.commit((s) => restore(s, shot.state));
+  session.queue = shot.queue;
+  session.revealed = false;
+  announce(`Undone. ${shot.term} is back.`);
+  toast(`Undone — ${shot.term}`);
+  nextCard();
+  renderHeader(Store.state);
+  render();
+}
+
 function gradeCard(grade) {
   const word = currentWord();
   if (!word || !session.revealed) return;
@@ -286,6 +315,8 @@ function gradeCard(grade) {
   const wasNew = rec.state === 'new';
   const next = schedule(rec, grade);
 
+  // The queue is the session's, not the store's, so it is kept alongside.
+  lastGrade = { term: word.term, state: snapshot(Store.state, word.id), queue: [...session.queue] };
   Store.commit((s) => { s.srs[word.id] = next; });
   Store.bumpDay({ reviews: 1, correct: grade > 0 ? 1 : 0, learned: wasNew ? 1 : 0 });
 
@@ -306,6 +337,10 @@ function gradeCard(grade) {
     session.queue.shift();
   }
 
+  /* Nothing is written to the screen when a card is graded — it just turns —
+     so this is the only account of it anyone not watching the animation gets. */
+  announce(`${['Again', 'Hard', 'Good', 'Easy'][grade]}. ${word.term} returns in ${spokenDelta(next.due - Date.now())}. ${session.queue.length} left.`);
+
   const s = summary(Store.state);
   if (s.today.reviews === Store.state.settings.dailyGoal) {
     toast(`Day's quota met — ${s.today.reviews} reviews`);
@@ -314,6 +349,19 @@ function gradeCard(grade) {
 
   nextCard();
   renderHeader(Store.state);
+  showUndo(word.term);
+}
+
+/** Offer the undo, and take the offer away once the moment has passed. */
+let undoTimer = null;
+function showUndo(term) {
+  const bar = $('#undoBar');
+  if (!bar) return;
+  $('#undoWhat').textContent = term;
+  bar.hidden = false;
+  clearTimeout(undoTimer);
+  // Long enough to notice the mistake, short enough not to sit there all session.
+  undoTimer = setTimeout(() => { bar.hidden = true; lastGrade = null; }, 12000);
 }
 
 /** The dagger buttons on the back of a card. */
@@ -367,6 +415,7 @@ function wirePractice() {
   $('#quizStart').addEventListener('click', nextQuiz);
   $('#typeStart').addEventListener('click', nextSpell);
   $('#typeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') checkSpelling(); });
+  $('#undoBtn').addEventListener('click', undoGrade);
   $('#coachSubmit').addEventListener('click', runCoach);
   $('#coachNew').addEventListener('click', pickCoachWord);
 }
@@ -584,7 +633,12 @@ function drawHome(state) {
     goalDone: doneToday >= goal && doneToday > 0,
     goalHint: doneToday >= goal && doneToday > 0
       ? 'Daily goal reached. Anything more is a bonus.'
-      : '',
+      /* A backlog is only frightening when it is a surprise. The session serves
+         the oldest first and stops at the ceiling, so this says what is coming
+         rather than letting the number appear as a wall on the next screen. */
+      : plan.waiting
+        ? `${plan.waiting + plan.total} words are overdue. This session takes the ${plan.total} oldest; the rest follow over the next few days.`
+        : '',
     startLabel: startLabel(plan),
 
     streak: state.streak.current || 0,
@@ -1642,9 +1696,9 @@ function wireSettings() {
       toast(err.message, 'bad');
     }
   });
-  $('#resetBtn').addEventListener('click', () => {
+  $('#resetBtn').addEventListener('click', async () => {
     if (!confirm('Delete all progress and restore the starter deck?')) return;
-    Store.reset();
+    await Store.reset();          // the starter deck is fetched on demand now
     session.queue = [];
     render();
     toast('Reset to the starter deck.');
@@ -1769,13 +1823,33 @@ function speak(text) {
   speechSynthesis.speak(utter);
 }
 
+/**
+ * Keyboard shortcuts, for the two screens where a whole session is one key
+ * repeated. Review had them and never said so; Test did not have them at all,
+ * which made a forty-question round forty round trips to the mouse.
+ */
 function wireKeyboard() {
   addEventListener('keydown', (e) => {
     if (['INPUT', 'TEXTAREA', 'SELECT'].includes(e.target.tagName)) return;
-    if ($('#view-learn').hidden) return;
-    if (e.code === 'Space') { e.preventDefault(); session.revealed ? gradeCard(2) : reveal(); }
-    else if (['1', '2', '3', '4'].includes(e.key) && session.revealed) gradeCard(Number(e.key) - 1);
-    else if (e.key === 's') speak(currentWord()?.term);
+    if (e.metaKey || e.ctrlKey || e.altKey) return;      // leave browser keys alone
+    const digit = ['1', '2', '3', '4'].indexOf(e.key);
+
+    if (!$('#view-learn').hidden) {
+      if (e.code === 'Space') { e.preventDefault(); session.revealed ? gradeCard(2) : reveal(); }
+      else if (digit >= 0 && session.revealed) gradeCard(digit);
+      else if (e.key === 's') speak(currentWord()?.term);
+      else if (e.key === 'z') undoGrade();
+      return;
+    }
+
+    if (!$('#view-test').hidden && lab?.questions?.length) {
+      // Once an answer is in, every key that would answer moves on instead.
+      if (e.code === 'Space' || e.key === 'Enter') { e.preventDefault(); checkAnswer(); return; }
+      if (digit >= 0 && !lab.checked) {
+        const option = $$('#testOptions .option')[digit];
+        if (option && !option.disabled) { e.preventDefault(); option.click(); }
+      } else if (e.key === 's') speak(lab.questions[lab.at]?.term);
+    }
   });
 }
 

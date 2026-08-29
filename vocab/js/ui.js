@@ -58,14 +58,39 @@ export function applyTheme(theme) {
 /** Views where a "reviews done today" bar means something. */
 const GOAL_VIEWS = new Set(['learn', 'practice', 'lesson']);
 
+/**
+ * Say something once, for anyone who cannot see it happen.
+ *
+ * Grades, marks and results are colour and motion on screen. The announcer is
+ * a live region, so assigning to it is enough — but assigning the same string
+ * twice in a row is silent, which is exactly what a run of "Correct" is, so a
+ * repeat is nudged with a hair space.
+ */
+let lastSaid = '';
+export function announce(message) {
+  const node = $('#announcer');
+  if (!node || !message) return;
+  node.textContent = message === lastSaid ? `${message}\u200a` : message;
+  lastSaid = message;
+}
+
 export function switchView(name) {
   for (const view of $$('.view')) view.hidden = view.dataset.view !== name;
-  for (const tab of $$('.tab')) tab.classList.toggle('is-active', tab.dataset.tab === name);
+  for (const tab of $$('.tab')) {
+    const on = tab.dataset.tab === name;
+    tab.classList.toggle('is-active', on);
+    // The class is the paint; this is the part a screen reader reads.
+    if (on) tab.setAttribute('aria-current', 'page');
+    else tab.removeAttribute('aria-current');
+  }
   // Home draws its own, larger version of the goal meter, and on Settings or
   // Words the bar was just a line of furniture on every screen.
   $('#goalbar').hidden = !GOAL_VIEWS.has(name);
   window.scrollTo({ top: 0, behavior: 'instant' });
   location.hash = name;
+  /* Without this a screen reader stays on the tab it just left, and the next
+     Tab press walks back through the whole nav to reach the new screen. */
+  if (document.activeElement?.classList.contains('tab')) $('#views').focus({ preventScroll: true });
   // The chat sizes itself to the viewport, which it can only do once visible.
   if (name === 'ask') sizeChat();
 }
