@@ -103,6 +103,27 @@ export function formatDelta(ms) {
   return `${(days / 365).toFixed(1)}y`;
 }
 
+/**
+ * The same interval, in words.
+ *
+ * `formatDelta` is written for a button face, where "3d" is right and space is
+ * short. Read aloud, "three d" is not a length of time, so the announcer uses
+ * this instead.
+ */
+export function spokenDelta(ms) {
+  if (ms <= 0) return 'now';
+  const say = (n, unit) => `${Math.max(1, Math.round(n))} ${unit}${Math.round(n) === 1 ? '' : 's'}`;
+  const mins = ms / MIN;
+  if (mins < 60) return say(mins, 'minute');
+  const hours = mins / 60;
+  if (hours < 24) return say(hours, 'hour');
+  const days = hours / 24;
+  if (days < 31) return say(days, 'day');
+  const months = days / 30.4;
+  if (months < 12) return say(months, 'month');
+  return say(days / 365, 'year');
+}
+
 export function isDue(rec, now = Date.now()) {
   return !rec || rec.due <= now;
 }
@@ -122,7 +143,8 @@ export function bucket(rec) {
  * Order: overdue reviews first (most overdue first), then learning cards that
  * have come round again, then up to `newAllowance` unseen cards.
  */
-export function buildQueue(state, { now = Date.now(), newAllowance = 10, ahead = false } = {}) {
+export function buildQueue(state, { now = Date.now(), newAllowance = 10, ahead = false,
+                                    limit = SRS.maxSession } = {}) {
   const due = [];
   const learning = [];
   const fresh = [];
@@ -139,7 +161,14 @@ export function buildQueue(state, { now = Date.now(), newAllowance = 10, ahead =
   learning.sort((a, b) => state.srs[a].due - state.srs[b].due);
   fresh.sort((a, b) => (state.words[a].addedAt || 0) - (state.words[b].addedAt || 0));
 
-  return [...due, ...learning, ...fresh.slice(0, Math.max(0, newAllowance))];
+  /* Learning cards are minutes away and there are never many of them, so they
+     are never held back; the ceiling falls on the due pile, oldest first. New
+     cards take whatever room is left, which is what stops a backlog from also
+     burying the learner in words they have never seen. */
+  const room = Math.max(0, limit - learning.length);
+  const served = due.slice(0, room);
+  const newRoom = Math.max(0, Math.min(newAllowance, room - served.length));
+  return [...served, ...learning, ...fresh.slice(0, newRoom)];
 }
 
 /** Counts for the three chips above the flashcard. */
@@ -163,16 +192,21 @@ export function queueCounts(state, now = Date.now()) {
  * over-promises: a fresh 40-word deck offered "Learn 40 new words" and then
  * gave the learner ten.
  */
-export function plannedSession(state, { now = Date.now(), newAllowance = 10 } = {}) {
+export function plannedSession(state, { now = Date.now(), newAllowance = 10,
+                                       limit = SRS.maxSession } = {}) {
   const counts = queueCounts(state, now);
-  const fresh = Math.max(0, Math.min(counts.new, newAllowance));
+  const room = Math.max(0, limit - counts.learning);
+  const due = Math.min(counts.due, room);
+  const fresh = Math.max(0, Math.min(counts.new, newAllowance, room - due));
   return {
-    due: counts.due,
+    due,
     learning: counts.learning,
     new: fresh,
-    /** New cards in the deck that today's allowance will not reach. */
-    heldBack: counts.new - fresh,
-    total: counts.due + counts.learning + fresh,
+    /** Cards that are ready and still will not be served this session. */
+    heldBack: (counts.due - due) + (counts.new - fresh),
+    /** Just the overdue part of that, so a screen can say what is queueing. */
+    waiting: counts.due - due,
+    total: due + counts.learning + fresh,
   };
 }
 

@@ -8,7 +8,6 @@
  */
 import { APP, DEFAULTS, AI } from './config.js';
 import { DEFAULT_ROUTINE, fromTimes } from './routine.js';
-import { SEED_WORDS } from './data/seed.js';
 
 /** YYYY-MM-DD in the user's own timezone (never UTC — streaks are local). */
 export function dayKey(d = new Date()) {
@@ -119,6 +118,46 @@ function read() {
   }
 }
 
+/* ===========================================================================
+   Undo
+
+   Grading a card writes to six places: the schedule, the day counters, the
+   streak, XP, the review log and the session queue. Reversing each of those in
+   turn is six chances to get it subtly wrong — the streak in particular cannot
+   be recomputed from what is left. So undo copies the four parts of state the
+   write touches and puts them back, which is exact by construction.
+
+   Pure, so it can be tested without a deck or a browser.
+=========================================================================== */
+const UNDONE = ['srs', 'days', 'streak', 'xp'];
+
+/** Everything grading `wordId` today is about to change. */
+export function snapshot(state, wordId, key = dayKey()) {
+  return {
+    wordId,
+    dayKey: key,
+    srs: state.srs[wordId] ? structuredClone(state.srs[wordId]) : null,
+    day: state.days[key] ? structuredClone(state.days[key]) : null,
+    streak: structuredClone(state.streak),
+    xp: structuredClone(state.xp || {}),
+    historyLength: state.history.length,
+  };
+}
+
+/** Put it all back. Mutates `state`, so call it inside a commit. */
+export function restore(state, shot) {
+  if (!shot) return state;
+  if (shot.srs) state.srs[shot.wordId] = shot.srs;
+  else delete state.srs[shot.wordId];
+  if (shot.day) state.days[shot.dayKey] = shot.day;
+  else delete state.days[shot.dayKey];
+  state.streak = shot.streak;
+  state.xp = shot.xp;
+  // Anything logged after the snapshot belongs to the grade being undone.
+  state.history.length = shot.historyLength;
+  return state;
+}
+
 /** Forward-migrations live here; each one bumps `version`. */
 function migrate(s) {
   if (!s || typeof s !== 'object') return null;
@@ -158,20 +197,26 @@ export const Store = {
   state: freshState(),
   listeners: new Set(),
 
-  /** Load from disk (or seed a new install) — call once at boot. */
-  init() {
+  /**
+   * Load from disk, or seed a new install — call once at boot.
+   *
+   * The starter deck is 6 KB of the download and is read exactly once, on a
+   * first run. Fetching it only then keeps it off every load after that.
+   */
+  async init() {
     const loaded = read();
     if (loaded) {
       this.state = loaded;
-    } else {
-      this.seed();
+      return this.state;
     }
+    const { SEED_WORDS } = await import('./data/seed.js');
+    this.seed(SEED_WORDS);
     return this.state;
   },
 
-  seed() {
+  seed(words) {
     const s = freshState();
-    for (const raw of SEED_WORDS) {
+    for (const raw of words) {
       const w = makeWord(raw, 'seed');
       s.words[w.id] = w;
       s.srs[w.id] = makeSrs();
@@ -279,7 +324,11 @@ export const Store = {
     this.emit();
   },
 
-  reset() { this.seed(); this.emit(); },
+  async reset() {
+    const { SEED_WORDS } = await import('./data/seed.js');
+    this.seed(SEED_WORDS);
+    this.emit();
+  },
 };
 
 /** Streak = consecutive local days with at least one review. */

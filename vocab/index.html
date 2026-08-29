@@ -45,6 +45,10 @@
 
 <div id="app" class="app" hidden>
 
+  <!-- First stop for a keyboard or screen reader: the eight nav buttons
+       sit before the content in the DOM on every view. -->
+  <a class="skip" href="#viewTop">Skip to content</a>
+
   <header class="topbar">
     <div class="topbar__brand">
       <span class="brand__mark"><img src="./icons/icon.svg" alt="" width="30" height="30"></span>
@@ -66,10 +70,11 @@
     <span class="goalbar__label" id="goalLabel">0 / 20 reviews today</span>
   </div>
 
-  <main class="views" id="views">
+  <main class="views" id="views" tabindex="-1"><span id="viewTop"></span>
 
     <!-- ───────────────────────── Home ───────────────────────── -->
     <section class="view" id="view-home" data-view="home">
+      <h2 class="sr-only">Home</h2>
       <div class="stack">
         <div class="card">
           <div class="row row--between">
@@ -141,6 +146,7 @@
 
     <!-- ───────────────────────── Learn ───────────────────────── -->
     <section class="view" id="view-learn" data-view="learn" hidden>
+      <h2 class="sr-only">Review</h2>
       <div class="stack">
         <p class="helper">Due = ready now · New = not seen yet · Learning = still settling in</p>
 
@@ -184,6 +190,18 @@
               <button class="btn btn--grade" data-grade="2"><b>Good</b><span id="etaGood">—</span></button>
               <button class="btn btn--grade" data-grade="3"><b>Easy</b><span id="etaEasy">—</span></button>
             </div>
+            <!-- The shortcuts have always worked; nothing said so. Hidden on
+                 touch, where there is no keyboard to press. -->
+            <p class="keyhint" id="keyHint">
+              <kbd>Space</kbd> show or answer Good · <kbd>1</kbd>–<kbd>4</kbd> grade · <kbd>S</kbd> hear it · <kbd>Z</kbd> undo
+            </p>
+          </div>
+
+          <!-- Pressing Easy on a card you did not know is the commonest mistake
+               in spaced repetition, and the card then leaves for a month. -->
+          <div class="undobar" id="undoBar" hidden>
+            <span>Graded <b id="undoWhat"></b></span>
+            <button class="btn btn--quiet btn--sm" id="undoBtn" type="button">Undo</button>
           </div>
 
           <div class="card__tools" id="cardTools" hidden>
@@ -203,6 +221,7 @@
 
     <!-- ───────────────────────── Practice ───────────────────────── -->
     <section class="view" id="view-practice" data-view="practice" hidden>
+      <h2 class="sr-only">Practice</h2>
       <div class="stack">
         <div class="seg" role="tablist" id="practiceModes">
           <button class="seg__btn is-active" data-mode="quiz" role="tab">Quiz</button>
@@ -213,21 +232,21 @@
         <div class="card" id="quizCard">
           <p class="prompt" id="quizPrompt">Press start to begin.</p>
           <div class="options" id="quizOptions"></div>
-          <p class="feedback" id="quizFeedback" hidden></p>
+          <p class="feedback" id="quizFeedback" role="status" aria-live="polite" hidden></p>
           <button class="btn btn--primary btn--wide" id="quizStart" type="button">Start quiz</button>
         </div>
 
         <div class="card" id="typeCard" hidden>
           <p class="prompt" id="typePrompt">Press start to begin.</p>
           <input class="input" id="typeInput" type="text" autocomplete="off" autocapitalize="off"
-                 spellcheck="false" placeholder="Type the word…" disabled>
-          <p class="feedback" id="typeFeedback" hidden></p>
+                 spellcheck="false" placeholder="Type the word…" disabled aria-label="Type the word">
+          <p class="feedback" id="typeFeedback" role="status" aria-live="polite" hidden></p>
           <button class="btn btn--primary btn--wide" id="typeStart" type="button">Start spelling drill</button>
         </div>
 
         <div class="card" id="coachCard" hidden>
           <p class="prompt">Write a sentence using <b id="coachWord">—</b>.</p>
-          <textarea class="input input--area" id="coachInput" rows="3" placeholder="Your sentence…"></textarea>
+          <textarea class="input input--area" id="coachInput" rows="3" placeholder="Your sentence…" aria-label="Your sentence"></textarea>
           <div class="row">
             <button class="btn btn--primary" id="coachSubmit" type="button"><svg class="ico" aria-hidden="true"><use href="#i-pen"/></svg>Check my sentence</button>
             <button class="btn btn--quiet" id="coachNew" type="button">Another word</button>
@@ -239,6 +258,7 @@
 
     <!-- ───────────────────────── Modules ───────────────────────── -->
     <section class="view" id="view-modules" data-view="modules" hidden>
+      <h2 class="sr-only">Word modules</h2>
       <div class="stack">
         <div class="card card--tight">
           <h3 class="card__title">Word modules</h3>
@@ -251,6 +271,7 @@
 
     <!-- ─────────────────── One module, opened ─────────────────── -->
     <section class="view" id="view-module" data-view="module" hidden>
+      <h2 class="sr-only">This module</h2>
       <div class="stack">
         <button class="btn btn--quiet btn--sm btn--inline" id="moduleBack"><svg class="ico" aria-hidden="true"><use href="#i-back"/></svg>All modules</button>
         <div class="card">
@@ -273,6 +294,7 @@
 
     <!-- ─────────────────── A set being studied ─────────────────── -->
     <section class="view" id="view-lesson" data-view="lesson" hidden>
+      <h2 class="sr-only">Lesson</h2>
       <div class="stack">
         <div class="lesson__bar">
           <button class="btn btn--quiet btn--sm" id="lessonQuit">Quit</button>
@@ -299,7 +321,7 @@
           <span class="pill pill--ghost" id="examKind">Meaning</span>
           <p class="prompt" id="examPrompt"></p>
           <div class="options" id="examOptions"></div>
-          <p class="feedback" id="examFeedback" hidden></p>
+          <p class="feedback" id="examFeedback" role="status" aria-live="polite" hidden></p>
           <button class="btn btn--primary btn--wide" id="examNext" hidden>Next question</button>
         </div>
 
@@ -322,6 +344,7 @@
 
     <!-- ──────────────── Level check ──────────────── -->
     <section class="view" id="view-assess" data-view="assess" hidden>
+      <h2 class="sr-only">Level check</h2>
       <div class="stack">
 
         <!-- before you start -->
@@ -401,6 +424,7 @@
 
     <!-- ───────────────────────── Test ───────────────────────── -->
     <section class="view" id="view-test" data-view="test" hidden>
+      <h2 class="sr-only">Test</h2>
       <div class="stack">
 
         <!-- 1 · subject -->
@@ -452,7 +476,7 @@
 
             <label class="field" id="testTypeField" hidden>
               <input class="input" id="testTypeInput" type="text" autocomplete="off"
-                     autocapitalize="off" spellcheck="false" placeholder="Type your answer…">
+                     autocapitalize="off" spellcheck="false" placeholder="Type your answer…" aria-label="Type your answer">
             </label>
 
             <label class="field" id="testWriteField" hidden>
@@ -465,7 +489,8 @@
               <p class="hint" id="testFlashDetail"></p>
             </div>
 
-            <p class="feedback" id="testFeedback" hidden></p>
+            <p class="feedback" id="testFeedback" role="status" aria-live="polite" hidden></p>
+            <p class="keyhint"><kbd>1</kbd>–<kbd>4</kbd> choose · <kbd>Space</kbd> check, then next · <kbd>S</kbd> hear it</p>
             <div class="ai-slot" id="testAiSlot" hidden>
               <div class="ai-slot__head"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-bulb"/></svg><span id="testAiTitle">Why</span></div>
               <div class="ai-slot__body" id="testAiBody"></div>
@@ -523,10 +548,11 @@
 
     <!-- ───────────────────────── Words ───────────────────────── -->
     <section class="view" id="view-words" data-view="words" hidden>
+      <h2 class="sr-only">Your words</h2>
       <div class="stack">
         <div class="card card--tight">
           <div class="row">
-            <input class="input" id="addWordInput" type="text" placeholder="Add a word, e.g. “resilient”" autocomplete="off">
+            <input class="input" id="addWordInput" type="text" placeholder="Add a word, e.g. “resilient”" autocomplete="off" aria-label="Add a word">
             <button class="btn btn--primary" id="addWordBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-plus"/></svg>Add</button>
           </div>
           <label class="check">
@@ -538,8 +564,8 @@
 
         <div class="card card--tight">
           <div class="row">
-            <label class="input-icon"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-search"/></svg><input class="input" id="wordSearch" type="search" placeholder="Search your words…" autocomplete="off"></label>
-            <select class="input input--select" id="wordFilter">
+            <label class="input-icon"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-search"/></svg><input class="input" id="wordSearch" type="search" placeholder="Search your words…" autocomplete="off" aria-label="Search your words"></label>
+            <select class="input input--select" id="wordFilter" aria-label="Filter your words">
               <option value="all">All</option>
               <option value="new">New</option>
               <option value="learning">Learning</option>
@@ -563,6 +589,7 @@
 
     <!-- ───────────────────────── Progress ───────────────────────── -->
     <section class="view" id="view-progress" data-view="progress" hidden>
+      <h2 class="sr-only">Progress</h2>
       <div class="stack">
         <div class="card">
           <div class="row row--between">
@@ -622,6 +649,7 @@
 
     <!-- ───────────────────────── Settings ───────────────────────── -->
     <section class="view" id="view-settings" data-view="settings" hidden>
+      <h2 class="sr-only">Settings</h2>
       <div class="stack">
 
         <div class="card">
@@ -638,8 +666,8 @@
             <div class="routine" id="routineList"></div>
           </label>
           <div class="row">
-            <input class="input" id="newTime" type="time" value="20:00">
-            <select class="input input--select" id="newAction"></select>
+            <input class="input" id="newTime" type="time" value="20:00" aria-label="Time for this routine step">
+            <select class="input input--select" id="newAction" aria-label="What this routine step does"></select>
             <button class="btn btn--quiet" id="addStepBtn" type="button">Add step</button>
           </div>
           <p class="hint" id="routineNote"></p>
@@ -731,7 +759,7 @@
             <button class="btn btn--quiet" id="importBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-upload"/></svg>Import</button>
             <button class="btn btn--danger" id="resetBtn" type="button"><svg class="ico" aria-hidden="true"><use href="#i-trash"/></svg>Reset</button>
           </div>
-          <input type="file" id="importFile" accept="application/json" hidden>
+          <input type="file" id="importFile" accept="application/json" aria-label="Choose a backup file to restore" hidden>
         </div>
 
         <p class="footnote">VocabX — learn more, know more</p>
@@ -740,7 +768,7 @@
   </main>
 
   <nav class="tabbar" id="tabbar">
-    <button class="tab is-active" data-tab="home"><svg class="ico" aria-hidden="true"><use href="#i-home"/></svg><span class="tab__label">Home</span></button>
+    <button class="tab is-active" data-tab="home" aria-current="page"><svg class="ico" aria-hidden="true"><use href="#i-home"/></svg><span class="tab__label">Home</span></button>
     <button class="tab" data-tab="learn"><svg class="ico" aria-hidden="true"><use href="#i-study"/></svg><span class="tab__label">Learn</span></button>
     <button class="tab" data-tab="modules"><svg class="ico" aria-hidden="true"><use href="#i-modules"/></svg><span class="tab__label">Modules</span></button>
     <button class="tab" data-tab="test"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span class="tab__label">Test</span></button>
@@ -768,7 +796,7 @@
       </div>
 
       <textarea class="input input--area" id="feedbackText" rows="4"
-                placeholder="I was trying to…"></textarea>
+                placeholder="I was trying to…" aria-label="Your feedback"></textarea>
       <p class="hint" id="feedbackNote"></p>
 
       <div class="row row--even">
@@ -780,6 +808,9 @@
   </div>
 
   <div class="toasts" id="toasts" aria-live="polite"></div>
+  <!-- Grades, marks and results are colour and motion on screen; this is
+       where they are said out loud. Visually hidden, never empty for long. -->
+  <p class="sr-only" id="announcer" role="status" aria-live="polite"></p>
 </div>
 
 <noscript><p style="padding:2rem;font:16px system-ui">VocabX needs JavaScript enabled.</p></noscript>
