@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Lexio AI proxy.
+ * VocabX AI proxy.
  *
  * The only place the Anthropic API key exists. The browser talks to this; this
  * talks to Claude. It also serves the static app, so `npm start` gives you the
@@ -46,9 +46,9 @@ const PORT = Number(process.env.PORT || 8787);
  * Every call here is short and tightly specified — a definition, one quiz item,
  * a paragraph of feedback — which is exactly what Haiku is for. At $1/$5 per
  * million tokens it is a fifth of Opus 5's input price. Override with
- * LEXIO_MODEL, or per-request from the app's Settings.
+ * VOCABX_MODEL, or per-request from the app's Settings.
  */
-const MODEL = process.env.LEXIO_MODEL || 'claude-haiku-4-5';
+const MODEL = process.env.VOCABX_MODEL || 'claude-haiku-4-5';
 
 /**
  * `output_config.effort` is not universal: it is rejected outright by Haiku 4.5
@@ -304,7 +304,7 @@ const routes = {
   },
 
   'POST /api/push/test': async (req, res) => {
-    const sent = await pushAll({ title: 'Lexio', body: 'Test push — reminders are working.' });
+    const sent = await pushAll({ title: 'VocabX', body: 'Test push — reminders are working.' });
     json(res, 200, { ok: true, sent });
   },
 };
@@ -337,7 +337,7 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => {
-  console.log(`\n  Lexio proxy   http://localhost:${PORT}`);
+  console.log(`\n  VocabX proxy   http://localhost:${PORT}`);
   console.log(`  model         ${MODEL}`);
   console.log(`  API key       ${hasKey ? 'loaded from the environment' : 'MISSING — set ANTHROPIC_API_KEY'}`);
   console.log(`  push          ${vapid.publicKey ? 'VAPID keys loaded' : 'disabled (no VAPID keys)'}`);

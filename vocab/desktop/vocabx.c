@@ -1,5 +1,5 @@
 /*
- * Lexio for Windows — a launcher, not a rewrite.
+ * VocabX for Windows — a launcher, not a rewrite.
  *
  * The app is a web app. On a desktop the honest way to run it is to serve the
  * same files over loopback and open the browser at them: one small native
@@ -7,7 +7,7 @@
  * with the web one.
  *
  * Build (from Linux or Windows, with mingw-w64):
- *     x86_64-w64-mingw32-gcc -O2 -s -o Lexio.exe lexio.c -lws2_32 -lshell32 -mwindows
+ *     x86_64-w64-mingw32-gcc -O2 -s -o VocabX.exe vocabx.c -lws2_32 -lshell32 -mwindows
  *
  * It serves ONLY the `app` folder sitting beside the exe, ONLY to 127.0.0.1,
  * and it exits when the tray-less window is closed from the console or the
@@ -182,8 +182,8 @@ int main(void) {
     if (GetFileAttributesA(probe) == INVALID_FILE_ATTRIBUTES) {
         MessageBoxA(NULL,
             "Could not find the app folder.\n\n"
-            "Keep Lexio.exe and the 'app' folder together in the same place.",
-            "Lexio", MB_ICONERROR);
+            "Keep VocabX.exe and the 'app' folder together in the same place.",
+            "VocabX", MB_ICONERROR);
         return 1;
     }
 
@@ -207,7 +207,7 @@ int main(void) {
         server = INVALID_SOCKET;
     }
     if (server == INVALID_SOCKET) {
-        MessageBoxA(NULL, "Could not open a local port for Lexio.", "Lexio", MB_ICONERROR);
+        MessageBoxA(NULL, "Could not open a local port for VocabX.", "VocabX", MB_ICONERROR);
         return 1;
     }
 

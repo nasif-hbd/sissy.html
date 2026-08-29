@@ -3,10 +3,11 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Get Lexio — English vocabulary trainer</title>
-<meta name="description" content="Install Lexio on your phone, tablet or computer. A free English vocabulary trainer with 117,000 words, spaced repetition and offline support.">
+<title>Get VocabX — English vocabulary trainer</title>
+<meta name="description" content="Install VocabX on your phone, tablet or computer. A free English vocabulary trainer with 117,000 words, spaced repetition and offline support.">
 <link rel="canonical" href="https://nasif-hbd.github.io/sissy.html/">
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%23ed6b1f'/><text x='32' y='44' font-family='system-ui' font-size='32' font-weight='700' fill='%23fff' text-anchor='middle'>Lx</text></svg>">
+<link rel="icon" href="./vocab/icons/icon.svg">
+<link rel="apple-touch-icon" href="./vocab/icons/icon.svg">
 <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
 <style>
@@ -34,12 +35,22 @@
   .wrap { max-width: 620px; margin: 0 auto; }
 
   header { text-align: center; padding: 52px 0 32px; }
-  .mark {
-    display: grid; place-items: center; width: 68px; height: 68px; margin: 0 auto 18px;
-    border-radius: 20px; background: var(--accent); color: var(--accent-ink);
-    font-size: 26px; font-weight: 700; letter-spacing: -.02em;
+  .mark { display: block; width: 76px; height: 76px; margin: 0 auto 16px; }
+  h1 { font-size: 34px; line-height: 1.15; margin: 0 0 4px; letter-spacing: -.02em; font-weight: 600; }
+  /* The X carries the logo's gradient; the fallback colour matters, because a
+     browser that cannot clip a background to text would otherwise hide it. */
+  h1 .x {
+    color: #6d4bff;
+    background: linear-gradient(120deg, #2f6bff, #a855f7);
+    -webkit-background-clip: text; background-clip: text;
   }
-  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 10px; letter-spacing: -.02em; }
+  @supports (background-clip: text) or (-webkit-background-clip: text) {
+    h1 .x { color: transparent; }
+  }
+  .motto {
+    margin: 0 0 14px; font-size: 11px; font-weight: 600;
+    letter-spacing: .34em; text-transform: uppercase; color: var(--ink-3);
+  }
   .tagline { margin: 0; color: var(--ink-2); font-size: 17px; }
 
   .card {
@@ -86,18 +97,18 @@
 <div class="wrap">
 
   <header>
-    <div class="mark">Lx</div>
-    <h1>Lexio</h1>
-    <p class="tagline">Learn English vocabulary. 117,000 words, 14 study packs,
-       and everything works offline.</p>
+    <img class="mark" src="./vocab/icons/icon.svg" alt="" width="76" height="76">
+    <h1>Vocab<span class="x">X</span></h1>
+    <p class="motto">Learn more. Know more.</p>
+    <p class="tagline">117,000 words, 14 study packs, and everything works offline.</p>
   </header>
 
   <!-- Filled in by the script below, for whatever device is reading this. -->
   <div class="card" id="install">
-    <h2 id="installTitle">Install Lexio</h2>
+    <h2 id="installTitle">Install VocabX</h2>
     <p class="sub" id="installSub">Working out what your device can do…</p>
     <a class="btn btn--go" href="./vocab/">
-      <span class="btn__text">Open Lexio<small>Works right now, in this browser</small></span>
+      <span class="btn__text">Open VocabX<small>Works right now, in this browser</small></span>
     </a>
   </div>
 
@@ -122,9 +133,9 @@
       <h3>Android</h3>
       <ol><li>Open this page in <b>Chrome</b></li><li>Tap the ⋮ menu</li><li>Tap “Install app”</li></ol>
       <h3>Windows, Mac, Linux, ChromeOS</h3>
-      <ol><li>Open this page in <b>Chrome or Edge</b></li><li>Click the install icon in the address bar, or ⋮ → “Install Lexio”</li></ol>
+      <ol><li>Open this page in <b>Chrome or Edge</b></li><li>Click the install icon in the address bar, or ⋮ → “Install VocabX”</li></ol>
       <h3>Windows, without a browser install</h3>
-      <ol><li><a href="./download/lexio-windows.zip" download>Download the Windows version</a></li><li>Unzip it anywhere</li><li>Double-click <b>Lexio.exe</b></li></ol>
+      <ol><li><a href="./download/vocabx-windows.zip" download>Download the Windows version</a></li><li>Unzip it anywhere</li><li>Double-click <b>VocabX.exe</b></li></ol>
       <p class="note">The Windows download is not code-signed, so SmartScreen warns the first time:
          click “More info” → “Run anyway”. If you would rather not, the browser install above
          gives you the same app, window and offline support.</p>
@@ -153,21 +164,21 @@ const installer = createInstaller({ onChange: draw });
 draw(installer.state());
 
 function draw(state) {
-  title.textContent = state.installed ? 'Lexio is installed' : `Install on ${state.label}`;
+  title.textContent = state.installed ? 'VocabX is installed' : `Install on ${state.label}`;
   sub.textContent = state.how;
 
   // Rebuild the buttons under the heading, leaving the two <p> in place.
   for (const el of card.querySelectorAll('.btn, ol, .note')) el.remove();
 
-  if (state.canPrompt) card.append(button('go', 'Install Lexio', 'One tap. It appears with your other apps.', prompt));
+  if (state.canPrompt) card.append(button('go', 'Install VocabX', 'One tap. It appears with your other apps.', prompt));
 
-  card.append(button(state.canPrompt ? '' : 'go', 'Open Lexio',
+  card.append(button(state.canPrompt ? '' : 'go', 'Open VocabX',
     state.installed ? 'Opens the app you installed' : 'Works right now, in this browser',
     () => { location.href = './vocab/'; }));
 
   if (state.os === 'windows' && !state.installed) {
-    card.append(link('./download/lexio-windows.zip', 'Download for Windows',
-      'Unzip and run Lexio.exe — no browser install needed'));
+    card.append(link('./download/vocabx-windows.zip', 'Download for Windows',
+      'Unzip and run VocabX.exe — no browser install needed'));
   }
 
   // No button to press: the steps are the instruction.

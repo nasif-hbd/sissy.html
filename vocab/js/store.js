@@ -92,10 +92,25 @@ export function makeSrs() {
   };
 }
 
+/**
+ * Saves written before the app was renamed.
+ *
+ * The key is part of the app's name, so renaming it would have looked, to
+ * anyone already using the app, exactly like losing their deck. The old key is
+ * read once and copied across; it is left in place rather than deleted, so a
+ * browser that still has the old build open keeps working.
+ */
+const FORMER_KEYS = ['lexio.state.v1'];
+
 function read() {
   try {
-    const raw = localStorage.getItem(APP.storageKey);
-    if (!raw) return null;
+    let raw = localStorage.getItem(APP.storageKey);
+    if (!raw) {
+      const inherited = FORMER_KEYS.map((k) => localStorage.getItem(k)).find(Boolean);
+      if (!inherited) return null;
+      localStorage.setItem(APP.storageKey, inherited);
+      raw = inherited;
+    }
     const parsed = JSON.parse(raw);
     return migrate(parsed);
   } catch (err) {
@@ -258,7 +273,7 @@ export const Store = {
 
   import(json) {
     const parsed = migrate(JSON.parse(json));
-    if (!parsed?.words) throw new Error('Not a Lexio backup — no words found.');
+    if (!parsed?.words) throw new Error('Not a VocabX backup — no words found.');
     this.state = parsed;
     this.save(true);
     this.emit();

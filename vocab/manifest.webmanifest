@@ -1,6 +1,6 @@
 {
-  "name": "Lexio — English Vocabulary Trainer",
-  "short_name": "Lexio",
+  "name": "VocabX — English Vocabulary Trainer",
+  "short_name": "VocabX",
   "description": "Learn English vocabulary with spaced repetition, reminders, progress tracking and AI help.",
   "start_url": "./index.html",
   "scope": "./",
@@ -8,19 +8,37 @@
   "orientation": "portrait",
   "background_color": "#f4f5f7",
   "theme_color": "#f4f5f7",
-  "categories": ["education", "productivity"],
+  "categories": [
+    "education",
+    "productivity"
+  ],
   "lang": "en",
   "icons": [
     {
-      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2310131a'/%3E%3Cpath d='M20 14h24v36l-12-8-12 8z' fill='none' stroke='%23ffffff' stroke-width='3'/%3E%3Cpath d='M32 14v20' stroke='%23cf2e2e' stroke-width='3'/%3E%3C/svg%3E",
+      "src": "./icons/icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ],
   "shortcuts": [
-    { "name": "Review due words", "url": "./index.html#learn" },
-    { "name": "Practice", "url": "./index.html#practice" },
-    { "name": "Progress", "url": "./index.html#progress" }
+    {
+      "name": "Review due words",
+      "url": "./index.html#learn"
+    },
+    {
+      "name": "Practice",
+      "url": "./index.html#practice"
+    },
+    {
+      "name": "Progress",
+      "url": "./index.html#progress"
+    }
   ]
 }

@@ -5,23 +5,23 @@
 # build ships — rebuild the data first (scripts/build-modules.mjs) and re-run
 # this, or the download goes out with last release's word packs.
 #
-#   ./package.sh                 → ../../download/lexio-windows.zip
+#   ./package.sh                 → ../../download/vocabx-windows.zip
 set -euo pipefail
 cd "$(dirname "$0")"
 
-[ -f Lexio.exe ] || { echo "No Lexio.exe — run ./build.sh first."; exit 1; }
+[ -f VocabX.exe ] || { echo "No VocabX.exe — run ./build.sh first."; exit 1; }
 
-OUT=$(cd ../.. && pwd)/download/lexio-windows.zip
-STAGE=$(mktemp -d)/lexio-windows
+OUT=$(cd ../.. && pwd)/download/vocabx-windows.zip
+STAGE=$(mktemp -d)/vocabx-windows
 trap 'rm -rf "$(dirname "$STAGE")"' EXIT
 
 mkdir -p "$STAGE/app"
-cp Lexio.exe README.txt "$STAGE/"
+cp VocabX.exe README.txt "$STAGE/"
 for part in index.html styles.css sw.js manifest.webmanifest js data fonts; do
   cp -r "../$part" "$STAGE/app/"
 done
 
 mkdir -p "$(dirname "$OUT")"
 rm -f "$OUT"
-(cd "$(dirname "$STAGE")" && zip -qr "$OUT" lexio-windows)
+(cd "$(dirname "$STAGE")" && zip -qr "$OUT" vocabx-windows)
 echo "packaged $(du -h "$OUT" | cut -f1)  $(unzip -l "$OUT" | tail -1 | awk '{print $2}') files  →  $OUT"

@@ -23,7 +23,7 @@ export const LANGUAGES = [
   { id: 'ru',    label: 'Русский',  english: 'Russian' },
 ];
 
-const CACHE_KEY = 'lexio.translations.v1';
+const CACHE_KEY = 'vocabx.translations.v1';
 const MAX_CACHED = 4000;
 
 let cache = load();

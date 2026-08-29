@@ -1,4 +1,4 @@
-# Lexio — English vocabulary app template
+# VocabX — English vocabulary app template
 
 A complete, dependency-free starting point for a vocabulary learning app:
 **spaced repetition**, **reminders**, **progress tracking** and **Claude AI**
@@ -11,6 +11,7 @@ vocab/
 ├── index.html          app shell
 ├── styles.css          the design system: tokens, then every component
 ├── fonts/              Space Grotesk (vendored, 22 KB)
+├── icons/              the app mark — favicon, manifest, rail, notifications
 ├── sw.js               offline cache, push + notification handling
 ├── manifest.webmanifest installable PWA
 ├── data/
@@ -517,7 +518,7 @@ is worse than no card.
 
     What does "concise" mean?  undermine
     Think of it, then open      A verb. Check what it takes as an
-    Lexio to check.             object before you use it.
+    VocabX to check.             object before you use it.
 
 The passive step types drop the action buttons — they are things to read, not
 tasks. `ACTIONS.surprise` is marked `varies`, because unlike the others it has
@@ -679,7 +680,7 @@ Default model: **`claude-haiku-4-5`** — the cheapest tier, and the right one
 here. Every call is short and tightly specified: a definition, one quiz item, a
 paragraph of feedback. At $1/$5 per million tokens it is a fifth of Opus 5's
 input price. Settings offers Sonnet 5 and Opus 5 for anyone who wants them, and
-`LEXIO_MODEL` overrides the default; clients may only request a model from the
+`VOCABX_MODEL` overrides the default; clients may only request a model from the
 allowlist in `pickModel()`.
 
 One trap worth knowing if you change the model: **`output_config.effort` is
@@ -712,6 +713,7 @@ app to become usable.
 | The modules and dictionary | edit `MODULES` in `scripts/build-modules.mjs`, re-run it |
 | Translation languages | `LANGUAGES` in `js/translate.js` |
 | Typefaces | `@font-face` block in `styles.css` + the files in `fonts/` |
+| The app mark | `icons/icon.svg`, plus the inline copy in `iconDataUri()` (`js/notify.js`) |
 | Tutor voice, output schemas | `server/prompts.mjs` |
 | Reminder wording | `reminderCopy()` in `js/notify.js` |
 | Persistence (→ IndexedDB, → a backend) | `read`/`write` in `js/store.js` |

@@ -1,13 +1,12 @@
 /**
- * Lexio configuration.
+ * VocabX configuration.
  *
  * Everything a fork is likely to change lives here: branding, scheduling
  * constants, the AI endpoints and the model. No other module hardcodes them.
  */
 export const APP = {
-  name: 'Lexio',
-  tagline: 'English vocabulary',
-  storageKey: 'lexio.state.v1',
+  name: 'VocabX',
+  storageKey: 'vocabx.state.v1',
   schemaVersion: 1,
 };
 
@@ -136,5 +135,5 @@ export const NOTIFY = {
   tickMs: 60_000,
   /** Don't fire the same reminder slot twice within this window (ms). */
   dedupeMs: 30 * 60_000,
-  tag: 'lexio-reminder',
+  tag: 'vocabx-reminder',
 };
