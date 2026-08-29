@@ -322,6 +322,21 @@ function looksInflected(r) {
   return [root, `${root}e`, `${root}y`].some((base) => base !== r.w && base.length > 2 && byWord.has(base));
 }
 
+/**
+ * "slingshot", "soundproof", "springtime" — two ordinary words stuck together.
+ *
+ * Nothing points at them as a synonym, so by rarity alone they looked like the
+ * rarest words in the language, and they filled the back of the Elite pack.
+ * Cutting them at every point and asking whether both halves are words of their
+ * own is what separates them from "supercilious".
+ */
+function compound(w) {
+  for (let i = 4; i <= w.length - 4; i++) {
+    if (byWord.has(w.slice(0, i)) && byWord.has(w.slice(i))) return true;
+  }
+  return false;
+}
+
 /** Higher is more worth a learner's time. */
 function score(r) {
   let n = 0;
@@ -705,6 +720,8 @@ const MODULES = [
     // once it and the curated core are in — held to the everyday tiers, or the
     // top-up drifts into words no workplace has ever used.
     want: (r) => r.x !== 'God Level'
+      // "rogaine — a vasodilator (trade name Loniten)" is a drug, not a job.
+      && !/\btrade names?\b/i.test(r.d)
       && /\b(business|company|employ|work|office|money|payment|contract|market|trade|manage|profit|commercial|industry)\b/i.test(`${r.d} ${r.s.join(' ')}`),
   },
   {
@@ -764,7 +781,9 @@ const MODULES = [
        points at as a synonym, no exam list claims, and that are long enough to
        be a choice rather than an accident. */
     want: (r) => r.x === 'God Level' && central(r.w) === 0
-      && r.w.length >= 7 && r.sec.length === 0 && r.s.length >= 2,
+      && r.w.length >= 7 && r.sec.length === 0 && r.s.length >= 2
+      && !compound(r.w)
+      && !/^coming next after\b/i.test(r.d),   // "seventeenth" is not a rare word
   },
   {
     group: 'Work & life', id: 'science', title: 'Science & Medicine', blurb: 'The vocabulary of labs, bodies and papers — useful well beyond exams.',
