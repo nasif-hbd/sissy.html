@@ -1,0 +1,3 @@
+
+# local tooling only — Playwright is linked in from the machine image
+node_modules

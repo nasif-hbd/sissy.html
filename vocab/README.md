@@ -14,10 +14,12 @@ vocab/
 ├── sw.js               offline cache, push + notification handling
 ├── manifest.webmanifest installable PWA
 ├── data/
-│   ├── modules/        eight study packs + their manifest
-│   └── dict/           95,000 words, sharded for lookup
+│   ├── modules/        fourteen study packs + their manifest
+│   └── dict/           117,845 words, sharded for lookup
 ├── scripts/
-│   └── build-modules.mjs   rebuilds both from the source CSV
+│   ├── build-modules.mjs   rebuilds both from the source workbook
+│   ├── xlsx.mjs            a small read-only .xlsx reader, no dependencies
+│   └── family.mjs          when two words are one word family
 ├── js/
 │   ├── app.js          controller — wires DOM to the modules below
 │   ├── catalog.js      module packs + dictionary lookup (lazy)
@@ -184,27 +186,59 @@ the streak all move while you work through a module.
 
 ## Vocabulary
 
-The app ships with a **95,000-word dictionary** and **eight study modules**,
-both generated from a source CSV by `scripts/build-modules.mjs`:
+The app ships with a **117,845-word dictionary** and **fourteen study packs**,
+both generated from the sectioned source workbook by `scripts/build-modules.mjs`:
 
 ```bash
-node scripts/build-modules.mjs path/to/word_meanings_dataset.csv
+node scripts/build-modules.mjs path/to/word_meanings_SECTIONED.xlsx
 ```
 
-| Module | | |
+`scripts/xlsx.mjs` reads the workbook — the build has no dependencies, so it
+parses the zip container and the sheet XML itself rather than pulling in a
+spreadsheet library.
+
+### What the workbook says, and what it doesn't
+
+Nine sheets. Four of them — `NORMAL`, `INTERMEDIATE`, `ELITE`, `EXCEPTIONAL` —
+partition every word exactly once, and they are a real difficulty ladder:
+median synonym in-degree, the closest thing the data has to a frequency count,
+falls 3 → 2 → 2 → 1 across them. Five more — `ACADEMICS`, `IELTS`, `SAT`,
+`BD_ADMISSION_TEST`, `JOB` — mark what a word is studied for. A word's row is
+byte-identical wherever it appears, so those five are pure labels.
+
+Both facts used to be guesses. Difficulty came from a column that cut the old
+CSV into four equal quarters; exam membership came from keyword rules run over
+the definition, which is how `terrorist`, `admonition` and `acrobatics` ended up
+in a Grade 1–5 pack. Neither survives contact with the workbook.
+
+| Pack | | |
 |---|---|---|
-| **IELTS** | B2–C1 | academic vocabulary that carries marks in Writing Task 2 |
-| **SAT** | C1 | the judgement-and-degree words American college tests reuse |
-| **Admission (BD)** | B2–C1 | synonym/antonym drilling for Bangladeshi admission tests |
-| **Job & Workplace** | B1–C1 | interviews, email, contracts |
+| **Grade 1–5** | A1–A2 | curated primary core, topped up from the everyday tier |
+| **Grade 6–8** | A2–B1 | curated middle-school core, and the first abstract words |
+| **Grade 9–10** | B1–B2 | the academic word list, everyday-and-common slice |
+| **Grade 11–12** | B2–C1 | the academic word list, advanced slice |
+| **University** | C1–C2 | the academic word list, rare slice |
+| **IELTS General Training** | B1–B2 | the IELTS sheet minus its academic half |
+| **IELTS** | B2–C1 | the IELTS sheet, academic end first |
+| **SAT** | C1 | the SAT sheet, behind the classic curated list |
+| **Admission (BD)** | B2–C1 | the admission sheet, then synonym/antonym drilling |
+| **Job & Workplace** | B1–C1 | the JOB sheet, then interviews, email, contracts |
 | **Native & Everyday** | A2–B1 | the plain words that make speech sound unforced |
 | **Elite** | C2 | rare and literary |
 | **Science & Medicine** | B2–C1 | labs, bodies and papers |
 | **Compounds & Phrases** | B1–C1 | hyphenated and multi-word entries |
 
-Each is 400 words: a **curated core** for the subject — the words that genuinely
-belong on an IELTS or SAT list — topped up from the dataset by score. Nothing is
-hand-maintained after generation; re-run the script and the packs rebuild.
+A pack is built in three passes: the **subject sheet** it is named after, then a
+**curated core** where one adds something the sheet cannot, then a **top-up by
+score**. Grade 9–10 upward is one list split three ways — `ACADEMICS` holds
+every word school and university reading assumes, and which tier a word sits on
+is how hard it is — so the three packs take a slice each and no word appears
+twice. Nothing is hand-maintained after generation; re-run the script and the
+packs rebuild.
+
+`tests/packs.test.mjs` checks the result as data: no pack under 300 words, no
+word or word family twice in a pack, no adult topic in a school pack, no two
+packs more than 40% the same, and a school ladder that climbs.
 
 ### Filtering
 
@@ -213,18 +247,20 @@ problem was counted first, and every rule's hits are tallied into
 `data/quality-report.json` so the filtering is auditable rather than a matter
 of trust.
 
-**Repaired** — `(informal)` and `(law)`-style leading labels stripped (3,178),
-`--Hippocrates` citation tails removed (1,005), definitions trimmed on a word
-boundary instead of mid-word (950), backtick quoting normalised (407), `; ; ;`
-runs collapsed (335), and 985 Bangla fields that were actually English
-("touchdown", "Odyssey") dropped for failing a script check.
+**Repaired** — `(informal)` and `(law)`-style leading labels stripped (3,733),
+definitions trimmed on a word boundary instead of mid-word (1,309),
+`--Hippocrates` citation tails removed (1,076), backtick quoting normalised
+(481), `; ; ;` runs collapsed (351), and 988 Bangla fields that were actually
+English ("touchdown", "Odyssey") dropped for failing a script check.
 
-**Rejected** — 23,114 headwords that aren't plain words, 3,686 with nothing left
-after cleaning, 3,572 taxonomic entries ("any of various shrubs native to…"),
-2,426 circular definitions, 1,062 too short, 497 inflections of a word already
-present, and 199 blocked as crude or explicit — this is a students' app.
+**Rejected** — 39,233 headwords that aren't plain words (the workbook's everyday
+tiers are more than half compounds and phrases), 3,937 taxonomic entries ("any
+of various shrubs native to…"), 3,881 with nothing left after cleaning, 2,853
+circular definitions, 1,114 too short, 559 inflections of a word already
+present, 222 blocked as crude or explicit — this is a students' app — and 69
+that aren't a sense of the word at all.
 
-**Harvested** — 429 usage examples were hiding after a semicolon inside the
+**Harvested** — 458 usage examples were hiding after a semicolon inside the
 definition field and are now example sentences on the card.
 
 Two rules took a second pass to get right, and both are worth knowing about:
@@ -235,8 +271,19 @@ Two rules took a second pass to get right, and both are worth knowing about:
   so `exempt — grant exemption or release to` goes and `validate` stays.
 - The **curated seeds bypassed cleaning entirely**, reading from the raw map, so
   `(informal) small and of little importance` kept reappearing no matter what
-  the rules said. Seeds are looked up in the filtered pool now; 110 of them
+  the rules said. Seeds are looked up in the filtered pool now; 320 of them
   fail the rules and are dropped.
+- *Not a sense of the word* is the newest and the smallest, at 69 rows, and the
+  one a reader would have noticed. The workbook carries a single sense per
+  headword, and for a handful of common words that sense is a slang list or a
+  proper noun: **`grass` — "street names for marijuana"**, **`far` — "a
+  terrorist organization that seeks to overthrow the government dominated by
+  Tutsi"**. There is no better sense in the data to fall back to, so the entry
+  goes rather than teach that one. A second rule keeps the school packs off
+  adult topics, and it is matched on the headword and the definition separately
+  — one combined rule also loses `terrible — causing fear or dread or terror`
+  and `child — a young person of either sex`, which are exactly what a school
+  pack wants.
 
 Audited end to end, module words carrying a defect went from ~950 in 3,200 to
 **0**.
@@ -645,7 +692,7 @@ system prompt. Re-target the app — a different language, an exam board, a
 domain glossary — by editing that file and `js/data/seed.js`.
 
 **The built-in tutor** (`mock`) is not a stub for the demo's sake. `js/local.js`
-answers each route from the 95,000-entry dictionary and the module packs already
+answers each route from the 117,845-entry dictionary and the study packs already
 on disk: real definitions and synonyms for the explain panel, real words at the
 learner's band for suggestions, checkable feedback on a written sentence, and a
 weekly summary written from the tracking numbers. No key, no network, no cost —
@@ -704,7 +751,7 @@ Clearing site data erases progress, so the Export button is not decorative.
 - Speech uses the browser's own voices; quality varies by platform.
 - `localStorage` is synchronous and capped around 5 MB — comfortably thousands
   of words, but move to IndexedDB before shipping tens of thousands.
-- The level check measures against the 3,200 banded words in the module packs,
-  not the full 95,000-entry dictionary — only the packs carry difficulty bands.
+- The level check measures against the 5,823 banded words in the study packs,
+  not the full 117,845-entry dictionary — only the packs carry difficulty bands.
   Sixteen questions place a learner within a band, not to a fraction of one, and
   the result screen says so instead of implying otherwise.

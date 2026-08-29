@@ -1,36 +1,37 @@
 {
-  "rows": 95000,
-  "kept": 60444,
+  "rows": 117845,
+  "kept": 65977,
   "rejected": {
-    "definition too short": 1062,
-    "taxonomic entry": 3572,
-    "no definition after cleaning": 3686,
-    "headword not a plain word": 23114,
-    "circular definition": 2426,
-    "blocked term": 43,
-    "blocked in definition": 156,
-    "inflection of a word already present": 497
+    "no definition after cleaning": 3881,
+    "taxonomic entry": 3937,
+    "definition too short": 1114,
+    "circular definition": 2853,
+    "headword not a plain word": 39233,
+    "not a sense of the word": 69,
+    "blocked in definition": 176,
+    "blocked term": 46,
+    "inflection of a word already present": 559
   },
   "repaired": {
-    "leading note stripped": 3196,
-    "citation removed": 1005,
-    "empty semicolon runs": 335,
-    "backtick quotes": 407,
-    "long definition trimmed": 911,
-    "bn: not in script": 985
+    "leading note stripped": 3733,
+    "backtick quotes": 481,
+    "citation removed": 1076,
+    "long definition trimmed": 1309,
+    "empty semicolon runs": 351,
+    "bn: not in script": 988
   },
   "harvested": {
-    "example sentence": 429
+    "example sentence": 458
   },
-  "seedsDroppedByFilter": 319,
+  "seedsDroppedByFilter": 320,
   "modules": [
     {
       "id": "grade-1-5",
-      "count": 516
+      "count": 505
     },
     {
       "id": "grade-6-8",
-      "count": 523
+      "count": 518
     },
     {
       "id": "grade-9-10",
@@ -81,6 +82,6 @@
       "count": 400
     }
   ],
-  "dictionary": 95000,
-  "generatedAt": "2026-08-27"
+  "dictionary": 117845,
+  "generatedAt": "2026-08-29"
 }

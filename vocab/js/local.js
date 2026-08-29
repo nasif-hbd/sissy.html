@@ -1,7 +1,7 @@
 /**
  * The built-in tutor — every AI feature answered on the device.
  *
- * The app ships 95,000 dictionary entries and every module pack, so the honest
+ * The app ships 117,000 dictionary entries and every module pack, so the honest
  * answer to "what does this word mean" is almost always already here. This
  * module gives the same shapes `ai.js` returns from the proxy, built from that
  * data. Nothing here pretends to be Claude, and nothing here tells the learner

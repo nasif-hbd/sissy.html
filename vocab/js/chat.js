@@ -8,7 +8,7 @@
  *
  * Two halves, as everywhere else. With Claude connected the whole conversation
  * goes to the proxy. Without it, this reads the question well enough to answer
- * the common cases from the 95,000-word dictionary already on the device —
+ * the common cases from the 117,000-word dictionary already on the device —
  * "what does X mean", "X vs Y", "use X in a sentence" — and says plainly when a
  * question is beyond what it can do offline rather than inventing an answer.
  */
