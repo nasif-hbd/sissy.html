@@ -1,5 +1,5 @@
 /**
- * Installing Lexio.
+ * Installing VocabX.
  *
  * A PWA installs differently on every platform and the difference is not
  * cosmetic: Chrome and Edge fire `beforeinstallprompt` and can install in one
@@ -57,7 +57,7 @@ export function platformOf(ua = '', { standalone = false, touchPoints = 0 } = {}
     return {
       id: 'ios', os, label: 'iPhone or iPad', canPrompt: false, installed: false,
       how: isSafari
-        ? 'Add Lexio to your Home Screen from the Share menu.'
+        ? 'Add VocabX to your Home Screen from the Share menu.'
         : 'Open this page in Safari first — only Safari can add apps to the iOS Home Screen.',
       steps: [
         'Tap the Share button (the square with an arrow)',
@@ -98,7 +98,7 @@ export function platformOf(ua = '', { standalone = false, touchPoints = 0 } = {}
   if (isSafari) {
     return {
       id: 'safari-desktop', os, label: names[os] || 'Safari', canPrompt: false, installed: false,
-      how: 'Add Lexio to your Dock from Safari\u2019s File menu.',
+      how: 'Add VocabX to your Dock from Safari\u2019s File menu.',
       steps: ['Open the File menu', 'Choose "Add to Dock"', 'Click "Add"'],
       note: 'On macOS Sonoma or later. Older Safari cannot install web apps — Chrome or Edge can.',
     };
@@ -111,7 +111,7 @@ export function platformOf(ua = '', { standalone = false, touchPoints = 0 } = {}
       : 'Open this page in Chrome or Edge to install it as a desktop app.',
     steps: [
       'Click the install icon in the address bar',
-      'Or open the ⋮ menu → "Install Lexio"',
+      'Or open the ⋮ menu → "Install VocabX"',
     ],
     note: os === 'windows'
       ? 'Windows also has a downloadable version that needs no browser install.'

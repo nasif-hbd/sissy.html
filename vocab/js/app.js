@@ -1,5 +1,5 @@
 /**
- * Lexio — controller.
+ * VocabX — controller.
  *
  * Owns session state (which card is on screen, which quiz question is live)
  * and wires every control to the modules that do the actual work:
@@ -115,7 +115,7 @@ async function boot() {
 
   // Exposed deliberately: handy in the console, and the hook the browser tests
   // use to reach internals. Drop this line if you'd rather keep it sealed.
-  window.Lexio = { Store, Notifier, Push, AIClient, session, render, lesson: currentLesson, placement: () => placementRun, lab: () => lab };
+  window.VocabX = { Store, Notifier, Push, AIClient, session, render, lesson: currentLesson, placement: () => placementRun, lab: () => lab };
 
   console.info(`${APP.name} ready — ${Object.keys(Store.state.words).length} words in deck.`);
 }
@@ -904,7 +904,7 @@ function wireInstall() {
 
 async function runInstall() {
   const outcome = await installer.prompt();
-  if (outcome === 'accepted') toast('Installing — look for Lexio with your other apps.');
+  if (outcome === 'accepted') toast('Installing — look for VocabX with your other apps.');
   else if (outcome === 'dismissed') toast('No problem — it is in Settings when you want it.');
   else toast('Your browser cannot install from here. The steps are in Settings.', 'bad');
 }
@@ -925,8 +925,8 @@ function drawInstall(state = installer?.state()) {
  * 404.
  */
 const DOWNLOADS = [
-  { os: 'windows', label: 'Windows download', href: '../download/lexio-windows.zip',
-    note: 'Unzip and run Lexio.exe. No browser install, no runtime.' },
+  { os: 'windows', label: 'Windows download', href: '../download/vocabx-windows.zip',
+    note: 'Unzip and run VocabX.exe. No browser install, no runtime.' },
 ];
 
 // ── feedback ───────────────────────────────────────────────────────────────
@@ -1029,7 +1029,7 @@ async function copyFeedback() {
   const report = feedbackReport();
   if (!report.text) { toast('Write something first.', 'bad'); return; }
   const lines = [
-    `Lexio feedback — ${report.kind}`,
+    `VocabX feedback — ${report.kind}`,
     report.text,
     '',
     `screen ${report.context.view} · ${report.context.screen} · ${report.context.provider} · level ${report.context.level}`,
@@ -1500,7 +1500,7 @@ function wireSettings() {
     const routine = sortRoutine(Store.state.settings.reminders.routine || []);
     const step = routine[0] || { id: 'test', time: '09:00', action: 'word' };
     const card = previewCard(step) || {
-      title: 'Lexio', body: 'This is what a reminder looks like.', view: 'learn',
+      title: 'VocabX', body: 'This is what a reminder looks like.', view: 'learn',
     };
     const sent = await Notifier.show(card.title, card.body,
       { data: { view: card.view }, actions: !card.quiet });
@@ -1625,7 +1625,7 @@ function wireSettings() {
   // data
   $('#exportBtn').addEventListener('click', () => {
     const blob = new Blob([Store.export()], { type: 'application/json' });
-    const a = el('a', { href: URL.createObjectURL(blob), download: `lexio-backup-${new Date().toISOString().slice(0, 10)}.json` });
+    const a = el('a', { href: URL.createObjectURL(blob), download: `vocabx-backup-${new Date().toISOString().slice(0, 10)}.json` });
     a.click();
     URL.revokeObjectURL(a.href);
   });
@@ -1742,7 +1742,7 @@ function updateRoutineNote(routine) {
   }
   parts.push(Store.state.settings.push?.enabled
     ? 'Server push is on, so these arrive whether or not the app is open.'
-    : 'These fire while Lexio is open in a tab. For them to arrive with the app closed, turn on server push above.');
+    : 'These fire while VocabX is open in a tab. For them to arrive with the app closed, turn on server push above.');
   note.textContent = parts.join(' ');
 }
 

@@ -1,9 +1,9 @@
 {
-  "name": "lexio-proxy",
+  "name": "vocabx-proxy",
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "Key-holding proxy between the Lexio browser app and the Claude API.",
+  "description": "Key-holding proxy between the VocabX browser app and the Claude API.",
   "engines": { "node": ">=20" },
   "scripts": {
     "start": "node proxy.mjs",

@@ -8,7 +8,7 @@
  * Exercises every route the browser uses and prints what came back, so you can
  * see the real wire shapes before wiring anything else to them.
  */
-const BASE = process.env.LEXIO_PROXY || 'http://localhost:8787';
+const BASE = process.env.VOCABX_PROXY || 'http://localhost:8787';
 
 const post = async (route, body) => {
   const res = await fetch(BASE + route, {

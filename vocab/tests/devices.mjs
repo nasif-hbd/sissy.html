@@ -17,7 +17,7 @@
  */
 import { chromium } from 'playwright';
 
-const BASE = process.argv[2] || process.env.LEXIO_URL || 'http://localhost:8000';
+const BASE = process.argv[2] || process.env.VOCABX_URL || 'http://localhost:8000';
 
 const DEVICES = [
   { name: 'phone-se',    w: 320,  h: 568,  dsf: 2 },
@@ -50,7 +50,7 @@ async function sitPlacement(page) {
     let info = null;
     for (let wait = 0; wait < 30 && !info; wait += 1) {
       info = await page.evaluate(() => {
-        const run = window.Lexio?.placement?.();
+        const run = window.VocabX?.placement?.();
         return run?.question ? { ans: run.question.answerIndex } : null;
       });
       if (!info) {

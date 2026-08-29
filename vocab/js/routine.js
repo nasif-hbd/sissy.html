@@ -162,7 +162,7 @@ const rotate = (list, n) => [...list.slice(n), ...list.slice(0, n)];
  */
 function surpriseCard(kind, { word, quote, streak, pending, doneToday }) {
   if (kind === 'quote') {
-    return quote ? { title: 'Lexio', body: quote, view: 'home', quiet: true } : null;
+    return quote ? { title: 'VocabX', body: quote, view: 'home', quiet: true } : null;
   }
   if (!word?.term) return null;
 
@@ -197,7 +197,7 @@ function surpriseCard(kind, { word, quote, streak, pending, doneToday }) {
     if (!word.definition) return null;
     return {
       title: `What does “${word.term}” mean?`,
-      body: 'Think of it, then open Lexio to check.',
+      body: 'Think of it, then open VocabX to check.',
       view: 'learn', quiet: true,
     };
   }
@@ -259,14 +259,14 @@ export function cardFor(step, ctx = {}) {
         title: word.term,
         body: word.definition
           ? `${word.pos ? `(${word.pos}) ` : ''}${word.definition}`
-          : 'Open Lexio to see the meaning.',
+          : 'Open VocabX to see the meaning.',
         view: 'learn',
         quiet: true,
       };
 
     case 'quote':
       if (!quote) return null;
-      return { title: 'Lexio', body: quote, view: 'home', quiet: true };
+      return { title: 'VocabX', body: quote, view: 'home', quiet: true };
 
     case 'module':
       if (!moduleTitle) {

@@ -1,5 +1,5 @@
 /**
- * Lexio service worker.
+ * VocabX service worker.
  *
  *  · Offline: caches the app shell, serves cache-first for our own assets so
  *    the deck is reviewable on a plane or a bad connection.
@@ -9,7 +9,7 @@
  * Bump CACHE when you change any shell file — the old cache is dropped on
  * activate.
  */
-const CACHE = 'lexio-v12';
+const CACHE = 'vocabx-v13';
 /**
  * Every file the app needs to start with no network.
  *
@@ -44,6 +44,8 @@ const SHELL = [
   './js/xp.js',
   './js/data/seed.js',
   './fonts/space-grotesk.woff2',
+  './icons/icon.svg',
+  './icons/mark.svg',
   './data/modules/index.json',
   './data/grammar/bank.json',
 ];
@@ -115,7 +117,7 @@ function fetchAndStore(request) {
 self.addEventListener('message', (event) => {
   const data = event.data || {};
   if (data.type === 'notify') {
-    self.registration.showNotification(data.title || 'Lexio', data.options || {});
+    self.registration.showNotification(data.title || 'VocabX', data.options || {});
   } else if (data.type === 'skip-waiting') {
     self.skipWaiting();
   }
@@ -123,7 +125,7 @@ self.addEventListener('message', (event) => {
 
 /** Web Push from the proxy: { title, body, view } */
 self.addEventListener('push', (event) => {
-  let payload = { title: 'Lexio', body: 'Time to review your words.' };
+  let payload = { title: 'VocabX', body: 'Time to review your words.' };
   try {
     if (event.data) payload = { ...payload, ...event.data.json() };
   } catch {
@@ -132,7 +134,7 @@ self.addEventListener('push', (event) => {
 
   event.waitUntil(self.registration.showNotification(payload.title, {
     body: payload.body,
-    tag: payload.tag || 'lexio-reminder',
+    tag: payload.tag || 'vocabx-reminder',
     renotify: true,
     data: { view: payload.view || 'learn' },
     actions: [
@@ -150,9 +152,9 @@ self.addEventListener('notificationclick', (event) => {
     // proxy schedules the real thing when push is enabled.
     event.waitUntil(new Promise((resolve) => {
       setTimeout(() => {
-        self.registration.showNotification('Lexio', {
+        self.registration.showNotification('VocabX', {
           body: 'Snoozed reminder — your words are still waiting.',
-          tag: 'lexio-reminder',
+          tag: 'vocabx-reminder',
         }).then(resolve);
       }, 60 * 60 * 1000);
     }));
@@ -174,10 +176,10 @@ self.addEventListener('notificationclick', (event) => {
 
 /** Chrome-only: a periodic nudge even when no tab is open. */
 self.addEventListener('periodicsync', (event) => {
-  if (event.tag !== 'lexio-reminder') return;
-  event.waitUntil(self.registration.showNotification('Lexio', {
+  if (event.tag !== 'vocabx-reminder') return;
+  event.waitUntil(self.registration.showNotification('VocabX', {
     body: 'A few words are due for review.',
-    tag: 'lexio-reminder',
+    tag: 'vocabx-reminder',
     data: { view: 'learn' },
   }));
 });
