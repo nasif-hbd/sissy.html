@@ -797,12 +797,17 @@
 
       <textarea class="input input--area" id="feedbackText" rows="4"
                 placeholder="I was trying to…" aria-label="Your feedback"></textarea>
+      <!-- Optional, and it is the only thing that makes a reply possible. -->
+      <input class="input" id="feedbackFrom" type="email" autocomplete="email"
+             placeholder="Your email, if you would like a reply (optional)"
+             aria-label="Your email, if you would like a reply">
       <p class="hint" id="feedbackNote"></p>
 
       <div class="row row--even">
         <button class="btn btn--primary" id="feedbackSend" type="button">Send</button>
         <button class="btn btn--quiet" id="feedbackCancel" type="button">Cancel</button>
       </div>
+      <button class="btn btn--quiet btn--sm btn--wide" id="feedbackMail" type="button">Send by email instead</button>
       <button class="btn btn--quiet btn--sm btn--wide" id="feedbackCopy" type="button">Copy it instead</button>
     </div>
   </div>

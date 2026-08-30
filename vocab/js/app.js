@@ -32,6 +32,7 @@ import {
 import { buildPlan } from './advice.js';
 import { ACTIONS, makeStep, sortRoutine, validTime, cardFor, quoteFor } from './routine.js';
 import { STARTERS, contextFor } from './chat.js';
+import { feedbackAsText, feedbackSubject, feedbackMailto } from './feedback.js';
 import { SUBJECTS, modesFor, buildRound, markOne, markRound } from './testlab.js';
 import { createInstaller } from './install.js';
 
@@ -1011,14 +1012,17 @@ function wireFeedback() {
     });
   }
   $('#feedbackSend').addEventListener('click', sendFeedback);
+  $('#feedbackMail').addEventListener('click', mailFeedback);
   $('#feedbackCopy').addEventListener('click', copyFeedback);
 }
 
 function openFeedback() {
   $('#feedbackSheet').hidden = false;
+  /* Be exact about where it lands. "Send" without a proxy only ever wrote the
+     note to this device, which read as sent and was not. */
   $('#feedbackNote').textContent = AIClient.isLive
-    ? 'Sent to your own server. Nothing goes anywhere else.'
-    : 'Saved on this device. Connect a proxy in Settings to send it, or copy it below.';
+    ? `Send goes to your own server, which can forward it to ${APP.feedbackTo}.`
+    : `Send only saves it on this device — no server is connected. Use “Send by email instead” to reach ${APP.feedbackTo}.`;
   $('#feedbackText').focus();
 }
 
@@ -1035,6 +1039,7 @@ function feedbackReport() {
   return {
     kind: feedbackKind,
     text,
+    from: $('#feedbackFrom').value.trim(),
     at: new Date().toISOString(),
     context: {
       view: location.hash.replace('#', '') || 'home',
@@ -1070,6 +1075,7 @@ async function sendFeedback() {
     if (!res.ok) throw new Error(`server responded ${res.status}`);
     toast('Thank you — sent.');
     $('#feedbackText').value = '';
+    $('#feedbackFrom').value = '';
     closeFeedback();
   } catch (err) {
     toast(`Kept on this device — ${err.message}.`, 'bad');
@@ -1079,15 +1085,28 @@ async function sendFeedback() {
   }
 }
 
+/**
+ * Hand the note to the mail app.
+ *
+ * Without a proxy, "Send" can only keep the note on the device, and a note
+ * nobody reads is not feedback. A mailto: works with no server at all, and it
+ * leaves the learner in control of what is sent.
+ */
+function mailFeedback() {
+  const report = feedbackReport();
+  if (!report.text) { toast('Write something first.', 'bad'); return; }
+  Store.commit((s) => { (s.feedback ||= []).push(report); s.feedback = s.feedback.slice(-50); });
+  location.href = feedbackMailto(report, APP.feedbackTo);
+  closeFeedback();
+  $('#feedbackText').value = '';
+  $('#feedbackFrom').value = '';
+  toast('Opening your mail app.');
+}
+
 async function copyFeedback() {
   const report = feedbackReport();
   if (!report.text) { toast('Write something first.', 'bad'); return; }
-  const lines = [
-    `VocabX feedback — ${report.kind}`,
-    report.text,
-    '',
-    `screen ${report.context.view} · ${report.context.screen} · ${report.context.provider} · level ${report.context.level}`,
-  ].join('\n');
+  const lines = `${feedbackSubject(report)}\n\n${feedbackAsText(report)}`;
   try {
     await navigator.clipboard.writeText(lines);
     toast('Copied to the clipboard.');

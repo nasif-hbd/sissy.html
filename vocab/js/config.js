@@ -8,6 +8,14 @@ export const APP = {
   name: 'VocabX',
   storageKey: 'vocabx.state.v1',
   schemaVersion: 1,
+  /**
+   * Where feedback goes when there is no proxy to post it to.
+   *
+   * The hosted build has no server behind it, so "Send" can only save the note
+   * on the device — which means nobody ever reads it. This address is what the
+   * "Send by email instead" button opens the mail app to.
+   */
+  feedbackTo: 'researcher.flame@gmail.com',
 };
 
 /** Spaced-repetition tuning (see js/srs.js for how each value is used). */

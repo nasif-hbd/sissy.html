@@ -28,6 +28,7 @@ vocab/
 │   ├── placement.js    the adaptive level check (pure, testable)
 │   ├── routine.js      the day's steps and their notification copy
 │   ├── chat.js         reads an open question well enough to answer offline
+│   ├── feedback.js     how a report is worded and addressed (pure)
 │   ├── testlab.js      the Test section: five modes over two subjects
 │   ├── install.js      what each platform can do about installing
 ├── desktop/            a 43 KB Windows launcher (one C file) and its build
@@ -476,15 +477,58 @@ the same desktop icon, window and offline support.
 
 ## Feedback
 
-A floating button on every screen. Feedback is kept on the device and posted to
-your own proxy when one is configured — there is no third-party form and no
-analytics, because this app collects nothing and a feedback button is not a good
-reason to start. "Copy it instead" puts the report on the clipboard for anyone
-running without a server.
+A floating button on every screen. Each report carries the screen, the engine,
+the level and the viewport size, which is what turns "the quiz is broken" into
+something reproducible; it carries no deck contents and nothing identifying.
+There is no third-party form and no analytics, because this app collects nothing
+and a feedback button is not a good reason to start.
 
-Each report carries the screen, the engine, the level and the viewport size,
-which is what turns "the quiz is broken" into something reproducible. It carries
-no deck contents and nothing identifying.
+There are three routes out, and which ones are open depends on what is running:
+
+| | Needs | Where it lands |
+|---|---|---|
+| **Send** | a proxy | `server/feedback.jsonl`, and an email if SMTP is set |
+| **Send by email instead** | nothing | the reader's own mail app, addressed to `APP.feedbackTo` |
+| **Copy it instead** | nothing | the clipboard |
+
+The middle one exists because the hosted build has no server behind it, and
+"Send" there could only ever write the note to the device the note came from —
+which reads as sent and is not. The button that says so now says so plainly.
+
+### Getting it as email
+
+Set five things in `server/.env` and the proxy forwards each report as it
+arrives:
+
+```bash
+FEEDBACK_TO=you@example.com
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=465            # TLS from the first byte; 587 uses STARTTLS instead
+SMTP_USER=you@gmail.com
+SMTP_PASS=…              # Gmail: an App Password, not your login password
+```
+
+Gmail needs 2-Step Verification on, then a 16-character App Password from
+[myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords) —
+a normal password is refused, and `SMTP_FROM` has to be the account that logs
+in. Leave the block out and nothing breaks: the note still lands in
+`feedback.jsonl`, which is the record; the email is only the notification.
+
+`server/mailer.mjs` is a small SMTP client written rather than installed, for
+the same reason as the rest of this server: the proxy holds your API keys, and
+every dependency added to it is another package that can read them. Three
+things in it are worth knowing:
+
+- **The file write happens before the send, and the send is never awaited.** A
+  wrong password loses a notification, not somebody's bug report.
+- **A password is never written to a socket that is not encrypted.** Port 465
+  is TLS from the first byte; on any other port the client requires the server
+  to advertise STARTTLS and refuses to authenticate if it does not. There is a
+  test that watches the wire to confirm nothing leaks when it refuses.
+- **The protocol is split from the transport** (`speakSmtp` and `sendMail`), so
+  the whole conversation — EHLO, AUTH LOGIN, the base64 halves, MAIL FROM, DATA,
+  dot-stuffing, QUIT — is exercised against a fake server without needing a
+  certificate.
 
 ## Your routine, and words on the lock screen
 
@@ -824,7 +868,7 @@ resolve and an unopened pack still loads.
 
 ```bash
 cd vocab && node --test tests/*.test.mjs   # scheduler, undo, tracking, design, XP, exams, tutor, placement, routine,
-                                           # chat, test lab, install, packs, grammar, xlsx: 212 tests, no deps
+                                           # chat, test lab, install, packs, grammar, feedback, mailer, xlsx: 228 tests, no deps
 cd server && npm run smoke         # every proxy route against a live server
 ```
 

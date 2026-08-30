@@ -155,6 +155,39 @@ async function streamText({ system, user, messages }, res, model = MODEL) {
 
 // ── routing ────────────────────────────────────────────────────────────────
 
+/**
+ * Post one piece of feedback on, if the mail settings are filled in.
+ *
+ * Never awaited by the request that triggered it: the learner has already been
+ * told their note was received, and it was — the file write is what makes that
+ * true. A refused login belongs in your log, not in their face.
+ */
+async function mailFeedback(entry) {
+  const cfg = mailConfig();
+  if (!cfg.ready) return;
+  const where = [entry.context?.view, entry.context?.words && `${entry.context.words} words`]
+    .filter(Boolean).join(', ');
+  try {
+    await sendMail({
+      ...cfg,
+      subject: `VocabX ${entry.kind}: ${entry.text.slice(0, 60).replace(/\s+/g, ' ')}`,
+      // A reply goes to whoever wrote it, when they left an address.
+      replyTo: /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(entry.from) ? entry.from : undefined,
+      text: [
+        entry.text,
+        '',
+        '—',
+        `kind:    ${entry.kind}`,
+        entry.from ? `from:    ${entry.from}` : 'from:    not given',
+        where ? `sent on: ${where}` : null,
+        `at:      ${entry.at}`,
+      ].filter(Boolean).join('\n'),
+    });
+  } catch (err) {
+    console.warn('[feedback] saved to feedback.jsonl, but the email did not send:', err.message);
+  }
+}
+
 const routes = {
   'GET /api/health': async (req, res) => {
     json(res, 200, {
@@ -261,20 +294,27 @@ const routes = {
   },
 
   /**
-   * Feedback from the app. Appended to a file next to the subscriptions —
-   * this is your server, so it goes nowhere else and needs no third party.
+   * Feedback from the app.
+   *
+   * The file is the record and the email is the notification, in that order:
+   * the append happens first and the send is best-effort, so a wrong SMTP
+   * password loses a notification rather than somebody's bug report.
    */
   'POST /api/feedback': async (req, res, body) => {
     const text = String(body.text || '').trim().slice(0, 4000);
     if (!text) throw new HttpError(400, 'Empty feedback.');
-    const line = JSON.stringify({
-      kind: String(body.kind || 'idea').slice(0, 20),
-      text,
-      context: body.context || {},
-      at: new Date().toISOString(),
-    });
-    await fsp.appendFile(path.join(HERE, 'feedback.jsonl'), `${line}\n`, 'utf8');
+    const kind = String(body.kind || 'idea').slice(0, 20);
+    const from = String(body.from || '').trim().slice(0, 120);
+    const entry = { kind, text, from, context: body.context || {}, at: new Date().toISOString() };
+    await fsp.appendFile(path.join(HERE, 'feedback.jsonl'), `${JSON.stringify(entry)}\n`, 'utf8');
     json(res, 200, { ok: true });
+    mailFeedback(entry);
+  },
+
+  /** What the app asks before showing "we will reply" next to the email box. */
+  'GET /api/feedback/mail': async (req, res) => {
+    const cfg = mailConfig();
+    json(res, 200, { email: cfg.ready });
   },
 
   'POST /api/push/subscribe': async (req, res, body) => {
