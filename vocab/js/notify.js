@@ -54,8 +54,8 @@ export const Notifier = {
       body,
       tag,
       renotify: true,
-      badge: iconDataUri(),
-      icon: iconDataUri(),
+      badge: appIcon(),
+      icon: appIcon(),
       data: { url: location.href.split('#')[0], ...data },
       actions: actions ? [
         { action: 'review', title: 'Review now' },
@@ -234,26 +234,12 @@ function urlBase64ToUint8Array(base64String) {
   return Uint8Array.from(raw, (c) => c.charCodeAt(0));
 }
 
-/*
- * The app icon, inline.
+/**
+ * The app icon, for a notification raised from the service worker.
  *
- * A notification raised from the service worker can outlive the page, and some
- * platforms fetch the icon late, so this is a data URI rather than a path to
- * ./icons/icon.svg — the same mark, drawn without a request that might not be
- * served by then.
+ * A URL rather than an inline copy, now that the icon is the real artwork: it
+ * is in the precache list, so it is on disk before any notification can fire.
  */
-function iconDataUri() {
-  return 'data:image/svg+xml,' + encodeURIComponent(
-    '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">'
-    + '<defs><linearGradient id="g" x1="10" y1="8" x2="66" y2="116" gradientUnits="userSpaceOnUse">'
-    + '<stop offset="0" stop-color="#31c9ff"/><stop offset=".45" stop-color="#2f6bff"/>'
-    + '<stop offset="1" stop-color="#a855f7"/></linearGradient>'
-    + '<clipPath id="l"><rect width="59" height="120"/></clipPath>'
-    + '<clipPath id="r"><rect x="61" width="59" height="120"/></clipPath>'
-    + '<g id="x"><path d="M6 10 L24 10 L114 110 L96 110 Z"/><path d="M114 10 L96 10 L6 110 L24 110 Z"/></g></defs>'
-    + '<rect width="120" height="120" rx="26" fill="#0b1020"/>'
-    + '<g transform="translate(60 61) scale(.7) translate(-60 -60)">'
-    + '<use href="#x" fill="url(#g)" clip-path="url(#l)"/>'
-    + '<use href="#x" fill="#f2f4f8" clip-path="url(#r)"/></g></svg>'
-  );
+function appIcon() {
+  return new URL('./icons/mark-192.webp', location.href).href;
 }

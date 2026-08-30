@@ -9,7 +9,7 @@
  * Bump CACHE when you change any shell file — the old cache is dropped on
  * activate.
  */
-const CACHE = 'vocabx-v14';
+const CACHE = 'vocabx-v15';
 /**
  * Every file the app needs to start with no network.
  *
@@ -44,8 +44,9 @@ const SHELL = [
   './js/xp.js',
   './js/data/seed.js',
   './fonts/space-grotesk.woff2',
-  './icons/icon.svg',
-  './icons/mark.svg',
+  './icons/mark-32.png',
+  './icons/mark-64.webp',
+  './icons/mark-192.webp',       // the notification icon too
   './data/modules/index.json',
   './data/grammar/bank.json',
 ];

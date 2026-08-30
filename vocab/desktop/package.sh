@@ -17,8 +17,14 @@ trap 'rm -rf "$(dirname "$STAGE")"' EXIT
 
 mkdir -p "$STAGE/app"
 cp VocabX.exe README.txt "$STAGE/"
-for part in index.html styles.css sw.js manifest.webmanifest js data fonts; do
+for part in index.html styles.css sw.js manifest.webmanifest js data fonts icons; do
   cp -r "../$part" "$STAGE/app/"
+done
+
+# A missing part is a broken app on someone's desktop, and the list above is
+# easy to forget to extend — icons/ was added to the web build and not to this.
+for part in index.html styles.css sw.js manifest.webmanifest js data fonts icons; do
+  [ -e "$STAGE/app/$part" ] || { echo "packaging lost $part"; exit 1; }
 done
 
 mkdir -p "$(dirname "$OUT")"

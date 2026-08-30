@@ -11,7 +11,8 @@ vocab/
 ├── index.html          app shell
 ├── styles.css          the design system: tokens, then every component
 ├── fonts/              Space Grotesk (vendored, 22 KB)
-├── icons/              the app mark — favicon, manifest, rail, notifications
+├── brand/              vocabx.png, the source logo
+├── icons/              cut from it by scripts/build-icons.mjs
 ├── sw.js               offline cache, push + notification handling
 ├── manifest.webmanifest installable PWA
 ├── data/
@@ -701,6 +702,42 @@ and no placeholder telling the learner to go and configure a server first. Claud
 is what you turn on for prose that is written fresh for the learner, not for the
 app to become usable.
 
+## The logo
+
+`brand/vocabx.png` is the source artwork and the only file to replace. Running
+`scripts/build-icons.mjs` cuts everything else out of it:
+
+| | | |
+|---|---|---|
+| `mark-512.webp` | 12.5 KB | manifest, including the maskable entry |
+| `mark-192.webp` | 4.4 KB | manifest, and the notification icon |
+| `mark-64.webp` | 1.7 KB | the header and the nav rail |
+| `mark-180.png` | 30.5 KB | the iOS home-screen icon |
+| `mark-32.png` | 1.6 KB | favicon |
+| `lockup-400.webp` | 9.1 KB | the landing page, where there is room for all of it |
+
+Three decisions are baked into that script, and each one was measured.
+
+**The small icons are the mark alone.** The logo is a lockup — the book-and-X
+above the word "VocabX" above a tagline — and at 32 pixels in a browser tab the
+words are mud. The script finds the mark rather than being told where it is: it
+counts ink per row, takes the widest empty band below the artwork as the split,
+and crops to everything above it, so a re-exported logo with different margins
+still works. The crop is recomposed on the ground colour sampled from the
+source's own corner, at 74% of the frame, which clears the 80% safe zone a
+maskable icon is cropped to.
+
+**WebP, not PNG.** This artwork is a smooth gradient render, which is the case
+PNG is worst at: the 512 is 265 KB as a PNG and 12.5 KB as WebP. The app's
+entire first load is 133 KB, so shipping the PNG would have doubled it for one
+icon. PNG stays for the two places with a reason — the iOS home-screen icon and
+a favicon fallback.
+
+**Chromium does the resampling.** There is no ImageMagick on the machines this
+builds on, and a native image dependency was not worth adding to a build that
+has none. Playwright is already here for the device sweep, and a canvas
+resamples correctly.
+
 ## What a second look found
 
 Everything below is a measurement, not an impression, and each one is followed
@@ -778,7 +815,7 @@ resolve and an unopened pack still loads.
 | The modules and dictionary | edit `MODULES` in `scripts/build-modules.mjs`, re-run it |
 | Translation languages | `LANGUAGES` in `js/translate.js` |
 | Typefaces | `@font-face` block in `styles.css` + the files in `fonts/` |
-| The app mark | `icons/icon.svg`, plus the inline copy in `iconDataUri()` (`js/notify.js`) |
+| The app mark | replace `brand/vocabx.png`, then `node scripts/build-icons.mjs` |
 | Tutor voice, output schemas | `server/prompts.mjs` |
 | Reminder wording | `reminderCopy()` in `js/notify.js` |
 | Persistence (→ IndexedDB, → a backend) | `read`/`write` in `js/store.js` |

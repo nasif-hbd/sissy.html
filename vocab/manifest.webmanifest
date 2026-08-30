@@ -15,16 +15,28 @@
   "lang": "en",
   "icons": [
     {
-      "src": "./icons/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "./icons/mark-192.webp",
+      "sizes": "192x192",
+      "type": "image/webp",
       "purpose": "any"
     },
     {
-      "src": "./icons/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "./icons/mark-512.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
+      "purpose": "any"
+    },
+    {
+      "src": "./icons/mark-512.webp",
+      "sizes": "512x512",
+      "type": "image/webp",
       "purpose": "maskable"
+    },
+    {
+      "src": "./icons/mark-180.png",
+      "sizes": "180x180",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
   "shortcuts": [
