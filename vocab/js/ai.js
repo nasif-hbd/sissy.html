@@ -81,8 +81,10 @@ export const AIClient = {
       return info.ready
         ? `Connected — ${name} ready on ${info.model}.`
         : `Proxy is up but has no key for ${name}.`;
-    } catch {
-      return 'Cannot reach the proxy. Is it running? (npm start in vocab/server)';
+    } catch (err) {
+      // The same sentence the learner would have got mid-question, said here
+      // instead — where there is something they can do about it.
+      return `Cannot use ${PROVIDERS[this.provider]?.label || this.provider}: ${diagnose(err)}`;
     }
   },
 
@@ -126,6 +128,11 @@ export const AIClient = {
    * One explanation of a word — meaning, usage, memory hook. Streams so the
    * panel fills in the same way whichever half is answering.
    */
+  /** An explanation of `word` from the device, for the same reason. */
+  async offlineExplain(word, onToken, opts = {}) {
+    return replay(localExplain(word, opts.level), onToken);
+  },
+
   async explain(word, onToken, opts = {}) {
     if (!this.isLive) return replay(localExplain(word, opts.level), onToken);
     return stream(this.url(AI.routes.coach), {
@@ -152,12 +159,22 @@ export const AIClient = {
    * word, and says plainly when it cannot rather than guessing.
    */
   async ask({ question, history = [], level }, onToken) {
-    if (!this.isLive) {
-      const answer = await localAnswer(question).catch(() => null);
-      return replay(answer || OFFLINE_MISS, onToken);
-    }
+    if (!this.isLive) return this.offlineAnswer(question, onToken);
     return stream(this.url(AI.routes.ask),
       { question, history, level, model: this.model, provider: this.provider }, onToken);
+  },
+
+  /**
+   * The same question, answered from the dictionary on the device.
+   *
+   * Kept reachable on its own so a surface whose live call could not leave the
+   * browser can still put an answer on screen. A red line and nothing else is
+   * the worst outcome available: the app ships 117,000 words and can very
+   * often answer the question itself.
+   */
+  async offlineAnswer(question, onToken) {
+    const answer = await localAnswer(question).catch(() => null);
+    return replay(answer || OFFLINE_MISS, onToken);
   },
 
   /**
@@ -183,13 +200,62 @@ function timeout(ms = AI.timeoutMs) {
   return AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined;
 }
 
+const LOCAL_HOST = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0)$/i;
+
+/**
+ * Why the request never left, in words that name the fix.
+ *
+ * A browser reports every one of these as the same `TypeError: Failed to
+ * fetch` — wrong scheme, wrong host, server down, origin not allowed. The app
+ * knows which page it is on and which address it was given, so it can nearly
+ * always tell them apart; showing the browser's own sentence instead left
+ * someone on a deployed site staring at "Failed to fetch" with no idea that
+ * the address still pointed at their own laptop.
+ */
+export function diagnose(err, endpoint = cfg().endpoint || '') {
+  if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
+    return `the server did not answer within ${Math.round(AI.timeoutMs / 1000)} seconds.`;
+  }
+  // A real HTTP answer — the server was reached, so it speaks for itself.
+  if (!/Failed to fetch|NetworkError|Load failed/i.test(err?.message || '')) return err?.message || String(err);
+
+  if (!endpoint.trim()) return 'no server address is set. Open Settings → AI help and add one.';
+
+  let url;
+  try { url = new URL(endpoint); } catch {
+    return `"${endpoint}" is not a valid address. Settings → AI help.`;
+  }
+
+  const pageIsHttps = typeof location !== 'undefined' && location.protocol === 'https:';
+  const pageIsLocal = typeof location !== 'undefined' && LOCAL_HOST.test(location.hostname);
+  const serverIsLocal = LOCAL_HOST.test(url.hostname);
+
+  /* The one that actually bites: the app is published, the address still says
+     localhost. It works on the machine running the proxy and nowhere else, so
+     it looks fine to whoever set it up and is broken for everybody. */
+  if (serverIsLocal && !pageIsLocal) {
+    return `the address is ${url.host}, which means "this computer" — so a page served from `
+      + `${location.host} cannot reach it. Host the proxy in vocab/server somewhere public and `
+      + 'put that address in Settings → AI help.';
+  }
+  if (pageIsHttps && url.protocol === 'http:') {
+    return `this page is on https and the server address is http, which browsers block. `
+      + `Use https://${url.host} instead.`;
+  }
+  return `${url.host} did not answer. Check the proxy is running, and that ALLOWED_ORIGIN there `
+    + `is ${typeof location !== 'undefined' ? location.origin : 'this app\'s origin'}.`;
+}
+
 async function post(url, body) {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: timeout(),
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: timeout(),
+    });
+  } catch (err) { throw new Error(diagnose(err)); }
   const payload = await res.json().catch(() => ({}));
   if (!res.ok || payload.ok === false) {
     throw new Error(payload.error || `AI request failed (${res.status})`);
@@ -199,12 +265,15 @@ async function post(url, body) {
 
 /** Reads an SSE body, calling `onToken` per delta; resolves with the full text. */
 async function stream(url, body, onToken) {
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify(body),
-    signal: timeout(),
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      signal: timeout(),
+    });
+  } catch (err) { throw new Error(diagnose(err)); }
   if (!res.ok || !res.body) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `AI request failed (${res.status})`);

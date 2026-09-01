@@ -626,8 +626,8 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 /* Who wrote the reply above. The engine is a setting that can change between
    one answer and the next, so the log says it per answer. */
 .bubble__by {
-  align-self: flex-start; margin: -4px 0 2px 3px;
-  font-family: var(--sans); font-size: 11px; color: var(--ink-3);
+  align-self: flex-start; max-width: 86%; margin: -4px 0 2px 3px;
+  font-family: var(--sans); font-size: 11px; line-height: 1.45; color: var(--ink-3);
 }
 @keyframes blink { to { visibility: hidden; } }
 

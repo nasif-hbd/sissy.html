@@ -720,7 +720,8 @@ export function renderChat(messages) {
        change between one answer and the next, so it is recorded per reply
        rather than read off the current setting when the log is drawn. */
     if (m.role === 'tutor' && m.engine && !m.pending) {
-      parts.push(el('p', { class: 'bubble__by', title: m.engineDetail || '' }, m.engine));
+      parts.push(el('p', { class: 'bubble__by', title: m.engineDetail || '' },
+        m.note ? `${m.engine} · ${m.note}` : m.engine));
     }
     return parts;
   });

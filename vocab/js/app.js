@@ -460,7 +460,12 @@ async function aiCardHelp() {
       if (examples.length) Store.updateWord(word.id, { examples });
     }
   } catch (err) {
-    body.textContent = `Could not reach ${AIClient.engine}: ${err.message}`;
+    body.textContent = '';
+    $('#aiSlotTitle').textContent = 'Built-in tutor';
+    await AIClient.offlineExplain(word, (t) => { body.textContent += t; },
+      { level: Store.state.profile.level })
+      .catch(() => { body.textContent = `Could not reach ${AIClient.engine}: ${err.message}`; });
+    toast(`${AIClient.engine} unreachable — answered on this device.`, 'bad');
   } finally {
     body.classList.remove('cursor');
     btn.disabled = false;
@@ -1584,8 +1589,19 @@ async function sendQuestion(text, { about = '' } = {}) {
       (t) => { reply.text += t; drawChat(); });
     if (!reply.text) reply.text = 'No answer came back. Try again.';
   } catch (err) {
-    reply.text = `Could not reach ${AIClient.engine}: ${err.message}`;
-    reply.failed = true;
+    /* The live engine could not be reached. The app ships 117,000 words and
+       can very often answer this itself, so it does — and says so, rather
+       than leaving a red line where the answer should be. */
+    reply.text = '';
+    try {
+      await AIClient.offlineAnswer(question, (t) => { reply.text += t; drawChat(); });
+      reply.engine = 'Built-in tutor';
+      reply.engineDetail = 'Answered on this device';
+      reply.note = `${AIClient.engine} could not be reached — ${err.message}`;
+    } catch {
+      reply.text = `Could not reach ${AIClient.engine}: ${err.message}`;
+      reply.failed = true;
+    }
   } finally {
     reply.pending = false;
     chat.busy = false;

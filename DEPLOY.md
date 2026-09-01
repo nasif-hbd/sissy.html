@@ -119,6 +119,19 @@ Wherever it lands:
 The API key stays on the proxy and never reaches the browser. That is the
 entire reason the proxy exists.
 
+### The mistake this part exists to prevent
+
+`http://localhost:8787` is the address the proxy has while you are developing,
+and it is the app's default. It is **not** an address a published site can
+use: to every visitor's browser, "localhost" means their own computer, not
+yours. A deployed app pointed at it fails on every request — and it fails the
+same way for you, on the same laptop that is running the proxy, because a page
+served over https is not allowed to reach a plain-http address.
+
+So the proxy has to be reachable on the public internet, over https, before
+the AI engines will answer for anybody. Until it is, the app falls back to the
+built-in tutor and says why under each answer; nothing else breaks.
+
 ---
 
 ## Afterwards
@@ -145,4 +158,5 @@ serve the same repository at once; the canonical link now points at
 | The old version, and a hard refresh does not help | The old service worker. Open DevTools → Application → Service Workers → **Unregister**, then reload. |
 | The install page loads, `/vocab/` gives a 404 | Build output directory is not `/`. Settings → Builds & deployments. |
 | "Install" does nothing on Android | The install prompt needs HTTPS and a valid manifest. Wait for the certificate to finish issuing. |
-| Ask and the coach say the proxy is unreachable | Part 4, and check `ALLOWED_ORIGIN` matches the address in the browser bar exactly. |
+| Ask and the coach say the proxy is unreachable | Read the sentence after the engine's name — it says which of the four causes it is. Then Part 4, and check `ALLOWED_ORIGIN` matches the address in the browser bar exactly. |
+| Answers arrive but are signed "Built-in tutor" | The live engine could not be reached, so the app answered from the dictionary instead. The reason is on the same line. |
