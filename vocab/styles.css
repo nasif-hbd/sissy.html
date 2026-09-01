@@ -713,6 +713,67 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 .advanced[open] > summary::before { content: "▾ "; }
 @media (hover: hover) { .advanced > summary:hover { color: var(--accent); } }
 
+/* ── feedback ───────────────────────────────────────────────────────────── */
+
+/* The list under the form. Not a promise about privacy — the actual payload,
+   itemised, so the claim can be checked rather than believed. */
+.manifest {
+  margin-top: 4px; padding: 13px 15px;
+  background: var(--paper-sunk); border-radius: var(--radius-sm);
+}
+.manifest__head {
+  font-family: var(--sans); font-size: 11px; font-weight: 650;
+  letter-spacing: .08em; text-transform: uppercase; color: var(--ink-3);
+  margin-bottom: 9px;
+}
+.manifest__list { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.manifest__row {
+  display: grid; grid-template-columns: 15px 1fr auto; gap: 9px; align-items: baseline;
+  font-size: 13px; line-height: 1.45;
+}
+.manifest__mark {
+  font-family: var(--sans); font-size: 12px; font-weight: 700; color: var(--ok);
+  text-align: center;
+}
+.manifest__label { color: var(--ink-2); }
+.manifest__value {
+  font-family: var(--sans); font-size: 12px; color: var(--ink-3);
+  text-align: right; white-space: nowrap;
+}
+/* Struck through, not hidden: seeing what is withheld is the whole point. */
+.manifest__row.is-off .manifest__mark { color: var(--ink-3); }
+.manifest__row.is-off .manifest__label { color: var(--ink-3); text-decoration: line-through; }
+
+/* A switch rather than a tick: it changes what the form is, not one detail. */
+.check--switch {
+  display: flex; align-items: center; gap: 11px;
+  padding: 11px 13px; margin-top: 2px;
+  background: var(--accent-soft); border-radius: var(--radius-sm);
+  font-family: var(--sans); font-size: 14.5px; font-weight: 600; color: var(--ink);
+  cursor: pointer;
+}
+.check--switch input { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
+
+/* The way from the quick sheet to the full form. */
+.fb-more {
+  display: block; width: 100%; margin-top: 4px;
+  text-align: center; padding: 8px 0;
+}
+
+/* What you already said, so nobody reports the same thing twice. */
+.fb-log { display: flex; flex-direction: column; gap: 11px; margin-top: 4px; }
+.fb-log__row { padding-top: 11px; border-top: 1px solid var(--edge); }
+.fb-log__row:first-child { padding-top: 0; border-top: 0; }
+.fb-log__head { display: flex; align-items: center; gap: 8px; margin-bottom: 4px; }
+.fb-log__kind {
+  font-family: var(--sans); font-size: 12.5px; font-weight: 650; color: var(--ink);
+}
+.fb-log__when { font-size: 12px; color: var(--ink-3); }
+.fb-log__text {
+  font-size: 13.5px; line-height: 1.5; color: var(--ink-2);
+  overflow-wrap: anywhere; white-space: pre-wrap;
+}
+
 /* ── home: the dashboard ────────────────────────────────────────────────────
    Home is the one view that is a dashboard rather than a page of prose, so it
    opts out of the reading measure and lays itself out across the shell. */

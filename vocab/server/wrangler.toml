@@ -18,3 +18,11 @@ ALLOWED_ORIGIN = "https://vocabx.ylarena.online"
 # Keys are secrets, not vars. `wrangler secret put GEMINI_API_KEY`, or
 # Settings → Variables and Secrets in the dashboard. A key written here would
 # be committed to your repository.
+
+# The feedback inbox. Create a KV namespace, then put its id here — or bind it
+# in the dashboard under Settings → Bindings, which needs no CLI. Without it
+# /api/feedback answers 503 and says so, rather than accepting notes and
+# dropping them.
+# [[kv_namespaces]]
+# binding = "FEEDBACK"
+# id = "paste-the-namespace-id-here"

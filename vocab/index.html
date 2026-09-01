@@ -738,6 +738,87 @@
     </section>
 
     <!-- ───────────────────────── Settings ───────────────────────── -->
+    <!-- ─────────────────────── Feedback ─────────────────────── -->
+    <section class="view" id="view-feedback" data-view="feedback" hidden>
+      <h2 class="sr-only">Send feedback</h2>
+      <div class="stack">
+
+        <header class="hero">
+          <div class="grow">
+            <p class="eyebrow">Feedback</p>
+            <h3 class="hero__title">Tell me what is wrong</h3>
+            <p class="hero__sub">Blunt is useful. Polite is optional.</p>
+          </div>
+        </header>
+
+        <div class="card card--tight">
+          <label class="field">
+            <span>How is it going?</span>
+            <div class="seg seg--wide" id="fbMood" role="tablist">
+              <button class="seg__btn" data-mood="good" type="button" role="tab">Going well</button>
+              <button class="seg__btn is-active" data-mood="mixed" type="button" role="tab">Mixed</button>
+              <button class="seg__btn" data-mood="bad" type="button" role="tab">Frustrating</button>
+            </div>
+          </label>
+
+          <label class="field">
+            <span>What is it about?</span>
+            <div class="seg seg--wide" id="fbKind" role="tablist">
+              <button class="seg__btn is-active" data-kind="idea" type="button" role="tab">An idea</button>
+              <button class="seg__btn" data-kind="bug" type="button" role="tab">Something broke</button>
+              <button class="seg__btn" data-kind="word" type="button" role="tab">A word is wrong</button>
+            </div>
+          </label>
+
+          <label class="field">
+            <span>What happened?</span>
+            <textarea class="input input--area" id="fbText" rows="6"
+                      placeholder="I was trying to… and instead…" aria-label="Your feedback"></textarea>
+          </label>
+
+          <!-- The switch that decides what leaves the device. Above the email
+               field, because it governs whether that field exists at all. -->
+          <label class="check check--switch">
+            <input type="checkbox" id="fbAnon" checked>
+            <span>Send anonymously</span>
+          </label>
+
+          <div id="fbSigned" hidden>
+            <label class="field">
+              <span>Your email, for a reply</span>
+              <input class="input" id="fbFrom" type="email" autocomplete="email"
+                     placeholder="Optional — only used to write back"
+                     aria-label="Your email, for a reply">
+            </label>
+          </div>
+
+          <!-- Not a promise about privacy: the actual list, rebuilt from the
+               payload each time anything changes. A claim you can check. -->
+          <div class="manifest">
+            <p class="manifest__head">What gets sent</p>
+            <ul class="manifest__list" id="fbManifest"></ul>
+          </div>
+
+          <button class="btn btn--primary btn--wide" id="fbSend">Send</button>
+          <div class="row row--even">
+            <button class="btn btn--quiet btn--sm" id="fbMail" type="button">Email it instead</button>
+            <button class="btn btn--quiet btn--sm" id="fbCopy" type="button">Copy it</button>
+          </div>
+          <p class="hint" id="fbNote"></p>
+        </div>
+
+        <div class="card card--tight" id="fbHistoryCard" hidden>
+          <div class="row row--between">
+            <h3 class="card__title">What you have sent</h3>
+            <button class="link" id="fbClear" type="button">Clear</button>
+          </div>
+          <p class="hint">Kept on this device so you can see what you already reported.</p>
+          <div class="fb-log" id="fbHistory"></div>
+        </div>
+
+      </div>
+    </section>
+
     <section class="view" id="view-settings" data-view="settings" hidden>
       <h2 class="sr-only">Settings</h2>
       <div class="stack">
@@ -836,6 +917,17 @@
           <div class="row row--even" id="installDownloads"></div>
         </div>
 
+        <div class="card card--tight">
+          <div class="row row--between">
+            <div class="grow">
+              <h3 class="card__title">Feedback</h3>
+              <p class="hint">Tell me what is broken, confusing or missing — signed or anonymous.</p>
+            </div>
+          </div>
+          <button class="btn btn--quiet btn--wide" id="settingsFeedback" type="button">
+            <svg class="ico" aria-hidden="true"><use href="#i-pen"/></svg>Open feedback</button>
+        </div>
+
         <div class="card">
           <h3 class="card__title">Your data</h3>
           <p class="hint">Everything lives in this browser. Export before clearing site data.</p>
@@ -913,6 +1005,9 @@
       </div>
       <button class="btn btn--quiet btn--sm btn--wide" id="feedbackMail" type="button">Send by email instead</button>
       <button class="btn btn--quiet btn--sm btn--wide" id="feedbackCopy" type="button">Copy it instead</button>
+      <!-- The quick sheet cannot show what anonymity actually means without
+           becoming the long form; this is the way through to where it can. -->
+      <button class="link fb-more" id="feedbackMore" type="button">More options, and sending anonymously →</button>
     </div>
   </div>
 

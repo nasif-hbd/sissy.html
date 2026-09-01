@@ -58,6 +58,23 @@ const geminiKeyOf = (env) => binding(env, 'GEMINI_API_KEY', 'GOOGLE_API_KEY');
 const claudeKeyOf = (env) => binding(env, 'ANTHROPIC_API_KEY', 'CLAUDE_API_KEY');
 
 /**
+ * Compare two tokens without letting the clock describe the difference.
+ *
+ * A plain === returns on the first byte that differs, so the time it takes
+ * tells an attacker how much of their guess was right. This looks at every
+ * byte whatever happens.
+ */
+function sameToken(given, expected) {
+  const a = String(given), b = String(expected);
+  if (!b) return false;
+  let diff = a.length ^ b.length;
+  for (let i = 0; i < Math.max(a.length, b.length); i += 1) {
+    diff |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
+  }
+  return diff === 0;
+}
+
+/**
  * The names of everything bound to this Worker — never the values.
  *
  * A key typed into the wrong field, the wrong environment or the wrong Worker
@@ -284,6 +301,73 @@ const routes = {
   'POST /api/ai/report': (body, env) => {
     const who = provider(body, env);
     return streamSse(who, reportPrompt({ stats: body.stats || {}, level: body.stats?.level }), body, env);
+  },
+
+  /**
+   * Feedback.
+   *
+   * Stored in a KV namespace bound as FEEDBACK. Without that binding there is
+   * nowhere to put it, and the honest answer is to say so rather than to
+   * accept the note and drop it — the app then keeps it on the device and
+   * offers the reader their own mail client, which does reach someone.
+   *
+   * An anonymous report is stored exactly as it arrived. Nothing is added on
+   * this side either: no IP, no country, no user agent. A promise made in the
+   * interface that the server quietly broke would be worse than no promise.
+   */
+  'POST /api/feedback': async (body, env) => {
+    const text = String(body.text || '').trim().slice(0, 4000);
+    if (!text) throw new HttpError(400, 'Nothing was written.');
+    if (!env.FEEDBACK) {
+      throw new HttpError(503, 'This proxy has no feedback inbox. '
+        + 'Bind a KV namespace called FEEDBACK to it, or use the email option.');
+    }
+
+    const anonymous = body.anonymous === true;
+    const note = {
+      at: new Date().toISOString(),
+      anonymous,
+      kind: String(body.kind || 'idea').slice(0, 20),
+      mood: String(body.mood || '').slice(0, 20),
+      text,
+      // Only ever from a report that says it is not anonymous.
+      from: anonymous ? '' : String(body.from || '').trim().slice(0, 200),
+      context: anonymous ? null : body.context || null,
+    };
+
+    /* Keyed by time so a listing comes back newest first, and by a random
+       suffix so two notes in the same millisecond cannot overwrite each
+       other — which, for anonymous feedback, would lose one silently. */
+    const key = `fb:${Date.now().toString().padStart(14, '0')}:${crypto.randomUUID().slice(0, 8)}`;
+    await env.FEEDBACK.put(key, JSON.stringify(note));
+    return { ok: true, data: { stored: true } };
+  },
+
+  /**
+   * Reading it back.
+   *
+   * Off unless FEEDBACK_TOKEN is set, so a proxy nobody has locked cannot
+   * hand its inbox to whoever asks. The token is compared in full length to
+   * keep the comparison from leaking its prefix through timing.
+   */
+  'POST /api/feedback/list': async (body, env) => {
+    if (!env.FEEDBACK) throw new HttpError(503, 'No feedback inbox is bound.');
+    if (!env.FEEDBACK_TOKEN) throw new HttpError(403, 'Reading is off: no FEEDBACK_TOKEN is set.');
+    if (!sameToken(String(body.token || ''), env.FEEDBACK_TOKEN)) {
+      throw new HttpError(401, 'Wrong token.');
+    }
+    const list = await env.FEEDBACK.list({ prefix: 'fb:', limit: 200 });
+    const notes = await Promise.all(list.keys.map(async ({ name }) => {
+      try { return JSON.parse(await env.FEEDBACK.get(name)); } catch { return null; }
+    }));
+    /* Sorted on what each note says its time is, rather than trusting the
+       order the keys came back in: KV guarantees its listing is sorted by
+       key, and two notes written in one millisecond differ only by the random
+       suffix that stops them overwriting each other. */
+    return {
+      ok: true,
+      data: notes.filter(Boolean).sort((a, b) => String(b.at).localeCompare(String(a.at))),
+    };
   },
 
   /** Translation, same envelope. No key needed for this endpoint. */

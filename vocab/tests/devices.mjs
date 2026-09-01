@@ -37,6 +37,7 @@ const VIEWS = ['home', 'learn', 'modules', 'test', 'ask', 'words', 'progress', '
  * long band table and a plan list that only exist after a sitting.
  */
 const DEEP_VIEWS = [
+  { view: 'feedback', open: '#settingsFeedback', ready: '#fbManifest', from: 'settings' },
   { view: 'assess', open: '#homeAssess', ready: '#assessIntro' },
   { view: 'assess-result', open: '#homeAssess', ready: '#assessIntro', sit: true },
 ];
@@ -96,10 +97,10 @@ for (const device of DEVICES) {
     ...DEEP_VIEWS,
   ];
 
-  for (const { view, tab, open, ready, sit } of stops) {
+  for (const { view, tab, open, ready, sit, from } of stops) {
     if (tab) await goto(tab);
     else {
-      await goto('home');
+      await goto(from || 'home');
       await page.waitForTimeout(120);
       await page.click(open);
       await page.waitForSelector(ready, { state: 'visible' });

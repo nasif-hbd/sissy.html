@@ -33,7 +33,8 @@ import {
 import { buildPlan } from './advice.js';
 import { ACTIONS, makeStep, sortRoutine, validTime, cardFor, quoteFor } from './routine.js';
 import { STARTERS, contextFor } from './chat.js';
-import { feedbackAsText, feedbackSubject, feedbackMailto } from './feedback.js';
+import { feedbackAsText, feedbackSubject, feedbackMailto, anonymise,
+         manifestOf } from './feedback.js';
 import { SUBJECTS, modesFor, buildRound, markOne, markRound } from './testlab.js';
 import { createInstaller } from './install.js';
 
@@ -81,6 +82,7 @@ async function boot() {
   wireWords();
   wireInstall();
   wireFeedback();
+  wireFeedbackView();
   wireTest();
   wireAsk();
   wireAssess();
@@ -251,6 +253,9 @@ function wireTabs() {
          forty seconds and comes back to Home would read "0 min" against ten
          reviews. Banking it here means the tile is true whenever it is
          looked at — outside the render, so committing cannot re-enter it. */
+      // What the report should say they were looking at, since by the time
+      // they write it they are looking at the feedback screen instead.
+      session.lastView = tab.dataset.tab;
       if (tab.dataset.tab === 'home') { timer.flush(); timer.resume(); }
       if (tab.dataset.tab === 'progress') { renderProgress(Store.state); drawXp(Store.state); }
       if (tab.dataset.tab === 'practice') ensurePracticeSeed();
@@ -1203,6 +1208,154 @@ const DOWNLOADS = [
     note: 'Unzip and run VocabX.exe. No browser install, no runtime.' },
 ];
 
+// ── the feedback screen ────────────────────────────────────────────────────
+
+/**
+ * The full feedback module.
+ *
+ * The corner button stays — it is what catches a thought the moment it
+ * happens — and opens the quick sheet. This screen is for the longer report,
+ * and is where anonymity is decided, because anonymity needs room to be shown
+ * rather than promised.
+ *
+ * Nothing here reaches a third party. There is no form service and no
+ * analytics; the note goes to your own proxy, your own mail client, or your
+ * own clipboard, and a copy stays on the device so you can see what you said.
+ */
+const fb = { mood: 'mixed', kind: 'idea' };
+
+function wireFeedbackView() {
+  for (const [group, key] of [['#fbMood', 'mood'], ['#fbKind', 'kind']]) {
+    for (const btn of $$(`${group} .seg__btn`)) {
+      btn.addEventListener('click', () => {
+        fb[key] = btn.dataset[key];
+        for (const b of $$(`${group} .seg__btn`)) b.classList.toggle('is-active', b === btn);
+        drawManifest();
+      });
+    }
+  }
+  $('#fbAnon').addEventListener('change', () => {
+    $('#fbSigned').hidden = $('#fbAnon').checked;
+    drawManifest();
+  });
+  $('#fbText').addEventListener('input', drawManifest);
+  $('#fbFrom').addEventListener('input', drawManifest);
+  $('#fbSend').addEventListener('click', () => submitFeedback('send'));
+  $('#fbMail').addEventListener('click', () => submitFeedback('mail'));
+  $('#fbCopy').addEventListener('click', () => submitFeedback('copy'));
+  $('#fbClear').addEventListener('click', () => {
+    Store.commit((st) => { st.feedback = []; });
+    drawFeedbackHistory();
+  });
+}
+
+/** The report as it would go out right now, anonymised if that is asked for. */
+function viewReport() {
+  const full = {
+    kind: fb.kind,
+    mood: fb.mood,
+    text: $('#fbText').value.trim(),
+    from: $('#fbAnon').checked ? '' : $('#fbFrom').value.trim(),
+    at: new Date().toISOString(),
+    context: {
+      view: session.lastView || 'feedback',
+      provider: AIClient.provider,
+      level: Store.state.profile.level,
+      words: Object.keys(Store.state.words).length,
+      screen: `${window.innerWidth}x${window.innerHeight}`,
+    },
+  };
+  return $('#fbAnon').checked ? anonymise(full) : full;
+}
+
+/** The list under the form, rebuilt from the payload that would actually go. */
+function drawManifest() {
+  const rows = manifestOf(viewReport());
+  $('#fbManifest').replaceChildren(...rows.map((r) => el('li', {
+    class: r.sent ? 'manifest__row' : 'manifest__row is-off',
+  },
+    el('span', { class: 'manifest__mark', 'aria-hidden': 'true' }, r.sent ? '✓' : '—'),
+    el('span', { class: 'manifest__label', text: r.label }),
+    el('span', { class: 'manifest__value', text: r.value }))));
+
+  $('#fbNote').textContent = AIClient.isLive
+    ? 'Send goes to your own server. Nothing passes through anyone else.'
+    : `No server is connected, so Send only keeps it here. Use “Email it instead” to reach ${APP.feedbackTo}.`;
+}
+
+async function submitFeedback(how) {
+  const report = viewReport();
+  if (!report.text) { toast('Write something first.', 'bad'); return; }
+
+  // Kept on the device either way, so the reader can see what they reported.
+  Store.commit((st) => { (st.feedback ||= []).push(report); st.feedback = st.feedback.slice(-50); });
+
+  if (how === 'mail') {
+    location.href = feedbackMailto(report, APP.feedbackTo);
+    finishFeedback('Opening your mail app…');
+    return;
+  }
+  if (how === 'copy') {
+    await navigator.clipboard.writeText(feedbackAsText(report)).catch(() => {});
+    finishFeedback('Copied. Paste it wherever suits you.');
+    return;
+  }
+  if (!AIClient.isLive) { finishFeedback('Kept on this device — no server is connected.'); return; }
+
+  const btn = $('#fbSend');
+  btn.disabled = true;
+  try {
+    const res = await fetch(AIClient.url('/api/feedback'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(report),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body.ok === false) throw new Error(body.error || `server responded ${res.status}`);
+    finishFeedback('Thank you — sent.');
+  } catch (err) {
+    // It is on the device regardless, so say that rather than "failed".
+    toast(`Kept here — ${err.message}`, 'bad');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function finishFeedback(message) {
+  $('#fbText').value = '';
+  $('#fbFrom').value = '';
+  drawManifest();
+  drawFeedbackHistory();
+  toast(message);
+}
+
+const FB_KIND = { idea: 'Idea', bug: 'Something broke', word: 'A word is wrong' };
+
+function drawFeedbackHistory() {
+  const sent = [...(Store.state.feedback || [])].reverse();
+  $('#fbHistoryCard').hidden = sent.length === 0;
+  $('#fbHistory').replaceChildren(...sent.map((r) => el('div', { class: 'fb-log__row' },
+    el('div', { class: 'fb-log__head' },
+      el('span', { class: 'fb-log__kind', text: FB_KIND[r.kind] || r.kind }),
+      el('span', { class: 'fb-log__when',
+        text: new Date(r.at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) }),
+      r.anonymous ? el('span', { class: 'tag', text: 'anonymous' }) : null),
+    el('p', { class: 'fb-log__text', text: r.text }))));
+}
+
+function openFeedbackView() {
+  /* Read the screen off the page before leaving it. A tab click records this
+     too, but the corner button can be pressed from anywhere — including from
+     a view with no tab of its own — and "you were on the feedback screen" is
+     the one useless answer. */
+  const here = [...$$('.view')].find((v) => !v.hidden)?.dataset.view;
+  if (here && here !== 'feedback') session.lastView = here;
+  switchView('feedback');
+  drawManifest();
+  drawFeedbackHistory();
+  $('#fbText').focus();
+}
+
 // ── feedback ───────────────────────────────────────────────────────────────
 
 /**
@@ -1233,6 +1386,15 @@ function wireFeedback() {
   $('#feedbackSend').addEventListener('click', sendFeedback);
   $('#feedbackMail').addEventListener('click', mailFeedback);
   $('#feedbackCopy').addEventListener('click', copyFeedback);
+  // Carry whatever has been typed through, so the sheet is a draft of the
+  // longer form rather than work to be redone.
+  $('#feedbackMore').addEventListener('click', () => {
+    const draft = $('#feedbackText').value;
+    closeFeedback();
+    openFeedbackView();
+    if (draft) { $('#fbText').value = draft; drawManifest(); }
+  });
+  $('#settingsFeedback').addEventListener('click', openFeedbackView);
 }
 
 function openFeedback() {
