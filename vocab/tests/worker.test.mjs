@@ -77,6 +77,28 @@ test('an unknown route is a 404 rather than a hang', async () => {
   assert.equal((await call('GET', '/api/nope')).status, 404);
 });
 
+/**
+ * The root path is where Cloudflare's editor previews a Worker, and where a
+ * person pastes the URL to see whether the deploy worked. A bare 404 there
+ * reads as failure at exactly that moment.
+ */
+test('the root path reports the service rather than 404ing', async () => {
+  const res = await call('GET', '/');
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.service, 'VocabX AI proxy');
+  assert.equal(body.ready, true);
+  assert.match(body.next, /api\/health/);
+});
+
+test('the root path says plainly when a key or the origin lock is missing', async () => {
+  const bare = await (await call('GET', '/', undefined, {})).json();
+  assert.equal(bare.ready, false);
+  assert.match(bare.engines.gemini, /no GEMINI_API_KEY/);
+  assert.match(bare.allowedOrigin, /NOT SET/,
+    'an unlocked Worker spends your credit for anyone who finds it — say so');
+});
+
 /* ── CORS, which is the whole reason a separate origin works ────────────── */
 
 test('a preflight is answered without touching an engine', async () => {

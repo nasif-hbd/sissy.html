@@ -153,6 +153,28 @@ async function readAnthropicSse(res, onToken) {
 // ── routes ─────────────────────────────────────────────────────────────────
 
 const routes = {
+  /**
+   * The root path, which is the one a person actually opens.
+   *
+   * Cloudflare's editor previews a Worker at "/", and every host's health
+   * check hits it too — so a bare 404 here reads as "the deploy failed" at
+   * exactly the moment someone is checking whether it worked. It says what
+   * this is, whether it has its keys, and where to look next.
+   */
+  'GET /': (body, env) => ({
+    ok: true,
+    service: 'VocabX AI proxy',
+    ready: Boolean(env.GEMINI_API_KEY || env.ANTHROPIC_API_KEY),
+    engines: {
+      gemini: env.GEMINI_API_KEY ? 'key set' : 'no GEMINI_API_KEY',
+      claude: env.ANTHROPIC_API_KEY ? 'key set' : 'no ANTHROPIC_API_KEY',
+    },
+    // Unset means this Worker answers any site that finds it, and they spend
+    // your credit. Worth seeing at a glance rather than only in the docs.
+    allowedOrigin: env.ALLOWED_ORIGIN || 'NOT SET — this Worker answers any website',
+    next: 'Full status at /api/health. Put this Worker\'s address into the app: Settings → AI help → Your server.',
+  }),
+
   'GET /api/health': (body, env) => ({
     ok: true,
     hasKey: Boolean(env.ANTHROPIC_API_KEY),
