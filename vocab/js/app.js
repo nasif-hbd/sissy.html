@@ -756,8 +756,8 @@ function heroLine(state, s, plan) {
     greeting: hour < 12 ? 'Good morning.' : hour < 18 ? 'Good afternoon.' : 'Good evening.',
     // The line under the greeting is the only place that says what is actually
     // waiting, so it says the number rather than a mood.
-    sub: plan.due
-      ? `${plan.due} word${plan.due === 1 ? '' : 's'} are ready for review.`
+    sub: readyNow(plan)
+      ? `${readyNow(plan)} word${readyNow(plan) === 1 ? '' : 's'} ready for review.`
       : plan.new
         ? 'Ready to learn a few words?'
         : s.known
@@ -878,10 +878,22 @@ function matchesLevel(entry, level) {
  * so a fresh install offered "Learn 40 new words" and then handed over ten.
  */
 function startLabel(plan) {
-  const waiting = plan.due + plan.learning;
+  const waiting = readyNow(plan);
   if (waiting) return `Review ${waiting} word${waiting === 1 ? '' : 's'}`;
   if (plan.new) return `Learn ${plan.new} new word${plan.new === 1 ? '' : 's'}`;
   return 'Study ahead';
+}
+
+/**
+ * Cards waiting right now: everything overdue plus the learning cards that
+ * have come round again.
+ *
+ * The greeting and the button both name this number, and they used to count it
+ * differently — "16 words are ready for review" over a button reading "Review
+ * 24 words" reads as a bug, whichever one is right.
+ */
+function readyNow(plan) {
+  return plan.due + plan.learning;
 }
 
 /** New cards still allowed today, after the ones already introduced. */
