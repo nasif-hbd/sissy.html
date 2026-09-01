@@ -52,9 +52,15 @@ const THEMES = [...new Set([...css.matchAll(/:root\[data-theme="(\w+)"\]/g)].map
 
 /* Type and metric tokens are theme-independent; colour must be restated in
    every theme or that theme silently inherits the default palette. */
+/*
+ * Tokens a theme is allowed to leave alone. Colour is what a theme is for; a
+ * tap target and a panel width are the same whichever one is on. Type and
+ * corner radius are on this list because a theme MAY set them — Iris carries
+ * its own face and a wider radius — but is not required to.
+ */
 const STRUCTURAL = new Set([
   '--sans', '--text', '--mono', '--radius', '--radius-sm', '--tap', '--maxw', '--rail',
-  '--chat-min',
+  '--rail-w', '--chat-min', '--body-size', '--body-leading', '--tracking-lg', '--tracking-md',
 ]);
 
 test('the default palette declares a full set of tokens', () => {

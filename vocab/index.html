@@ -10,7 +10,9 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="./icons/mark-32.png">
 <link rel="apple-touch-icon" href="./icons/mark-180.png">
-<link rel="preload" href="fonts/space-grotesk.woff2" as="font" type="font/woff2" crossorigin>
+<!-- Not preloaded: the default theme sets its own face, and a browser only
+     fetches a font something on the page actually renders in. Choosing Paper,
+     Linen or Ink is what pulls these 22 KB down, and only then. -->
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -774,7 +776,13 @@
     </section>
   </main>
 
+  <!-- Tapping beside an open panel should shut it; that is what this is. -->
+  <div class="scrim" id="scrim" hidden></div>
+
   <nav class="tabbar" id="tabbar">
+    <p class="tabbar__brand" aria-hidden="true">
+      <img src="./icons/mark-64.webp" alt="" width="35" height="35">VocabX
+    </p>
     <button class="tab is-active" data-tab="home" aria-current="page"><svg class="ico" aria-hidden="true"><use href="#i-home"/></svg><span class="tab__label">Home</span></button>
     <button class="tab" data-tab="learn"><svg class="ico" aria-hidden="true"><use href="#i-study"/></svg><span class="tab__label">Learn</span></button>
     <button class="tab" data-tab="modules"><svg class="ico" aria-hidden="true"><use href="#i-modules"/></svg><span class="tab__label">Modules</span></button>

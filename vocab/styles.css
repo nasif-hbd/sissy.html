@@ -32,7 +32,8 @@
   --radius-sm: 11px;
   --tap:       44px;
   --maxw:      660px;
-  --rail:      64px;
+  /* How wide the navigation panel is whenever it is open. */
+  --rail-w:    245px;
   /* Fallback height for the Ask chat; ui.js measures the real one per device. */
   --chat-min:  60vh;
   --sans: "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
@@ -47,11 +48,11 @@
 :root[data-theme="iris"],
 :root[data-theme="auto"] {
   --paper:       #f7f8fa;
-  --paper-sunk:  #eeeff3;
+  --paper-sunk:  #f0f0f2;
   --card:        #ffffff;
   --ink:         #15171b;
-  --ink-2:       #5a606a;
-  --ink-3:       #9296a0;
+  --ink-2:       #747982;
+  --ink-3:       #9a9da4;
   --rule:        #e8e9ed;
   --rule-firm:   #d6d8de;
   --edge:        #e8e9ed;
@@ -64,17 +65,33 @@
   --warn:        #a8760c;
   --warn-soft:   #fdf2dd;
   --ok:          #1da56b;
-  --ok-soft:     #e4f6ee;
+  --ok-soft:     #eefaf5;
   --info:        #3a6ecb;
   --info-soft:   #eaf0fc;
 
-  --shadow:      0 1px 2px rgb(27 24 51 / .04), 0 12px 34px -18px rgb(27 24 51 / .22);
-  --shadow-sm:   0 1px 2px rgb(27 24 51 / .05);
-  --shadow-lift: 0 2px 8px rgb(27 24 51 / .06), 0 18px 50px -22px rgb(27 24 51 / .3);
+  /* Two shadows, both from the source design: a card barely lifts, and
+     anything floating above the page casts the deep, wide one. */
+  --shadow:      0 8px 25px rgb(25 25 35 / .025);
+  --shadow-sm:   0 1px 2px rgb(25 25 35 / .04);
+  --shadow-lift: 0 18px 50px rgb(27 24 51 / .08);
 
-  --radius:    20px;
+  --radius:    22px;
   --radius-sm: 12px;
+
+  /* Iris sets its own type. Inter first — if it is ever installed or served it
+     is used, and until then this is the system UI face at the size and leading
+     the design was drawn at. Space Grotesk belongs to the other three themes,
+     and a browser only downloads a face something on the page renders in, so
+     leaving it unnamed here keeps 22 KB off the default theme entirely. */
+  --sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --text: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --body-size: 15px;
+  --body-leading: 1.5;
+  /* Display type is set tight in this design: -1.3px on a 32px heading. */
+  --tracking-lg: -.04em;
+  --tracking-md: -.025em;
 }
+
 
 /* ── Paper — white, orange. What the app shipped with ───────────────────── */
 :root[data-theme="paper"] {
@@ -106,6 +123,13 @@
 
   --radius:    16px;
   --radius-sm: 11px;
+
+  --sans: "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --text: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --body-size: 15.5px;
+  --body-leading: 1.55;
+  --tracking-lg: -.02em;
+  --tracking-md: -.015em;
 }
 
 /* ── Linen — warm off-white, teal ───────────────────────────────────────── */
@@ -138,6 +162,13 @@
 
   --radius:    16px;
   --radius-sm: 11px;
+
+  --sans: "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --text: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --body-size: 15.5px;
+  --body-leading: 1.55;
+  --tracking-lg: -.02em;
+  --tracking-md: -.015em;
 }
 
 /* ── Ink — black, blue ──────────────────────────────────────────────────── */
@@ -172,6 +203,13 @@
 
   --radius:    16px;
   --radius-sm: 11px;
+
+  --sans: "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --text: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --body-size: 15.5px;
+  --body-leading: 1.55;
+  --tracking-lg: -.02em;
+  --tracking-md: -.015em;
 }
 
 :root[data-theme="auto"] { color-scheme: light; }
@@ -189,8 +227,9 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--text);
-  font-size: 16px;
-  line-height: 1.55;
+  /* Both are a theme's to set: Iris is drawn at 15px/1.5, the rest at 15.5. */
+  font-size: var(--body-size);
+  line-height: var(--body-leading);
   -webkit-font-smoothing: antialiased;
   overscroll-behavior-y: none;
 }
@@ -280,7 +319,7 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 /* The artwork is a square on near-black, so it needs a corner radius to sit on
    a light interface rather than look like a photo dropped onto it. */
 .brand__mark img { width: 100%; height: 100%; display: block; border-radius: 8px; }
-.brand__name { font-family: var(--sans); font-size: 19px; font-weight: 600; letter-spacing: -.015em; }
+.brand__name { font-family: var(--sans); font-size: 19px; font-weight: 700; letter-spacing: var(--tracking-md); }
 .brand__sub { font-size: 12px; color: var(--ink-3); margin-top: 1px; }
 .topbar__meta { display: flex; align-items: center; gap: 8px; }
 
@@ -366,7 +405,7 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 
 .term {
   font-family: var(--sans); font-size: 40px; font-weight: 600;
-  letter-spacing: -.03em; line-height: 1.08; word-break: break-word;
+  letter-spacing: var(--tracking-lg); line-height: 1.08; word-break: break-word;
 }
 .phonetic { font-family: var(--mono); font-size: 13.5px; color: var(--ink-3); }
 
@@ -977,7 +1016,22 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 /* ── opening and closing the rail ────────────────────────────────────────
    Everything that makes room for the rail — the body padding, the toasts —
    reads --rail, so closing it is one value plus the slide. */
-:root.rail-closed { --rail: 0px; }
+/* --rail is the space the layout gives up for the panel, which is the panel's
+   full width only when it pushes rather than lies over the content. */
+:root { --rail: 0px; }
+/* Below 900px the panel lies over the content behind a scrim, because 245px
+   of a phone is most of it; above, there is room to push instead. */
+.scrim {
+  position: fixed; inset: 0; z-index: 29;
+  background: rgb(21 23 27 / .38);
+  opacity: 0; pointer-events: none; transition: opacity .22s ease;
+}
+:root:not(.rail-closed) .scrim { opacity: 1; pointer-events: auto; }
+@media (min-width: 900px) { .scrim { display: none; } }
+@media (min-width: 900px) {
+  /* Wide enough to sit beside the content rather than over it. */
+  :root:not(.rail-closed) { --rail: var(--rail-w); }
+}
 :root.rail-closed .tabbar {
   transform: translateX(-100%);
   visibility: hidden;                /* and out of the tab order while closed */
@@ -993,34 +1047,41 @@ body { transition: padding-left .22s ease; }
   .tabbar, body { transition: none; }
 }
 
-/* ── the rail ───────────────────────────────────────────────────────────── */
+/* ── the rail ─────────────────────────────────────────────────────────────
+   One shape at every width, now that it is a panel you open rather than a
+   strip that is always there: 245 wide, labelled rows, the mark and the name
+   at the top. Below 900px it lies over the content; above, it pushes it. */
 .tabbar {
   position: fixed; left: 0; top: 0; bottom: 0; z-index: 30;
-  width: var(--rail);
+  width: var(--rail-w);
   display: flex; flex-direction: column; gap: 4px;
-  padding: calc(60px + env(safe-area-inset-top)) 8px calc(12px + env(safe-area-inset-bottom));
+  padding: calc(25px + env(safe-area-inset-top)) 16px calc(22px + env(safe-area-inset-bottom));
   background: var(--card);
   border-right: 1px solid var(--rule);
   overflow-y: auto; overscroll-behavior: contain;
 }
 /* The narrow rail shows the logo alone; the wide rail has room for the name. */
-.tabbar::before {
-  content: "";
-  position: absolute; top: calc(14px + env(safe-area-inset-top)); left: 50%;
-  transform: translateX(-50%);
-  width: 34px; height: 34px; border-radius: 9px;
-  background: url("./icons/mark-64.webp") center / contain no-repeat;
+/* The panel's brand: mark then name, exactly as the source design sets it. */
+.tabbar__brand {
+  display: flex; align-items: center; gap: 10px;
+  padding: 4px 10px 28px;
+  font-family: var(--sans); font-size: 22px; font-weight: 800;
+  letter-spacing: var(--tracking-lg); color: var(--ink);
 }
+.tabbar__brand img { width: 35px; height: 35px; border-radius: 11px; display: block; }
+
 .tab {
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px;
-  min-height: 52px; padding: 7px 2px; border: 0; cursor: pointer;
-  border-radius: var(--radius-sm);
-  background: transparent; color: var(--ink-3);
-  font-family: var(--sans); font-size: 9px; font-weight: 500;
-  letter-spacing: .03em;
+  display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px;
+  min-height: 44px; padding: 0 12px; border: 0; cursor: pointer;
+  border-radius: 12px;
+  background: transparent; color: #686d76;
+  font-family: var(--sans); font-size: 14px; font-weight: 500;
+  letter-spacing: 0;
 }
-.tab .ico { width: 21px; height: 21px; }
-.tab.is-active { background: var(--accent-soft); color: var(--accent); }
+.tab .ico { width: 18px; height: 18px; flex: 0 0 auto; }
+.tab:hover { background: var(--accent-soft); color: var(--accent); }
+.tab.is-active { background: var(--accent-soft); color: var(--accent); font-weight: 650; }
+:root[data-theme="ink"] .tab, :root.is-dark .tab { color: var(--ink-2); }
 
 /* ── toasts ─────────────────────────────────────────────────────────────── */
 .toasts {
@@ -1062,9 +1123,7 @@ body { transition: padding-left .22s ease; }
    Devices — the rail is present at every width; only its size changes.
 =========================================================================== */
 @media (max-width: 380px) {
-  :root { --rail: 54px; }
   .tabbar { padding-top: calc(52px + env(safe-area-inset-top)); padding-left: 6px; padding-right: 6px; }
-  .tabbar::before { width: 30px; height: 30px; font-size: 13px; }
   .tab__label { display: none; }
   .tab { min-height: 46px; }
   .topbar, .goalbar { padding-left: 14px; padding-right: 14px; }
@@ -1080,7 +1139,6 @@ body { transition: padding-left .22s ease; }
 }
 
 @media (min-width: 600px) {
-  :root { --rail: 78px; }
   .tab { font-size: 9.5px; min-height: 58px; }
   .term { font-size: 48px; }
   .views { padding: 20px 24px 30px; }
@@ -1095,29 +1153,8 @@ body { transition: padding-left .22s ease; }
 }
 
 @media (min-width: 900px) {
-  :root { --rail: 234px; --maxw: 760px; }
+  :root { --maxw: 760px; }
   .modules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
-  .tabbar { gap: 3px; padding: 84px 14px calc(20px + env(safe-area-inset-bottom)); }
-  .tabbar::before {
-    content: "VocabX";
-    top: 22px; left: 62px; transform: none;
-    width: auto; height: auto; padding: 0;
-    background: none; color: var(--ink);
-    font-family: var(--sans); font-weight: 600; font-size: 20px; letter-spacing: -.02em;
-    line-height: 30px;
-  }
-  /* …with the mark beside it, since ::before is spent on the name. */
-  .tabbar::after {
-    content: "";
-    position: absolute; top: 18px; left: 20px;
-    width: 34px; height: 34px; border-radius: 9px;
-    background: url("./icons/mark-64.webp") center / contain no-repeat;
-  }
-  .tab {
-    flex-direction: row; justify-content: flex-start; gap: 12px;
-    min-height: 44px; padding: 0 14px; font-size: 13.5px; letter-spacing: 0;
-  }
-  .tab .ico { width: 19px; height: 19px; }
   /* The rail carries the name at this width — but only while it is open, or
      closing it would leave the app with its name nowhere on screen. */
   :root:not(.rail-closed) .topbar .brand__name { display: none; }
@@ -1131,9 +1168,8 @@ body { transition: padding-left .22s ease; }
 }
 
 @media (min-width: 1240px) {
-  :root { --rail: 262px; --maxw: 840px; }
+  :root { --maxw: 840px; }
   .tabbar { padding-left: 20px; padding-right: 20px; }
-  .tabbar::before { left: 28px; }
   .views { padding: 24px 28px 38px; }
 }
 
@@ -1147,7 +1183,6 @@ body { transition: padding-left .22s ease; }
   .queue-summary__item { padding: 7px; }
   .queue-summary__item b { font-size: 17px; }
   .tabbar { padding-top: calc(46px + env(safe-area-inset-top)); }
-  .tabbar::before { top: calc(9px + env(safe-area-inset-top)); width: 28px; height: 28px; font-size: 12px; }
   .empty { padding: 22px 20px; }
 }
 

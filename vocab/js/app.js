@@ -200,6 +200,7 @@ function drawXp(state) {
  */
 function setRail(open) {
   document.documentElement.classList.toggle('rail-closed', !open);
+  $('#scrim').hidden = !open;
   const btn = $('#railToggle');
   btn.setAttribute('aria-expanded', String(open));
   btn.setAttribute('aria-label', open ? 'Hide navigation' : 'Show navigation');
@@ -210,6 +211,7 @@ function setRail(open) {
 
 function wireRail() {
   setRail(Store.state.settings.railOpen === true);
+  $('#scrim').addEventListener('click', () => setRail(false));
   $('#railToggle').addEventListener('click', () => {
     const opening = document.documentElement.classList.contains('rail-closed');
     setRail(opening);
