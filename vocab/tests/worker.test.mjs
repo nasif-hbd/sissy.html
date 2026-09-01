@@ -218,3 +218,53 @@ test('the Worker source is never served, whatever Pages does with it', async () 
   assert.equal((await site('/_worker.js')).status, 404);
   assert.equal((await site('/_WORKER.JS')).status, 404, 'and not by changing the case');
 });
+
+/* ── finding the key someone actually typed ─────────────────────────────── */
+
+/**
+ * Binding names are case-sensitive and typed by hand into a web form, so a
+ * Worker can look configured and behave as though it is not. Three near-misses
+ * are accepted; a real typo is still refused, but it is named.
+ */
+const root = (env) => worker.fetch(new Request('https://p.example/'), env);
+
+test('a key under the exact name is found', async () => {
+  assert.equal((await (await root({ GEMINI_API_KEY: 'k' })).json()).ready, true);
+});
+
+test('a key typed in the wrong case still works', async () => {
+  // Cloudflare will happily store "Gemini_Api_Key"; refusing it helps nobody.
+  assert.equal((await (await root({ Gemini_Api_Key: 'k' })).json()).ready, true);
+});
+
+test('a value pasted with stray whitespace still works', async () => {
+  assert.equal((await (await root({ GEMINI_API_KEY: '  k  ' })).json()).ready, true);
+});
+
+test("Google's own name for the same key is accepted", async () => {
+  assert.equal((await (await root({ GOOGLE_API_KEY: 'k' })).json()).ready, true);
+});
+
+test('a real typo is refused — but the reply names what did arrive', async () => {
+  const body = await (await root({ GEMINI_APIKEY: 'k' })).json();
+  assert.equal(body.ready, false, 'guessing at what was meant would be worse');
+  assert.deepEqual(body.sees, ['GEMINI_APIKEY'],
+    'the one glance that separates a typo from a missing key');
+});
+
+test('the report lists names and never values', async () => {
+  const body = await (await root({ GEMINI_API_KEY: 'super-secret-value' })).json();
+  assert.deepEqual(body.sees, ['GEMINI_API_KEY']);
+  assert.doesNotMatch(JSON.stringify(body), /super-secret-value/,
+    'a diagnostic that leaks the key is worse than no diagnostic');
+});
+
+test('the refusal a caller gets also says what the proxy can see', async () => {
+  const res = await worker.fetch(
+    new Request('https://p.example/api/ai/word', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ provider: 'gemini', term: 'x' }),
+    }), { WRONG_NAME: 'k' });
+  assert.equal(res.status, 503);
+  assert.match((await res.json()).error, /WRONG_NAME/);
+});

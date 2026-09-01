@@ -33,6 +33,43 @@ class HttpError extends Error {
   constructor(status, message) { super(message); this.status = status; }
 }
 
+/**
+ * Find a binding, forgivingly.
+ *
+ * Cloudflare's binding names are case-sensitive and typed by hand into a web
+ * form, so `Gemini_API_Key` and a trailing space both produce a Worker that
+ * looks configured and behaves as though it is not. The exact name is tried
+ * first; only then a case-insensitive, space-trimmed match, and the aliases
+ * for the same key under another provider's name.
+ */
+function binding(env, ...names) {
+  for (const name of names) {
+    if (env[name]) return String(env[name]).trim();
+  }
+  const wanted = names.map((n) => n.toLowerCase());
+  for (const [key, value] of Object.entries(env)) {
+    if (typeof value !== 'string' || !value.trim()) continue;
+    if (wanted.includes(key.trim().toLowerCase())) return value.trim();
+  }
+  return '';
+}
+
+const geminiKeyOf = (env) => binding(env, 'GEMINI_API_KEY', 'GOOGLE_API_KEY');
+const claudeKeyOf = (env) => binding(env, 'ANTHROPIC_API_KEY', 'CLAUDE_API_KEY');
+
+/**
+ * The names of everything bound to this Worker — never the values.
+ *
+ * A key typed into the wrong field, the wrong environment or the wrong Worker
+ * all present identically: "no key set". Listing what actually arrived turns
+ * an afternoon of guessing into one glance.
+ */
+function bindingNames(env) {
+  return Object.keys(env)
+    .filter((k) => typeof env[k] === 'string')
+    .sort();
+}
+
 // ── engines ────────────────────────────────────────────────────────────────
 
 /**
@@ -43,11 +80,13 @@ class HttpError extends Error {
  */
 function provider(body, env) {
   const want = body?.provider === 'gemini' ? 'gemini' : 'anthropic';
-  if (want === 'gemini' && !env.GEMINI_API_KEY) {
-    throw new HttpError(503, 'This proxy has no GEMINI_API_KEY set.');
+  if (want === 'gemini' && !geminiKeyOf(env)) {
+    throw new HttpError(503, 'This proxy has no GEMINI_API_KEY set. '
+      + `It can see: ${bindingNames(env).join(', ') || 'nothing at all'}.`);
   }
-  if (want === 'anthropic' && !env.ANTHROPIC_API_KEY) {
-    throw new HttpError(503, 'This proxy has no ANTHROPIC_API_KEY set.');
+  if (want === 'anthropic' && !claudeKeyOf(env)) {
+    throw new HttpError(503, 'This proxy has no ANTHROPIC_API_KEY set. '
+      + `It can see: ${bindingNames(env).join(', ') || 'nothing at all'}.`);
   }
   return want;
 }
@@ -61,7 +100,7 @@ async function claude({ system, user, messages }, env, model, stream = false) {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-api-key': env.ANTHROPIC_API_KEY,
+      'x-api-key': claudeKeyOf(env),
       'anthropic-version': '2023-06-01',
     },
     body: JSON.stringify({
@@ -164,27 +203,32 @@ const routes = {
   'GET /': (body, env) => ({
     ok: true,
     service: 'VocabX AI proxy',
-    ready: Boolean(env.GEMINI_API_KEY || env.ANTHROPIC_API_KEY),
+    ready: Boolean(geminiKeyOf(env) || claudeKeyOf(env)),
     engines: {
-      gemini: env.GEMINI_API_KEY ? 'key set' : 'no GEMINI_API_KEY',
-      claude: env.ANTHROPIC_API_KEY ? 'key set' : 'no ANTHROPIC_API_KEY',
+      gemini: geminiKeyOf(env) ? 'key set' : 'no GEMINI_API_KEY',
+      claude: claudeKeyOf(env) ? 'key set' : 'no ANTHROPIC_API_KEY',
     },
     // Unset means this Worker answers any site that finds it, and they spend
     // your credit. Worth seeing at a glance rather than only in the docs.
-    allowedOrigin: env.ALLOWED_ORIGIN || 'NOT SET — this Worker answers any website',
+    allowedOrigin: binding(env, 'ALLOWED_ORIGIN') || 'NOT SET — this Worker answers any website',
+    sees: bindingNames(env),
     next: 'Full status at /api/health. Put this Worker\'s address into the app: Settings → AI help → Your server.',
   }),
 
   'GET /api/health': (body, env) => ({
     ok: true,
-    hasKey: Boolean(env.ANTHROPIC_API_KEY),
+    hasKey: Boolean(claudeKeyOf(env)),
     model: CLAUDE_MODEL,
     push: false,
     runtime: 'cloudflare-worker',
     providers: {
-      anthropic: { ready: Boolean(env.ANTHROPIC_API_KEY), model: CLAUDE_MODEL },
+      anthropic: { ready: Boolean(claudeKeyOf(env)), model: CLAUDE_MODEL },
       gemini: { ready: hasGeminiKey(), model: geminiDefaultModel() },
     },
+    /* Names only, never values. A key in the wrong field, the wrong
+       environment or the wrong Worker all look identical from outside —
+       "no key set" — and this is what tells them apart. */
+    sees: bindingNames(env),
   }),
 
   'POST /api/ai/word': async (body, env) => {
@@ -282,7 +326,7 @@ export default {
 
     // The Gemini client reads its key from here rather than from process.env,
     // which a Worker does not have.
-    configureGemini({ apiKey: env.GEMINI_API_KEY, model: env.GEMINI_MODEL });
+    configureGemini({ apiKey: geminiKeyOf(env), model: binding(env, 'GEMINI_MODEL') });
 
     const url = new URL(request.url);
     const handler = routes[`${request.method} ${url.pathname}`];
