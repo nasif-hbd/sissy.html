@@ -75,6 +75,60 @@ function sameToken(given, expected) {
 }
 
 /**
+ * The feedback inbox, over whichever kind of storage was bound.
+ *
+ * Cloudflare offers KV and D1 side by side in the same "Add binding" menu,
+ * and the two are easy to pick the wrong one of — they take the same variable
+ * name and give no hint that the code cares. Rather than make that a mistake
+ * someone has to diagnose, both work: a binding with `put` is KV, one with
+ * `prepare` is D1, and everything above this line is written once.
+ */
+function inboxOf(env) {
+  const kv = env.FEEDBACK;
+  if (!kv) return null;
+
+  if (typeof kv.put === 'function') {
+    return {
+      kind: 'KV',
+      async save(key, note) { await kv.put(key, JSON.stringify(note)); },
+      async all() {
+        const list = await kv.list({ prefix: 'fb:', limit: 200 });
+        const rows = await Promise.all(list.keys.map(async ({ name }) => {
+          try { return JSON.parse(await kv.get(name)); } catch { return null; }
+        }));
+        return rows.filter(Boolean);
+      },
+    };
+  }
+
+  if (typeof kv.prepare === 'function') {
+    /* One table, made on demand: nobody should have to run a migration by
+       hand to receive a bug report. The note is stored as the same JSON KV
+       holds, so the two are the same shape when they come back out. */
+    const ready = kv.prepare(
+      'CREATE TABLE IF NOT EXISTS feedback (key TEXT PRIMARY KEY, at TEXT, note TEXT)').run();
+    return {
+      kind: 'D1',
+      async save(key, note) {
+        await ready;
+        await kv.prepare('INSERT INTO feedback (key, at, note) VALUES (?, ?, ?)')
+          .bind(key, note.at, JSON.stringify(note)).run();
+      },
+      async all() {
+        await ready;
+        const out = await kv.prepare(
+          'SELECT note FROM feedback ORDER BY at DESC LIMIT 200').all();
+        return (out.results || []).map((r) => {
+          try { return JSON.parse(r.note); } catch { return null; }
+        }).filter(Boolean);
+      },
+    };
+  }
+
+  return null;
+}
+
+/**
  * The names of everything bound to this Worker — never the values.
  *
  * A key typed into the wrong field, the wrong environment or the wrong Worker
@@ -318,9 +372,11 @@ const routes = {
   'POST /api/feedback': async (body, env) => {
     const text = String(body.text || '').trim().slice(0, 4000);
     if (!text) throw new HttpError(400, 'Nothing was written.');
-    if (!env.FEEDBACK) {
+    const inbox = inboxOf(env);
+    if (!inbox) {
       throw new HttpError(503, 'This proxy has no feedback inbox. '
-        + 'Bind a KV namespace called FEEDBACK to it, or use the email option.');
+        + 'Bind a KV namespace (or a D1 database) called FEEDBACK to it, '
+        + 'or use the email option.');
     }
 
     const anonymous = body.anonymous === true;
@@ -339,8 +395,8 @@ const routes = {
        suffix so two notes in the same millisecond cannot overwrite each
        other — which, for anonymous feedback, would lose one silently. */
     const key = `fb:${Date.now().toString().padStart(14, '0')}:${crypto.randomUUID().slice(0, 8)}`;
-    await env.FEEDBACK.put(key, JSON.stringify(note));
-    return { ok: true, data: { stored: true } };
+    await inbox.save(key, note);
+    return { ok: true, data: { stored: true, in: inbox.kind } };
   },
 
   /**
@@ -351,22 +407,20 @@ const routes = {
    * keep the comparison from leaking its prefix through timing.
    */
   'POST /api/feedback/list': async (body, env) => {
-    if (!env.FEEDBACK) throw new HttpError(503, 'No feedback inbox is bound.');
+    const inbox = inboxOf(env);
+    if (!inbox) throw new HttpError(503, 'No feedback inbox is bound.');
     if (!env.FEEDBACK_TOKEN) throw new HttpError(403, 'Reading is off: no FEEDBACK_TOKEN is set.');
     if (!sameToken(String(body.token || ''), env.FEEDBACK_TOKEN)) {
       throw new HttpError(401, 'Wrong token.');
     }
-    const list = await env.FEEDBACK.list({ prefix: 'fb:', limit: 200 });
-    const notes = await Promise.all(list.keys.map(async ({ name }) => {
-      try { return JSON.parse(await env.FEEDBACK.get(name)); } catch { return null; }
-    }));
+    const notes = await inbox.all();
     /* Sorted on what each note says its time is, rather than trusting the
        order the keys came back in: KV guarantees its listing is sorted by
        key, and two notes written in one millisecond differ only by the random
        suffix that stops them overwriting each other. */
     return {
       ok: true,
-      data: notes.filter(Boolean).sort((a, b) => String(b.at).localeCompare(String(a.at))),
+      data: notes.sort((a, b) => String(b.at).localeCompare(String(a.at))),
     };
   },
 

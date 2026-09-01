@@ -183,3 +183,61 @@ test('the reading token is kept outside the deck, so an export cannot carry it',
   assert.doesNotMatch(app, /Store\.set\(['"]settings[^)]*token/i,
     'a token in the deck travels with every export and backup');
 });
+
+/* ── whichever storage got bound ────────────────────────────────────────── */
+
+/**
+ * Cloudflare offers KV and D1 side by side in one "Add binding" menu. They
+ * take the same variable name and give no hint that the code cares, so
+ * picking the wrong one is a mistake waiting to be made — and it was. Both
+ * work, and they have to behave identically, or the choice becomes a
+ * difference someone discovers later.
+ */
+function d1() {
+  const rows = [];
+  return {
+    rows,
+    prepare(sql) {
+      return {
+        bind(...args) { this.args = args; return this; },
+        async run() {
+          if (/INSERT/.test(sql)) rows.push({ at: this.args[1], note: this.args[2] });
+          return {};
+        },
+        async all() {
+          return { results: [...rows].sort((a, b) => String(b.at).localeCompare(String(a.at))) };
+        },
+      };
+    },
+  };
+}
+
+for (const [label, make] of [['a KV namespace', inbox], ['a D1 database', d1]]) {
+  test(`feedback stored in ${label} comes back the same`, async () => {
+    const FEEDBACK = make();
+    const env = { FEEDBACK, FEEDBACK_TOKEN: 'tok' };
+
+    await post('/api/feedback', { anonymous: true, kind: 'bug', text: 'froze',
+                                  from: 'leaked@example.com' }, env);
+    await new Promise((done) => setTimeout(done, 2));
+    await post('/api/feedback', { kind: 'idea', text: 'add Spanish', from: 'a@b.c',
+                                  context: { view: 'words' } }, env);
+
+    const back = await (await post('/api/feedback/list', { token: 'tok' }, env)).json();
+    assert.equal(back.data.length, 2);
+    assert.equal(back.data[0].text, 'add Spanish', 'newest first, whichever store');
+    assert.equal(back.data[0].from, 'a@b.c', 'a signed note keeps its address');
+
+    const anon = back.data.find((n) => n.anonymous);
+    assert.equal(anon.from, '', 'and anonymity survives the round trip either way');
+    assert.equal(anon.context, null);
+  });
+}
+
+test('a binding that is neither is treated as no inbox at all', async () => {
+  // Something bound under the right name that cannot store anything must not
+  // look like success — a note accepted and dropped is the worst outcome.
+  const res = await post('/api/feedback', { text: 'hello' }, { FEEDBACK: { nonsense: true } });
+  assert.equal(res.status, 503);
+  assert.match((await res.json()).error, /KV namespace \(or a D1 database\)/);
+});

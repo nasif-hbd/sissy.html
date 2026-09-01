@@ -19,10 +19,16 @@ ALLOWED_ORIGIN = "https://vocabx.ylarena.online"
 # Settings → Variables and Secrets in the dashboard. A key written here would
 # be committed to your repository.
 
-# The feedback inbox. Create a KV namespace, then put its id here — or bind it
-# in the dashboard under Settings → Bindings, which needs no CLI. Without it
-# /api/feedback answers 503 and says so, rather than accepting notes and
-# dropping them.
+# The feedback inbox. Either kind works — the Worker looks at what it was
+# handed rather than at which menu item was clicked — so a KV namespace or a
+# D1 database, both bound as FEEDBACK. In the dashboard it is the Bindings
+# tab, not Settings. Without one, /api/feedback answers 503 and says so
+# rather than accepting notes and dropping them.
 # [[kv_namespaces]]
 # binding = "FEEDBACK"
 # id = "paste-the-namespace-id-here"
+
+# [[d1_databases]]
+# binding = "FEEDBACK"
+# database_name = "vocabx-feedback"
+# database_id = "paste-the-database-id-here"
