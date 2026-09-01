@@ -13,7 +13,7 @@ import { schedule, buildQueue, bucket, plannedSession, queueCounts, spokenDelta 
 import { makeSessionTimer, reportPayload, weakest, summary, window as windowStats, recentDays,
          dashboard, recentlyLearned, activeDays } from './stats.js';
 import { Notifier, Push } from './notify.js';
-import { AIClient } from './ai.js';
+import { AIClient, baseOf } from './ai.js';
 import {
   $, $$, el, icon, toast, announce, applyTheme, switchView, renderHeader, renderQueueSummary,
   renderCard, renderEmptyQueue, renderWordList, renderProgress, renderSuggestions,
@@ -1976,7 +1976,11 @@ function wireSettings() {
   }
 
   $('#aiEndpoint').addEventListener('change', (e) => {
-    Store.set('settings.ai.endpoint', e.target.value.trim());
+    // Stored as it will be used, so the box never shows one thing while the
+    // app sends another — a pasted /api/health is the common case.
+    const base = baseOf(e.target.value);
+    e.target.value = base;
+    Store.set('settings.ai.endpoint', base);
     showEndpointHelp();
     refreshAIStatus();
   });

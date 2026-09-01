@@ -20,6 +20,22 @@ import { localAnswer, OFFLINE_MISS } from './chat.js';
 
 const cfg = () => Store.state.settings.ai;
 
+/**
+ * The address, less anything that is not the address.
+ *
+ * This field wants the base — the app appends its own routes. But the thing
+ * people have in the clipboard is whatever they were last told to open, which
+ * is usually the health check, and pasting that produced a request for
+ * /api/health/api/health and a 404 that blamed the server. A trailing route is
+ * dropped rather than being made someone's problem to spot.
+ */
+export function baseOf(endpoint) {
+  return String(endpoint || '')
+    .trim()
+    .replace(/\/+$/, '')
+    .replace(/\/api(\/[\w-]*)*$/i, '');
+}
+
 export const AIClient = {
   get mode() { return cfg().mode; },
   /**
@@ -64,8 +80,7 @@ export const AIClient = {
   },
 
   url(route) {
-    const base = (cfg().endpoint || '').replace(/\/+$/, '');
-    return `${base}${route}`;
+    return `${baseOf(cfg().endpoint)}${route}`;
   },
 
   /** Is the proxy reachable? Returns a short human-readable status string. */
@@ -73,6 +88,15 @@ export const AIClient = {
     if (!this.isLive) return 'Built-in tutor — answers come from the dictionary on this device.';
     try {
       const res = await fetch(this.url(AI.routes.health), { signal: timeout(6000) });
+      /* A 404 is the one status that is not a server problem: something
+         answered, and it was not the proxy. Almost always the address is
+         right but nothing is deployed at it yet — "check the server logs"
+         sends someone looking for a server that is not running. */
+      if (res.status === 404) {
+        const at = baseOf(cfg().endpoint) || location.origin;
+        return `No proxy at ${at} — that address answered, but it has no /api routes. `
+          + 'Deploy the proxy there, or point this at where it is running.';
+      }
       if (!res.ok) return `Proxy responded ${res.status}. Check the server logs.`;
       const body = await res.json();
       const info = body.providers?.[this.provider];

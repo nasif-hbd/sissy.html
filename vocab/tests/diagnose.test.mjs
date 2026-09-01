@@ -110,3 +110,35 @@ test('the clear-the-address offer appears only where it is certainly right', asy
   assert.equal(offer('https://vocabx.ylarena.online', ''), false,
     'already empty, so there is nothing to offer');
 });
+
+/**
+ * The address box, given what people actually have in the clipboard.
+ *
+ * It wants the base — the app appends its own routes. What gets pasted is
+ * whatever the person was last told to open, which is the health check, and
+ * that produced a request for /api/health/api/health and a 404 blaming the
+ * server for the app's own mistake.
+ */
+test('a pasted route is trimmed back to the address', async () => {
+  const { baseOf } = await import('../js/ai.js');
+  assert.equal(baseOf('https://vocabx.ylarena.online/api/health'), 'https://vocabx.ylarena.online');
+  assert.equal(baseOf('https://proxy.workers.dev/api/ai/ask'), 'https://proxy.workers.dev');
+  assert.equal(baseOf('https://proxy.workers.dev/api'), 'https://proxy.workers.dev');
+  assert.equal(baseOf('https://proxy.workers.dev/api/'), 'https://proxy.workers.dev');
+});
+
+test('an address that is already an address is left alone', async () => {
+  const { baseOf } = await import('../js/ai.js');
+  assert.equal(baseOf('https://proxy.workers.dev'), 'https://proxy.workers.dev');
+  assert.equal(baseOf('https://proxy.workers.dev/'), 'https://proxy.workers.dev');
+  assert.equal(baseOf('http://localhost:8787'), 'http://localhost:8787');
+  // A path that merely starts with the letters is not the app's route.
+  assert.equal(baseOf('https://host.example/apiary'), 'https://host.example/apiary');
+});
+
+test('an empty box stays empty, which is how same-origin is spelled', async () => {
+  const { baseOf } = await import('../js/ai.js');
+  assert.equal(baseOf(''), '');
+  assert.equal(baseOf('   '), '');
+  assert.equal(baseOf(undefined), '');
+});
