@@ -198,3 +198,23 @@ test('the proxy is pinned to its own origin, whatever the environment says', asy
   const res = await site('/api/health', { ASSETS, GEMINI_API_KEY: 'k', ALLOWED_ORIGIN: 'https://somewhere.else' });
   assert.equal(res.headers.get('access-control-allow-origin'), 'https://vocabx.example');
 });
+
+test('a key set on the project always beats one baked into the build', async () => {
+  // build-worker.sh --key writes a fallback into the bundle. It must stay a
+  // fallback: a key rotated in the dashboard has to take effect without a
+  // rebuild, or rotating it is not actually possible.
+  const withSecret = await site('/api/health', { ASSETS, GEMINI_API_KEY: 'from-the-dashboard' });
+  assert.equal((await withSecret.json()).providers.gemini.ready, true);
+
+  const bare = await site('/api/health', { ASSETS });
+  assert.equal((await bare.json()).providers.gemini.ready, false,
+    'a clean build carries no key of its own');
+});
+
+test('the Worker source is never served, whatever Pages does with it', async () => {
+  // Pages keeps _worker.js out of the static assets, so this should never
+  // fire — which is why it is here. A build can have a key baked into it,
+  // and one misconfiguration away from being downloadable is too close.
+  assert.equal((await site('/_worker.js')).status, 404);
+  assert.equal((await site('/_WORKER.JS')).status, 404, 'and not by changing the case');
+});
