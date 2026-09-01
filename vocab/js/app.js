@@ -1917,6 +1917,7 @@ function wireSettings() {
      Settings was opened, so clearing it — which is what you do when the proxy
      serves the app itself — looked like it had not worked. */
   $('#aiEndpoint').value = s.ai.endpoint ?? AICFG.defaultEndpoint;
+  showEndpointHelp();
   const modelSelect = $('#aiModel');
 
   $('#aiModePicker').replaceChildren(...Object.entries(PROVIDERS).map(([id, p]) =>
@@ -1947,6 +1948,23 @@ function wireSettings() {
     modelSelect.value = models.some((m) => m.id === saved) ? saved : models[0].id;
   };
 
+  /**
+   * Offer the one-press fix for the one address that cannot work.
+   *
+   * A published page pointed at localhost is the mistake everybody makes,
+   * because it is the development default and it works perfectly on the
+   * machine that set it up. Explaining that in a paragraph is worse than
+   * offering the button.
+   */
+  function showEndpointHelp() {
+    const endpoint = Store.state.settings.ai.endpoint || '';
+    let host = '';
+    try { host = new URL(endpoint).hostname; } catch { host = ''; }
+    const pointsAtThisMachine = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0)$/i.test(host);
+    const pageIsLocal = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\])$/i.test(location.hostname);
+    $('#aiEndpointClear').hidden = !(pointsAtThisMachine && !pageIsLocal);
+  }
+
   async function refreshAIStatus() {
     const text = $('#aiStatusText');
     const dot = $('#aiStatus');
@@ -1959,6 +1977,13 @@ function wireSettings() {
 
   $('#aiEndpoint').addEventListener('change', (e) => {
     Store.set('settings.ai.endpoint', e.target.value.trim());
+    showEndpointHelp();
+    refreshAIStatus();
+  });
+  $('#aiEndpointClear').addEventListener('click', () => {
+    $('#aiEndpoint').value = '';
+    Store.set('settings.ai.endpoint', '');
+    showEndpointHelp();
     refreshAIStatus();
   });
   modelSelect.addEventListener('change', (e) => {

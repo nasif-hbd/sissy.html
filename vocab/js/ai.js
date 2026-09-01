@@ -235,8 +235,9 @@ export function diagnose(err, endpoint = cfg().endpoint || '') {
      it looks fine to whoever set it up and is broken for everybody. */
   if (serverIsLocal && !pageIsLocal) {
     return `the address is ${url.host}, which means "this computer" — so a page served from `
-      + `${location.host} cannot reach it. Host the proxy in vocab/server somewhere public and `
-      + 'put that address in Settings → AI help.';
+      + `${location.host} cannot reach it. If this site is serving the proxy too, empty the `
+      + 'address box in Settings → AI help. Otherwise host the proxy in vocab/server somewhere '
+      + 'public and put that address there.';
   }
   if (pageIsHttps && url.protocol === 'http:') {
     return `this page is on https and the server address is http, which browsers block. `

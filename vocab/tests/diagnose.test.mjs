@@ -82,3 +82,31 @@ test('an error the server actually sent is passed through untouched', async () =
   const said = diagnose(new Error('Gemini rejected the key (401).'));
   assert.equal(said, 'Gemini rejected the key (401).');
 });
+
+/**
+ * The address box's own escape hatch.
+ *
+ * `localhost` is the development default, so a published site inherits it and
+ * fails on every request — the mistake is nearly universal and the fix is one
+ * empty field. The offer to empty it may only appear where it is certainly
+ * right: pointing at this machine, from a page that is not on it.
+ */
+test('the clear-the-address offer appears only where it is certainly right', async () => {
+  const local = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0)$/i;
+  const hostOf = (endpoint) => { try { return new URL(endpoint).hostname; } catch { return ''; } };
+  // The same condition the settings panel applies, stated once here so a
+  // change to either has to be a change to both.
+  const offer = (page, endpoint) =>
+    local.test(hostOf(endpoint)) && !local.test(new URL(page).hostname);
+
+  assert.equal(offer('https://vocabx.ylarena.online', 'http://localhost:8787'), true,
+    'a published site pointed at localhost is the case this exists for');
+  assert.equal(offer('https://vocabx.ylarena.online', 'http://127.0.0.1:8787'), true);
+
+  assert.equal(offer('http://localhost:8000', 'http://localhost:8787'), false,
+    'two ports on one machine is the documented development setup');
+  assert.equal(offer('https://vocabx.ylarena.online', 'https://proxy.example.com'), false,
+    'a real remote address may simply be down — emptying it would be wrong');
+  assert.equal(offer('https://vocabx.ylarena.online', ''), false,
+    'already empty, so there is nothing to offer');
+});

@@ -820,6 +820,11 @@
             <label class="field">
               <span>Your server</span>
               <input class="input" id="aiEndpoint" type="text" placeholder="https://your-proxy.example.com">
+              <!-- Shown only when the address cannot possibly work from here: it names a
+                   computer this page is not being served from. One press is a better
+                   answer than a paragraph explaining why. -->
+              <button class="btn btn--quiet btn--sm btn--inline" id="aiEndpointClear" type="button" hidden>
+                <svg class="ico ico--sm" aria-hidden="true"><use href="#i-check"/></svg>This site serves it — clear the address</button>
               <span class="hint">The address your proxy is reachable at. Leave it empty if the proxy
                  is serving this page too — then there is nothing to get wrong. A
                  <code>localhost</code> address only ever works on the computer running the proxy.</span>
