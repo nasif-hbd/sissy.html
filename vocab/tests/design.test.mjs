@@ -160,3 +160,13 @@ test('the interface carries no emoji — printer\'s marks only', () => {
     assert.equal(hit, -1, `${file}:${hit + 1} contains emoji: ${source.split('\n')[hit]?.trim()}`);
   }
 });
+
+test('the build marker matches the service worker cache it ships with', () => {
+  // They are bumped together, and a mismatch means the browser can be told it
+  // is running a build whose files it does not actually have.
+  const declared = read('js/config.js').match(/build:\s*'([^']+)'/)?.[1];
+  const cache = read('sw.js').match(/CACHE = 'vocabx-(v\d+)'/)?.[1];
+  assert.ok(declared, 'APP.build is missing');
+  assert.equal(declared, cache,
+    `Settings would report ${declared} while the cache is ${cache} — bump both`);
+});

@@ -9,6 +9,15 @@ export const APP = {
   storageKey: 'vocabx.state.v1',
   schemaVersion: 1,
   /**
+   * Which build is actually running, printed at the foot of Settings.
+   *
+   * A PWA keeps serving itself from its own cache, so "I deployed it" and
+   * "the browser is running it" are different claims — and telling them apart
+   * by hunting for a changed sentence somewhere in the interface is how an
+   * afternoon disappears. Bumped with the service worker's cache name.
+   */
+  build: 'v26',
+  /**
    * Where feedback goes when there is no proxy to post it to.
    *
    * The hosted build has no server behind it, so "Send" can only save the note

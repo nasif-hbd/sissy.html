@@ -1830,6 +1830,9 @@ function wireProgress() {
 
 // ── settings ───────────────────────────────────────────────────────────────
 function wireSettings() {
+  // Which build the browser is actually running, as opposed to which one was
+  // last uploaded. A service worker makes those two different things.
+  $('#appBuild').textContent = APP.build;
   const s = Store.state.settings;
 
   // reminders
