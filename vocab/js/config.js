@@ -16,7 +16,7 @@ export const APP = {
    * by hunting for a changed sentence somewhere in the interface is how an
    * afternoon disappears. Bumped with the service worker's cache name.
    */
-  build: 'v26',
+  build: 'v27',
   /**
    * Where feedback goes when there is no proxy to post it to.
    *
@@ -123,6 +123,19 @@ export const PROVIDERS = {
 
 export const AI = {
   defaultMode: 'mock',
+  /**
+   * Where the AI server is. Set once, here, for everyone using this build.
+   *
+   * Empty means "the same address this app is served from", which is right
+   * whenever the proxy serves the app too — and is right without anyone
+   * having to know it, which is the point. Put a full https:// address here
+   * to point a build at a proxy hosted somewhere else.
+   *
+   * Asking each person for this was the mistake: it is a property of the
+   * deployment, not a preference, and the one person who knows the answer is
+   * whoever deployed it.
+   */
+  proxyUrl: 'https://vocabx-proxy.mdmukul666343.workers.dev',
   defaultEndpoint: 'http://localhost:8787',
   /**
    * The cheapest model that does this job well. Every call is short and

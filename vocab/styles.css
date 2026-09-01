@@ -701,6 +701,18 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 }
 .module__meter i.is-done { background: var(--ok); }
 
+/* A setting that is a deployment's business, not a reader's. Closed by
+   default, and quiet enough that nobody feels they have to open it. */
+.advanced { margin-top: 4px; }
+.advanced > summary {
+  cursor: pointer; list-style: none; padding: 6px 0;
+  font-family: var(--sans); font-size: 12.5px; font-weight: 600; color: var(--ink-3);
+}
+.advanced > summary::-webkit-details-marker { display: none; }
+.advanced > summary::before { content: "▸ "; color: var(--ink-3); }
+.advanced[open] > summary::before { content: "▾ "; }
+@media (hover: hover) { .advanced > summary:hover { color: var(--accent); } }
+
 /* ── home: the dashboard ────────────────────────────────────────────────────
    Home is the one view that is a dashboard rather than a page of prose, so it
    opts out of the reading measure and lays itself out across the shell. */

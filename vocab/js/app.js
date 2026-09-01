@@ -1919,7 +1919,7 @@ function wireSettings() {
      localhost default here put that address back in the box every time
      Settings was opened, so clearing it — which is what you do when the proxy
      serves the app itself — looked like it had not worked. */
-  $('#aiEndpoint').value = s.ai.endpoint ?? AICFG.defaultEndpoint;
+  $('#aiEndpoint').value = s.ai.endpoint ?? AICFG.proxyUrl;
   showEndpointHelp();
   const modelSelect = $('#aiModel');
 

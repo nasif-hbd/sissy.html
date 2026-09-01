@@ -817,18 +817,24 @@
           <p class="hint" id="aiProviderBlurb"></p>
           <p class="status" id="aiStatus"><i class="status__dot"></i><span id="aiStatusText">Checking…</span></p>
           <div id="aiProxyFields" hidden>
-            <label class="field">
-              <span>Your server</span>
-              <input class="input" id="aiEndpoint" type="text" placeholder="https://your-proxy.example.com">
-              <!-- Shown only when the address cannot possibly work from here: it names a
-                   computer this page is not being served from. One press is a better
-                   answer than a paragraph explaining why. -->
-              <button class="btn btn--quiet btn--sm btn--inline" id="aiEndpointClear" type="button" hidden>
-                <svg class="ico ico--sm" aria-hidden="true"><use href="#i-check"/></svg>This site serves it — clear the address</button>
-              <span class="hint">The address your proxy is reachable at. Leave it empty if the proxy
-                 is serving this page too — then there is nothing to get wrong. A
-                 <code>localhost</code> address only ever works on the computer running the proxy.</span>
-            </label>
+            <!-- The server's address is a property of the deployment, not a
+                 preference, and the one person who knows it is whoever deployed
+                 this build. It lives in config.js now; this is here for the rare
+                 case of pointing one build at someone else's proxy. -->
+            <details class="advanced">
+              <summary>Advanced — where the server is</summary>
+              <label class="field">
+                <span>Server address</span>
+                <input class="input" id="aiEndpoint" type="text" placeholder="This website (recommended)">
+                <button class="btn btn--quiet btn--sm btn--inline" id="aiEndpointClear" type="button" hidden>
+                  <svg class="ico ico--sm" aria-hidden="true"><use href="#i-check"/></svg>Use this website's own server</button>
+                <span class="hint">Leave it empty and the app uses whatever address it is
+                   loaded from, which is right when the same deployment serves both. Only
+                   fill this in to point at a proxy hosted somewhere else. A
+                   <code>localhost</code> address only ever works on the computer running
+                   the proxy.</span>
+              </label>
+            </details>
             <label class="field">
               <span>Model</span>
               <select class="input input--select" id="aiModel"></select>

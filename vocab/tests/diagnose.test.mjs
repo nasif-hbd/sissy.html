@@ -142,3 +142,33 @@ test('an empty box stays empty, which is how same-origin is spelled', async () =
   assert.equal(baseOf('   '), '');
   assert.equal(baseOf(undefined), '');
 });
+
+/**
+ * The built-in address.
+ *
+ * Where the AI server lives is a property of the deployment, not a preference,
+ * and the one person who knows the answer is whoever deployed the build. It
+ * used to be a question every reader was asked, and every reader got it wrong
+ * the same way — by keeping the localhost default the app shipped with.
+ */
+test('the build carries an address nobody has to be asked for', async () => {
+  const { AI } = await import('../js/config.js');
+  assert.equal(typeof AI.proxyUrl, 'string');
+  // Empty is legitimate — it means "wherever this app is served from".
+  if (AI.proxyUrl) {
+    assert.match(AI.proxyUrl, /^https:\/\//,
+      'a baked address must be https, or an https page cannot call it');
+    assert.doesNotMatch(AI.proxyUrl, /localhost|127\.0\.0\.1/,
+      'localhost is a development address and works for nobody else');
+    assert.doesNotMatch(AI.proxyUrl, /\/$/, 'no trailing slash — routes are appended');
+    assert.doesNotMatch(AI.proxyUrl, /\/api/, 'the base only; the app adds its own routes');
+  }
+});
+
+test('a fresh install starts on the built-in address, not on localhost', async () => {
+  const { AI } = await import('../js/config.js');
+  const { Store } = await import('../js/store.js');
+  // freshState() is what a new browser gets; it must not need editing.
+  const fresh = Store.freshState ? Store.freshState() : null;
+  if (fresh) assert.equal(fresh.settings.ai.endpoint, AI.proxyUrl);
+});
