@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="VocabX — an English vocabulary learning app template with spaced repetition, reminders, progress tracking and Claude AI integration.">
+<meta name="description" content="VocabX — an English vocabulary learning app with spaced repetition, reminders, progress tracking and a built-in tutor, with optional Claude or Gemini help.">
 <meta name="theme-color" content="#f4f5f7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#0e1116" media="(prefers-color-scheme: dark)">
 <title>VocabX — English Vocabulary Trainer</title>
@@ -253,9 +253,14 @@
               <svg class="ico" aria-hidden="true"><use href="#i-bulb"/></svg>
               <p id="cardMnemonic"></p>
             </div>
+            <!-- Whatever the engine wrote, and the one way on from it: the
+                 explanation used to be a dead end, so a follow-up meant
+                 leaving the card and retyping the word in another tab. -->
             <div class="ai-slot" id="aiSlot" hidden>
               <div class="ai-slot__head"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-bulb"/></svg><span id="aiSlotTitle">Help</span></div>
               <div class="ai-slot__body" id="aiSlotBody"></div>
+              <button class="btn btn--quiet btn--sm ai-slot__ask" id="cardAsk" type="button">
+                <svg class="ico ico--sm" aria-hidden="true"><use href="#i-bulb"/></svg>Ask a follow-up</button>
             </div>
           </div>
 
@@ -328,7 +333,13 @@
             <button class="btn btn--primary" id="coachSubmit" type="button"><svg class="ico" aria-hidden="true"><use href="#i-pen"/></svg>Check my sentence</button>
             <button class="btn btn--quiet" id="coachNew" type="button">Another word</button>
           </div>
-          <div class="ai-stream" id="coachOutput" hidden></div>
+          <!-- The correction, whoever wrote it, and a way to argue with it. -->
+          <div class="ai-slot" id="coachSlot" hidden>
+            <div class="ai-slot__head"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-pen"/></svg><span id="coachSlotTitle">Feedback</span></div>
+            <div class="ai-slot__body" id="coachOutput"></div>
+            <button class="btn btn--quiet btn--sm ai-slot__ask" id="coachAsk" type="button">
+              <svg class="ico ico--sm" aria-hidden="true"><use href="#i-bulb"/></svg>Ask a follow-up</button>
+          </div>
         </div>
       </div>
     </section>
@@ -571,6 +582,8 @@
             <div class="ai-slot" id="testAiSlot" hidden>
               <div class="ai-slot__head"><svg class="ico ico--sm" aria-hidden="true"><use href="#i-bulb"/></svg><span id="testAiTitle">Why</span></div>
               <div class="ai-slot__body" id="testAiBody"></div>
+              <button class="btn btn--quiet btn--sm ai-slot__ask" id="testAsk" type="button">
+                <svg class="ico ico--sm" aria-hidden="true"><use href="#i-bulb"/></svg>Ask a follow-up</button>
             </div>
 
             <div class="card__actions">

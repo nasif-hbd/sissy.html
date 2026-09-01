@@ -98,7 +98,7 @@ export async function localAnswer(question) {
 
   const entry = await Catalog.lookup(term).catch(() => null);
   if (!entry) {
-    return `“${term}” is not in the built-in dictionary. Check the spelling, or turn on Claude in Settings and I can answer properly.`;
+    return `“${term}” is not in the built-in dictionary. Check the spelling, or turn on Claude or Gemini in Settings and I can answer properly.`;
   }
 
   const intent = intentOf(question);
@@ -138,7 +138,7 @@ async function compare([a, b]) {
     Catalog.lookup(b).catch(() => null),
   ]);
   if (!ea && !eb) {
-    return `Neither “${a}” nor “${b}” is in the built-in dictionary. Turn on Claude in Settings for questions like this.`;
+    return `Neither “${a}” nor “${b}” is in the built-in dictionary. Turn on Claude or Gemini in Settings for questions like this.`;
   }
   const lines = [];
   for (const [word, entry] of [[a, ea], [b, eb]]) {
@@ -149,7 +149,7 @@ async function compare([a, b]) {
   if (ea && eb && ea.pos && eb.pos && ea.pos !== eb.pos) {
     lines.push('', `The clearest split is grammatical: one is ${article(ea.pos)} ${ea.pos}, the other ${article(eb.pos)} ${eb.pos}.`);
   }
-  lines.push('', 'For how they differ in real use, turn on Claude in Settings — that is a question the dictionary alone cannot settle.');
+  lines.push('', 'For how they differ in real use, turn on Claude or Gemini in Settings — that is a question the dictionary alone cannot settle.');
   return lines.join('\n');
 }
 
@@ -157,7 +157,7 @@ const article = (w) => (/^[aeiou]/i.test(w) ? 'an' : 'a');
 
 /** What to say when the question is beyond the offline half. */
 export const OFFLINE_MISS = [
-  'That one needs Claude. The built-in tutor can define a word, compare two, list synonyms and show examples — all from the dictionary on your device — but an open question like this needs a model to answer it.',
+  'That one needs a live engine. The built-in tutor can define a word, compare two, list synonyms and show examples — all from the dictionary on your device — but an open question like this needs a model to answer it.',
   '',
-  'Settings → AI help → Claude. Or ask me about a specific word and I will answer from the dictionary.',
+  'Settings → AI help → Claude or Gemini. Or ask me about a specific word and I will answer from the dictionary.',
 ].join('\n');

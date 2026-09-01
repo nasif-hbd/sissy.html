@@ -45,6 +45,23 @@ export const AIClient = {
   get model() {
     return this.provider === 'gemini' ? cfg().geminiModel : cfg().model;
   },
+  /**
+   * Who is answering, in the words the app puts on screen.
+   *
+   * Every AI surface used to be labelled "Claude" in the markup, so with
+   * Gemini chosen the app said Claude while Google answered — and there was
+   * no way at all to tell which engine had written what you were reading.
+   * One getter, so a new engine cannot be added and left half-named again.
+   */
+  get engine() {
+    return this.isLive ? this.providerLabel : 'Built-in tutor';
+  },
+  /** The same, with the exact model — for a tooltip or a status line. */
+  get engineDetail() {
+    return this.isLive
+      ? `${this.providerLabel} · ${this.model}`
+      : 'Answering from the dictionary on this device';
+  },
 
   url(route) {
     const base = (cfg().endpoint || '').replace(/\/+$/, '');

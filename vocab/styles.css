@@ -454,6 +454,14 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 }
 .ai-slot__head .ico { color: var(--info); }
 .ai-slot__body { font-size: 14.5px; line-height: 1.55; color: var(--ink-2); white-space: pre-wrap; }
+/* The way on from an explanation. Quiet, and inside the panel it continues,
+   so it reads as "more of this" rather than as another action on the card. */
+.ai-slot__ask {
+  margin-top: 11px; min-height: 34px; padding: 0 11px;
+  background: var(--card); border-color: var(--edge); color: var(--ink-2);
+  font-size: 12.5px;
+}
+.ai-slot__ask .ico { color: var(--info); }
 
 .card__actions { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
 .card__tools { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -608,6 +616,19 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
   animation: blink 1s steps(2, start) infinite;
 }
 .bubble.is-failed { color: var(--danger); }
+/* What the chat was opened about, when it was opened from a card or a test
+   rather than typed cold. */
+.bubble__about {
+  align-self: flex-end; max-width: 86%; margin-bottom: -4px;
+  font-family: var(--sans); font-size: 11px; font-weight: 600;
+  letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);
+}
+/* Who wrote the reply above. The engine is a setting that can change between
+   one answer and the next, so the log says it per answer. */
+.bubble__by {
+  align-self: flex-start; margin: -4px 0 2px 3px;
+  font-family: var(--sans); font-size: 11px; color: var(--ink-3);
+}
 @keyframes blink { to { visibility: hidden; } }
 
 .chat__bar {

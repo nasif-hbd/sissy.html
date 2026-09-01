@@ -22,7 +22,7 @@ export async function localWord(term, level) {
       mnemonic: '',
       level: level || '',
       tags: ['custom'],
-      note: `“${term}” is not in the built-in dictionary. Add your own meaning, or turn on Claude in Settings.`,
+      note: `“${term}” is not in the built-in dictionary. Add your own meaning, or turn on Claude or Gemini in Settings.`,
     };
   }
   return {
@@ -86,7 +86,7 @@ export async function localExplain(word, level) {
   if (!out.filter(Boolean).length) {
     out.push(definition
       ? `The card already has the whole entry for “${word.term}”. Cover the meaning and say it out loud before you grade it — recall is what moves the card forward.`
-      : `There is no entry for “${word.term}” on the device. Turn on Claude in Settings for a written explanation.`);
+      : `There is no entry for “${word.term}” on the device. Turn on Claude or Gemini in Settings for a written explanation.`);
   }
   return out.join('\n').trim();
 }

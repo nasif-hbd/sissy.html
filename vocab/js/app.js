@@ -276,6 +276,15 @@ function wireLearn() {
     btn.addEventListener('click', () => gradeCard(Number(btn.dataset.grade)));
   }
   $('#explainBtn').addEventListener('click', aiCardHelp);
+  $('#cardAsk').addEventListener('click', () => {
+    const word = currentWord();
+    if (!word) return;
+    askAbout({
+      about: `About “${word.term}”`,
+      question: `I am studying "${word.term}"${word.definition ? ` — "${word.definition}"` : ''}. `
+        + 'Explain it another way, and show me how it differs from a word people confuse it with.',
+    });
+  });
 }
 
 function refillQueue() {
@@ -435,7 +444,8 @@ async function aiCardHelp() {
   const body = $('#aiSlotBody');
   const btn = $('#explainBtn');
   slot.hidden = false;
-  $('#aiSlotTitle').textContent = AIClient.isLive ? 'Claude' : 'From the dictionary';
+  $('#aiSlotTitle').textContent = AIClient.engine;
+  $('#aiSlot').title = AIClient.engineDetail;
   body.textContent = '';
   body.classList.add('cursor');
   btn.disabled = true;
@@ -450,7 +460,7 @@ async function aiCardHelp() {
       if (examples.length) Store.updateWord(word.id, { examples });
     }
   } catch (err) {
-    body.textContent = `Could not reach Claude: ${err.message}`;
+    body.textContent = `Could not reach ${AIClient.engine}: ${err.message}`;
   } finally {
     body.classList.remove('cursor');
     btn.disabled = false;
@@ -476,6 +486,19 @@ function wirePractice() {
   $('#undoBtn').addEventListener('click', undoGrade);
   $('#coachSubmit').addEventListener('click', runCoach);
   $('#coachNew').addEventListener('click', pickCoachWord);
+  /* A correction you disagree with is the other moment a learner wants to
+     ask something, and the panel used to end the conversation. */
+  $('#coachAsk').addEventListener('click', () => {
+    const word = Store.state.words[session.coachWordId];
+    const sentence = $('#coachInput').value.trim();
+    if (!word) return;
+    askAbout({
+      about: `About my sentence with “${word.term}”`,
+      question: `I wrote: "${sentence}"\n\nusing the word "${word.term}"`
+        + `${word.definition ? ` ("${word.definition}")` : ''}. `
+        + 'What would a native speaker have written instead, and why?',
+    });
+  });
 }
 
 function ensurePracticeSeed() {
@@ -608,7 +631,7 @@ function pickCoachWord() {
   session.coachWordId = word.id;
   $('#coachWord').textContent = word.term;
   $('#coachInput').value = '';
-  $('#coachOutput').hidden = true;
+  $('#coachSlot').hidden = true;
   $('#coachOutput').textContent = '';
 }
 
@@ -619,7 +642,9 @@ async function runCoach() {
   if (sentence.length < 6) { toast('Write a full sentence first.', 'bad'); return; }
 
   const out = $('#coachOutput');
-  out.hidden = false;
+  $('#coachSlot').hidden = false;
+  $('#coachSlot').title = AIClient.engineDetail;
+  $('#coachSlotTitle').textContent = AIClient.engine;
   out.textContent = '';
   out.classList.add('cursor');
   $('#coachSubmit').disabled = true;
@@ -635,7 +660,7 @@ async function runCoach() {
     claimDailyBonuses();
     renderHeader(Store.state);
   } catch (err) {
-    out.textContent = `Could not reach the AI: ${err.message}`;
+    out.textContent = `Could not reach ${AIClient.engine}: ${err.message}`;
   } finally {
     out.classList.remove('cursor');
     $('#coachSubmit').disabled = false;
@@ -1021,7 +1046,7 @@ async function addWord() {
 
   const useAI = $('#addWithAI').checked;
   input.disabled = true;
-  hint.textContent = useAI ? 'Asking Claude for a definition…' : '';
+  hint.textContent = useAI ? `Asking ${AIClient.engine} for a definition…` : '';
 
   try {
     // 117,000 words ship with the app, so most additions never need the network.
@@ -1059,6 +1084,10 @@ function openWord(word) {
 function wordMenu(word) {
   actionSheet(`${word.term} — ${bucket(Store.state.srs[word.id])}`, [
     { label: 'Study this word now', icon: 'study', run: () => openWord(word) },
+    { label: 'Ask the tutor about it', icon: 'bulb', run: () => askAbout({
+      about: `About “${word.term}”`,
+      question: `Explain "${word.term}" to me${word.definition ? ` — I have it down as "${word.definition}"` : ''}. Give me one example sentence I would actually use.`,
+    }) },
     { label: 'Explain it again', icon: 'bulb', run: () => refreshWithAI(word) },
     { label: 'Start it over', icon: 'back', run: () => {
       Store.commit((s) => { s.srs[word.id] = makeSrs(); });
@@ -1074,7 +1103,7 @@ function wordMenu(word) {
 }
 
 async function refreshWithAI(word) {
-  toast('Asking Claude…');
+  toast(`Asking ${AIClient.engine}…`);
   try {
     const data = await AIClient.enrichWord(word.term, { level: Store.state.profile.level });
     Store.updateWord(word.id, { ...data, term: word.term });
@@ -1328,6 +1357,27 @@ function wireTest() {
   $('#testSubmit').addEventListener('click', checkAnswer);
   $('#testNext').addEventListener('click', nextTestQuestion);
   $('#testExplain').addEventListener('click', explainQuestion);
+  /* A question you got wrong is the moment you most want to ask something, and
+     it used to be the moment the app gave you nowhere to ask it. */
+  $('#testAsk').addEventListener('click', () => {
+    const q = lab.questions[lab.at];
+    if (!q) return;
+    const right = q.options?.[q.answerIndex] || q.accept?.[0] || q.definition || '';
+    const grammar = q.subject === 'grammar';
+    /* Only the multiple-choice and gap-fill modes have a "question" to quote.
+       In flashcard and type mode the prompt is the word itself, and quoting a
+       bare word back as a question reads like nonsense. */
+    const asked = q.options?.length
+      ? `I am practising ${grammar ? 'grammar' : 'vocabulary'} and got this question:\n\n"${q.prompt}"\n\n`
+        + (right ? `The answer is "${right}". ` : '')
+        + 'Explain why, simply, and give me one more example of the same point.'
+      : `I am practising ${grammar ? 'grammar' : 'vocabulary'} and just met "${q.term || q.prompt}"`
+        + `${right ? ` — "${right}"` : ''}. Explain it simply, and give me one example sentence.`;
+    askAbout({
+      about: grammar ? 'About a grammar question' : `About “${q.term || q.prompt}”`,
+      question: asked,
+    });
+  });
   $('#testTypeInput').addEventListener('keydown', (e) => { if (e.key === 'Enter') checkAnswer(); });
 
   renderTestSubjects(SUBJECTS, (id) => {
@@ -1442,7 +1492,8 @@ async function explainQuestion() {
   const body = $('#testAiBody');
   const btn = $('#testExplain');
   $('#testAiSlot').hidden = false;
-  $('#testAiTitle').textContent = AIClient.isLive ? AIClient.providerLabel : 'From the dictionary';
+  $('#testAiTitle').textContent = q.subject === 'grammar' && q.why ? 'The rule' : AIClient.engine;
+  $('#testAiSlot').title = AIClient.engineDetail;
   body.textContent = '';
   body.classList.add('cursor');
   btn.disabled = true;
@@ -1460,7 +1511,7 @@ async function explainQuestion() {
       history: [], level: Store.state.profile.level,
     }, (t) => { body.textContent += t; });
   } catch (err) {
-    body.textContent = `Could not reach the tutor: ${err.message}`;
+    body.textContent = `Could not reach ${AIClient.engine}: ${err.message}`;
   } finally {
     body.classList.remove('cursor');
     btn.disabled = false;
@@ -1488,11 +1539,26 @@ function wireAsk() {
 
 function drawChatMode() {
   $('#chatMode').textContent = AIClient.isLive
-    ? 'Claude is connected — ask anything about English.'
-    : 'Answering from the dictionary on your device. Turn on Claude in Settings for open questions.';
+    ? `${AIClient.engineDetail} — ask anything about English.`
+    : 'Answering from the dictionary on this device. Turn on Claude or Gemini in Settings for open questions.';
 }
 
-async function sendQuestion(text) {
+/**
+ * Open the tutor on something you are already looking at.
+ *
+ * The chat used to be reachable only from its own tab, and only cold: a
+ * learner reading a card, or one who had just got a test question wrong, had
+ * to switch tabs and retype the word to ask about it. Every AI surface in the
+ * app now hands off to here, and the subject travels with the question so the
+ * tutor is told what you were on — and so the log shows it.
+ */
+function askAbout({ about, question }) {
+  switchView('ask');
+  sendQuestion(question, { about });
+}
+
+/** The subject of the follow-up, kept so the tutor keeps its thread. */
+async function sendQuestion(text, { about = '' } = {}) {
   const question = String(text || '').trim();
   if (!question || chat.busy) return;
 
@@ -1501,8 +1567,12 @@ async function sendQuestion(text) {
   chat.busy = true;
   $('#chatSend').disabled = true;
 
-  chat.messages.push({ role: 'you', text: question });
-  const reply = { role: 'tutor', text: '', pending: true };
+  chat.messages.push({ role: 'you', text: question, about });
+  /* Recorded on the reply rather than read off the setting when the log is
+     drawn: the engine can be changed between one answer and the next, and a
+     log that relabelled its history would be a lie about who wrote what. */
+  const reply = { role: 'tutor', text: '', pending: true,
+                  engine: AIClient.engine, engineDetail: AIClient.engineDetail };
   chat.messages.push(reply);
   drawChat();
 
@@ -1514,7 +1584,7 @@ async function sendQuestion(text) {
       (t) => { reply.text += t; drawChat(); });
     if (!reply.text) reply.text = 'No answer came back. Try again.';
   } catch (err) {
-    reply.text = `Could not reach Claude: ${err.message}`;
+    reply.text = `Could not reach ${AIClient.engine}: ${err.message}`;
     reply.failed = true;
   } finally {
     reply.pending = false;
@@ -1664,7 +1734,8 @@ function currentPlan(result) {
 /** The written read-out — built-in, or Claude when it is connected. */
 async function streamAssessment(result, plan) {
   const body = $('#assessAnalysis');
-  $('#assessSource').textContent = AIClient.isLive ? 'Claude' : 'Built-in';
+  $('#assessSource').textContent = AIClient.engine;
+  $('#assessSource').title = AIClient.engineDetail;
   body.textContent = '';
   body.classList.add('cursor');
   try {
@@ -1676,7 +1747,7 @@ async function streamAssessment(result, plan) {
       deck: { size: Object.keys(Store.state.words).length, streak: Store.state.streak.current },
     }, (t) => { body.textContent += t; });
   } catch (err) {
-    body.textContent = `Could not reach Claude: ${err.message}`;
+    body.textContent = `Could not reach ${AIClient.engine}: ${err.message}`;
   } finally {
     body.classList.remove('cursor');
   }

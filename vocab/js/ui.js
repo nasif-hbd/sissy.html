@@ -703,10 +703,27 @@ export function renderChat(messages) {
   const log = $('#chatLog');
   const intro = $('#chatIntro');
 
-  const bubbles = messages.map((m) => el('div', {
-    class: ['bubble', `bubble--${m.role}`, m.pending ? 'is-pending' : '', m.failed ? 'is-failed' : '']
-      .filter(Boolean).join(' '),
-  }, m.text || (m.pending ? '…' : '')));
+  const bubbles = messages.flatMap((m) => {
+    const bubble = el('div', {
+      class: ['bubble', `bubble--${m.role}`, m.pending ? 'is-pending' : '', m.failed ? 'is-failed' : '']
+        .filter(Boolean).join(' '),
+    }, m.text || (m.pending ? '…' : ''));
+
+    /* A line of context above the question, when the chat was opened from a
+       card or a test rather than typed cold — so it is plain what the tutor
+       was told you were looking at. */
+    const parts = m.about
+      ? [el('p', { class: 'bubble__about' }, m.about)]
+      : [];
+    parts.push(bubble);
+    /* And who answered, under every reply. The engine is a setting that can
+       change between one answer and the next, so it is recorded per reply
+       rather than read off the current setting when the log is drawn. */
+    if (m.role === 'tutor' && m.engine && !m.pending) {
+      parts.push(el('p', { class: 'bubble__by', title: m.engineDetail || '' }, m.engine));
+    }
+    return parts;
+  });
 
   log.replaceChildren(intro, ...bubbles);
   // Follow the answer as it streams. The page scrolls, not the log, so this
