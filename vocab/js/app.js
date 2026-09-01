@@ -11,7 +11,7 @@ import { APP, AI as AICFG, THEMES, PROVIDERS } from './config.js';
 import { Store, refreshStreak, makeSrs, dayKey, snapshot, restore } from './store.js';
 import { schedule, buildQueue, bucket, plannedSession, queueCounts, spokenDelta } from './srs.js';
 import { makeSessionTimer, reportPayload, weakest, summary, window as windowStats, recentDays,
-         dashboard, recentlyLearned } from './stats.js';
+         dashboard, recentlyLearned, activeDays } from './stats.js';
 import { Notifier, Push } from './notify.js';
 import { AIClient } from './ai.js';
 import {
@@ -247,6 +247,11 @@ function wireTabs() {
       // On a narrow screen the open rail is most of the width, so choosing a
       // view puts it away again; on a wide one there is room to leave it.
       if (window.innerWidth < 900) setRail(false, { remember: false });
+      /* The timer commits on a minute's tick, so a learner who studies for
+         forty seconds and comes back to Home would read "0 min" against ten
+         reviews. Banking it here means the tile is true whenever it is
+         looked at — outside the render, so committing cannot re-enter it. */
+      if (tab.dataset.tab === 'home') { timer.flush(); timer.resume(); }
       if (tab.dataset.tab === 'progress') { renderProgress(Store.state); drawXp(Store.state); }
       if (tab.dataset.tab === 'practice') ensurePracticeSeed();
       if (tab.dataset.tab === 'modules') loadModules();
@@ -703,7 +708,7 @@ function drawHome(state) {
     ? `${days} day${days === 1 ? '' : 's'} in a row`
     : 'Nothing learned yet';
   $('#navStreakNote').textContent = days
-    ? `${s.known} words learned, ${week.reviews} reviews this week.`
+    ? `${s.studied} words learned, ${week.reviews} reviews this week.`
     : 'Ten words a day is twenty minutes, and 3,650 words a year.';
 
   renderHome({
@@ -743,13 +748,13 @@ function drawHome(state) {
   }, { onModule: openModuleById, onWords: () => { switchView('words'); refreshWordList(); } });
 }
 
-const DAY_MS = 86_400_000;
-
 /** The date, a greeting for the hour, what is waiting, and how far in we are. */
 function heroLine(state, s, plan) {
   const now = new Date();
   const hour = now.getHours();
-  const day = Math.floor((Date.now() - (state.createdAt || Date.now())) / DAY_MS) + 1;
+  // Days studied, not days since the install: a fortnight away should not
+  // advance the counter, and the first day is earned by turning up.
+  const day = activeDays(state);
 
   return {
     date: now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }),
@@ -760,10 +765,12 @@ function heroLine(state, s, plan) {
       ? `${readyNow(plan)} word${readyNow(plan) === 1 ? '' : 's'} ready for review.`
       : plan.new
         ? 'Ready to learn a few words?'
-        : s.known
+        : s.studied
           ? 'Nothing is due. Practise ahead, or take the day.'
           : 'Open a module and meet your first ten words.',
-    journey: `Your learning journey · Day ${day}`,
+    journey: day
+      ? `Your learning journey · Day ${day}`
+      : 'Your learning journey starts today',
   };
 }
 
@@ -772,7 +779,7 @@ function fourNumbers(state) {
   const d = dashboard(state);
   return {
     words: d.words.toLocaleString(),
-    mastery: d.mastery === null ? '—' : `${Math.round(d.mastery * 100)}%`,
+    mastery: `${Math.round(d.mastery * 100)}%`,
     streak: String(d.streak),
     // Under a minute it says the seconds: "0 min" after a real session that
     // just started reads as though nothing was counted.

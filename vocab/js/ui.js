@@ -101,7 +101,10 @@ export function renderHeader(state) {
   const s = summary(state);
   $('#streakCount').textContent = s.streak;
   $('#streakChip').classList.toggle('is-cold', s.streak === 0);
-  $('#brandSub').textContent = `${s.total} words · ${s.known} learned`;
+  /* Two different things, and only the second is progress: the deck holds
+     words a new install was handed, so "40 words" must not read as a score
+     the way "40 learned" would. */
+  $('#brandSub').textContent = `${s.total} words ready · ${s.studied} learned`;
 
   const goal = state.settings.dailyGoal;
   const done = s.today.reviews;

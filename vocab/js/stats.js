@@ -26,12 +26,22 @@ export function window(state, n = 7) {
 export function summary(state) {
   const w7 = window(state, 7);
   const ids = Object.keys(state.words);
-  let known = 0;
-  for (const id of ids) if (['review', 'mastered'].includes(bucket(state.srs[id]))) known++;
+  /* Two different counts, and the difference matters on screen. `studied` is
+     every word the learner has actually met — it moves the first time a card
+     is graded. `known` is the ones that have graduated to long-term review,
+     which takes days, so it is the wrong number to put behind a tile that is
+     supposed to reward turning up. */
+  let known = 0, studied = 0;
+  for (const id of ids) {
+    const state_ = bucket(state.srs[id]);
+    if (state_ !== 'new') studied += 1;
+    if (state_ === 'review' || state_ === 'mastered') known += 1;
+  }
   const today = dayStats(state, dayKey());
   return {
     total: ids.length,
     known,
+    studied,
     today,
     streak: state.streak.current || 0,
     longest: state.streak.longest || 0,
@@ -93,24 +103,37 @@ export function recentDays(state, n = 14) {
 /**
  * The four numbers the dashboard puts across the top, unformatted.
  *
- * `mastery` is a share of the words actually started, not of every word in
- * every pack — the second reads 0% for months and measures how big the library
- * is rather than how well anyone is doing. It is null until something has been
- * started, because 0% and "nothing yet" are different things.
+ * Every one of them starts at zero on a new install and moves only when work
+ * is done — none of them counts anything the app handed the learner.
+ *
+ *   words    words actually met, not the size of the deck a new install was
+ *            seeded with. It moves on the first card graded, where the
+ *            graduated-only count sits at zero for days.
+ *   mastery  of those, the share that has graduated to long-term review — so
+ *            the pair reads "8 studied, 0% of them stuck yet" and both halves
+ *            move for their own reason. A share of every word in every pack
+ *            would read 0% for months and measure how big the library is.
+ *   days     days actually studied, not days since the install, so a
+ *            fortnight away moves nothing.
  */
 export function dashboard(state) {
   const mix = masteryBreakdown(state);
   const started = mix.learning + mix.review + mix.mastered + mix.leech;
-  let known = 0;
-  for (const id of Object.keys(state.words)) {
-    if (['review', 'mastered'].includes(bucket(state.srs[id]))) known += 1;
-  }
   return {
-    words: known,
-    mastery: started ? (mix.review + mix.mastered) / started : null,
+    words: started,
+    // Nothing started is nothing mastered — a real zero, not a missing value.
+    mastery: started ? (mix.review + mix.mastered) / started : 0,
     streak: state.streak?.current || 0,
     seconds: dayStats(state, dayKey()).seconds || 0,
+    days: activeDays(state),
   };
+}
+
+/** Days with at least one review on them, over the whole history. */
+export function activeDays(state) {
+  let n = 0;
+  for (const day of Object.values(state.days || {})) if (day.reviews > 0) n += 1;
+  return n;
 }
 
 /**
