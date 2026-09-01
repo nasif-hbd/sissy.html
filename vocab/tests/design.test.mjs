@@ -59,7 +59,7 @@ const THEMES = [...new Set([...css.matchAll(/:root\[data-theme="(\w+)"\]/g)].map
  * its own face and a wider radius — but is not required to.
  */
 const STRUCTURAL = new Set([
-  '--sans', '--text', '--mono', '--radius', '--radius-sm', '--tap', '--maxw', '--rail',
+  '--sans', '--text', '--mono', '--radius', '--radius-sm', '--tap', '--maxw', '--shell', '--rail',
   '--rail-w', '--chat-min', '--body-size', '--body-leading', '--tracking-lg', '--tracking-md',
 ]);
 

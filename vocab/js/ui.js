@@ -368,8 +368,12 @@ export function renderModuleDetail(module, sets, results, handlers = {}) {
   }));
 }
 
-/** The home screen: what to do now, the habit, where you stand, and the path. */
+/** The home screen: who and when, the four numbers, what to do now, and the
+    words the last few sessions actually taught. */
 export function renderHome(data, handlers = {}) {
+  drawHero(data);
+  drawStats(data);
+
   $('#homeCount').textContent = data.countLine;
 
   const meter = $('#homeGoalFill');
@@ -385,8 +389,31 @@ export function renderHome(data, handlers = {}) {
   drawWeek(data);
   drawStanding(data);
   drawMods(data, handlers);
+  drawRecent(data, handlers);
 
   $('#homeStats').textContent = data.stats;
+}
+
+/** The date, the greeting, and how many days in the learner is. */
+function drawHero(data) {
+  $('#homeDate').textContent = data.hero.date;
+  $('#homeGreeting').textContent = data.hero.greeting;
+  $('#homeSub').textContent = data.hero.sub;
+  $('#homeJourney').textContent = data.hero.journey;
+}
+
+/**
+ * Four tiles.
+ *
+ * Mastery is deliberately a share of the words actually started rather than of
+ * every word in every pack — the second reads 0% for months and measures how
+ * big the library is, not how well anyone is doing.
+ */
+function drawStats(data) {
+  $('#statWords').textContent = data.stats4.words;
+  $('#statMastery').textContent = data.stats4.mastery;
+  $('#statStreak').textContent = data.stats4.streak;
+  $('#statTime').textContent = data.stats4.time;
 }
 
 /**
@@ -435,15 +462,44 @@ function drawMods(data, handlers) {
   $('#homeMods').replaceChildren(...rows.map((m) => el('button', {
     class: 'mod', type: 'button', onclick: () => handlers.onModule?.(m),
   },
-    el('div', { class: 'mod__head' },
-      el('span', { class: 'mod__name', text: m.title }),
-      el('span', { class: 'mod__count', text: `${m.done}/${m.sets}` })),
-    el('div', { class: 'module__meter' },
-      el('i', { style: `width:${Math.round((m.done / Math.max(1, m.sets)) * 100)}%` })))));
+    el('span', { class: 'mod__icon', text: m.level || 'Pack' }),
+    el('span', { class: 'mod__body' },
+      el('b', { class: 'mod__name', text: m.title }),
+      el('span', {
+        class: 'mod__count',
+        text: m.started
+          ? `${m.done} of ${m.sets} set${m.sets === 1 ? '' : 's'} passed`
+          : `${m.sets} set${m.sets === 1 ? '' : 's'} · not started`,
+      }),
+      el('div', { class: 'module__meter' },
+        el('i', { style: `width:${Math.round((m.done / Math.max(1, m.sets)) * 100)}%` }))),
+    el('span', { class: 'mod__go', text: m.started ? 'Continue' : 'Start' }))));
 
-  $('#homeModsEmpty').hidden = rows.length > 0;
+  // The rows below may be suggestions rather than work in progress, so the
+  // line above them keys off whether anything has actually been started.
+  $('#homeModsEmpty').hidden = rows.length === 0 || rows.some((m) => m.started);
   $('#homeContinue').hidden = !data.continue;
   if (data.continue) $('#homeContinue').textContent = data.continue.label;
+}
+
+/**
+ * The last words the learner met, and where each one stands now.
+ *
+ * The card stays away until there is a first row: an empty table with four
+ * headings is the emptiest thing on a fresh install.
+ */
+function drawRecent(data, handlers) {
+  const rows = data.recent || [];
+  $('#homeRecentCard').hidden = rows.length === 0;
+  if (!rows.length) return;
+
+  $('#homeRecent').replaceChildren(...rows.map((w) => el('tr', {},
+    el('td', { class: 't-word', text: w.term }),
+    el('td', { class: 't-mean', text: w.definition, title: w.definition }),
+    el('td', {}, w.level ? el('span', { class: 'tag', text: w.level }) : el('span', { text: '' })),
+    el('td', {}, el('span', { class: 't-state', text: w.stateLabel, 'data-state': w.state })))));
+
+  $('#homeRecentAll').onclick = () => handlers.onWords?.();
 }
 
 // ── install ────────────────────────────────────────────────────────────────
@@ -481,6 +537,13 @@ export function renderInstall(state, { dismissed = false, downloads = [] } = {})
   const onHome = state.canPrompt && !state.installed && !dismissed;
   $('#homeInstallCard').hidden = !onHome;
   if (onHome) $('#homeInstallHow').textContent = state.how;
+
+  // The sidebar carries it too, where the design puts an upgrade offer, and
+  // steps aside for the streak card once there is nothing left to install.
+  const inNav = state.canPrompt && !state.installed && !dismissed;
+  $('#navInstall').hidden = !inNav;
+  $('#navStreak').hidden = inNav;
+  if (inNav) $('#navInstallHow').textContent = state.how;
 }
 
 // ── test ───────────────────────────────────────────────────────────────────

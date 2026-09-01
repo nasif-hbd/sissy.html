@@ -90,6 +90,54 @@ export function recentDays(state, n = 14) {
   return out;
 }
 
+/**
+ * The four numbers the dashboard puts across the top, unformatted.
+ *
+ * `mastery` is a share of the words actually started, not of every word in
+ * every pack — the second reads 0% for months and measures how big the library
+ * is rather than how well anyone is doing. It is null until something has been
+ * started, because 0% and "nothing yet" are different things.
+ */
+export function dashboard(state) {
+  const mix = masteryBreakdown(state);
+  const started = mix.learning + mix.review + mix.mastered + mix.leech;
+  let known = 0;
+  for (const id of Object.keys(state.words)) {
+    if (['review', 'mastered'].includes(bucket(state.srs[id]))) known += 1;
+  }
+  return {
+    words: known,
+    mastery: started ? (mix.review + mix.mastered) / started : null,
+    streak: state.streak?.current || 0,
+    seconds: dayStats(state, dayKey()).seconds || 0,
+  };
+}
+
+/**
+ * The last `n` distinct words the learner met, newest first, with where each
+ * one stands now. Reads the review log backwards, so a word reviewed twice
+ * appears once, at its most recent sighting.
+ */
+export function recentlyLearned(state, n = 6) {
+  const out = [];
+  const seen = new Set();
+  for (let i = state.history.length - 1; i >= 0 && out.length < n; i--) {
+    const id = state.history[i].wordId;
+    if (seen.has(id)) continue;
+    seen.add(id);
+    const word = state.words[id];
+    if (!word) continue;            // a word deleted since it was reviewed
+    out.push({
+      id,
+      term: word.term,
+      definition: word.definition || '',
+      level: word.level || '',
+      state: bucket(state.srs[id]),
+    });
+  }
+  return out;
+}
+
 export function masteryBreakdown(state) {
   const counts = { new: 0, learning: 0, review: 0, mastered: 0, leech: 0 };
   for (const id of Object.keys(state.words)) counts[bucket(state.srs[id])] += 1;

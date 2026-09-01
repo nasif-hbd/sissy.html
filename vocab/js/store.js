@@ -35,9 +35,10 @@ function freshState() {
       dailyGoal: DEFAULTS.dailyGoal,
       newPerDay: DEFAULTS.newPerDay,
       speech: true,
-      /* Closed to start with: eight labelled buttons down the side of a phone
-         is most of the screen spent on furniture. */
-      railOpen: false,
+      /* null until someone opens or closes it themselves: until then the
+         width decides — beside the content on a desktop, behind the
+         hamburger on a phone. */
+      railOpen: null,
       reminders: { enabled: false, routine: DEFAULT_ROUTINE.map((s, i) => ({ ...s, id: `default-${i}` })), lastFired: {} },
       push: { enabled: false, endpoint: null },
       ai: {

@@ -9,7 +9,7 @@
  * Bump CACHE when you change any shell file — the old cache is dropped on
  * activate.
  */
-const CACHE = 'vocabx-v18';
+const CACHE = 'vocabx-v19';
 /**
  * Every file the app needs to start with no network.
  *

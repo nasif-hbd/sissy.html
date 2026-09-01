@@ -10,7 +10,8 @@
 import { APP, AI as AICFG, THEMES, PROVIDERS } from './config.js';
 import { Store, refreshStreak, makeSrs, dayKey, snapshot, restore } from './store.js';
 import { schedule, buildQueue, bucket, plannedSession, queueCounts, spokenDelta } from './srs.js';
-import { makeSessionTimer, reportPayload, weakest, summary, window as windowStats, recentDays } from './stats.js';
+import { makeSessionTimer, reportPayload, weakest, summary, window as windowStats, recentDays,
+         dashboard, recentlyLearned } from './stats.js';
 import { Notifier, Push } from './notify.js';
 import { AIClient } from './ai.js';
 import {
@@ -66,6 +67,7 @@ async function boot() {
   applyTheme(Store.state.settings.theme);
 
   wireTabs();
+  wireTopSearch();
   wireLearn();
   wirePractice();
   wireHome();
@@ -99,8 +101,14 @@ async function boot() {
   if (Store.state.settings.reminders.enabled) Notifier.start();
   refreshNotifyState();
 
-  // The leaderboard names modules, so fetch the manifest quietly at boot.
-  Catalog.modules().then((m) => { moduleManifest = m; drawXp(Store.state); }).catch(() => {});
+  /* The leaderboard names modules and Home lists the ones with work in them,
+     so fetch the manifest quietly at boot — and redraw both once it lands, or
+     Home shows "nothing started yet" to someone who has started three. */
+  Catalog.modules().then((m) => {
+    moduleManifest = m;
+    drawXp(Store.state);
+    drawHome(Store.state);
+  }).catch(() => {});
 
   timer.resume();
   document.addEventListener('visibilitychange', () => {
@@ -198,19 +206,25 @@ function drawXp(state) {
  * is most of the screen spent on furniture. The hamburger is the whole of the
  * navigation until someone asks for it.
  */
-function setRail(open) {
+function setRail(open, { remember = true } = {}) {
   document.documentElement.classList.toggle('rail-closed', !open);
   $('#scrim').hidden = !open;
   const btn = $('#railToggle');
   btn.setAttribute('aria-expanded', String(open));
   btn.setAttribute('aria-label', open ? 'Hide navigation' : 'Show navigation');
-  if (Store.state.settings.railOpen !== open) {
+  // Closing it because the view changed on a phone is not a preference.
+  if (remember && Store.state.settings.railOpen !== open) {
     Store.commit((st) => { st.settings.railOpen = open; });
   }
 }
 
 function wireRail() {
-  setRail(Store.state.settings.railOpen === true);
+  /* Open beside the content where there is room, behind the hamburger where
+     there is not — which is what the source design does, and what makes both
+     "nav on the left" and "shrunk to three bars" true at once. Once someone
+     has opened or closed it themselves, that choice wins at every width. */
+  const chosen = Store.state.settings.railOpen;
+  setRail(chosen === null || chosen === undefined ? window.innerWidth >= 900 : chosen, { remember: false });
   $('#scrim').addEventListener('click', () => setRail(false));
   $('#railToggle').addEventListener('click', () => {
     const opening = document.documentElement.classList.contains('rail-closed');
@@ -232,7 +246,7 @@ function wireTabs() {
       switchView(tab.dataset.tab);
       // On a narrow screen the open rail is most of the width, so choosing a
       // view puts it away again; on a wide one there is room to leave it.
-      if (window.innerWidth < 900) setRail(false);
+      if (window.innerWidth < 900) setRail(false, { remember: false });
       if (tab.dataset.tab === 'progress') { renderProgress(Store.state); drawXp(Store.state); }
       if (tab.dataset.tab === 'practice') ensurePracticeSeed();
       if (tab.dataset.tab === 'modules') loadModules();
@@ -623,6 +637,29 @@ async function runCoach() {
   }
 }
 
+/**
+ * The header search.
+ *
+ * It hands off to the Words tab, which already filters the deck and can look a
+ * word up in the shipped dictionary — so this is a shortcut to that from
+ * wherever you are, not a second search that would drift out of step with it.
+ */
+function wireTopSearch() {
+  const go = () => {
+    const q = $('#topSearch').value.trim();
+    if (!q) return;
+    session.wordQuery = q;
+    $('#wordSearch').value = q;
+    switchView('words');
+    refreshWordList();
+  };
+  $('#topSearchForm').addEventListener('submit', (e) => { e.preventDefault(); go(); });
+  // Typing straight into it should filter as you go, as the design's does.
+  $('#topSearch').addEventListener('input', () => {
+    if ($('#topSearch').value.trim()) go();
+  });
+}
+
 // ── words ──────────────────────────────────────────────────────────────────
 function wireWords() {
   $('#addWordBtn').addEventListener('click', addWord);
@@ -660,6 +697,15 @@ function drawHome(state) {
   const week = windowStats(state, 7);
   const plan = plannedSession(state, { newAllowance: newLeftToday(state) });
 
+  const days = state.streak.current || 0;
+  $('#levelBadge').textContent = standing(state.xp?.total || 0).level;
+  $('#navStreakTitle').textContent = days
+    ? `${days} day${days === 1 ? '' : 's'} in a row`
+    : 'Nothing learned yet';
+  $('#navStreakNote').textContent = days
+    ? `${s.known} words learned, ${week.reviews} reviews this week.`
+    : 'Ten words a day is twenty minutes, and 3,650 words a year.';
+
   renderHome({
     // The card carries two different measurements — the day's goal and the
     // queue waiting right now — and they are rarely the same number. Left
@@ -690,7 +736,61 @@ function drawHome(state) {
       ? { label: `Continue — ${session.continueSet.module.title}, set ${session.continueSet.index + 1}` }
       : null,
     stats: statLine(s, state),
-  }, { onModule: openModuleById });
+
+    hero: heroLine(state, s, plan),
+    stats4: fourNumbers(state),
+    recent: recentRows(state, 6),
+  }, { onModule: openModuleById, onWords: () => { switchView('words'); refreshWordList(); } });
+}
+
+const DAY_MS = 86_400_000;
+
+/** The date, a greeting for the hour, what is waiting, and how far in we are. */
+function heroLine(state, s, plan) {
+  const now = new Date();
+  const hour = now.getHours();
+  const day = Math.floor((Date.now() - (state.createdAt || Date.now())) / DAY_MS) + 1;
+
+  return {
+    date: now.toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' }),
+    greeting: hour < 12 ? 'Good morning.' : hour < 18 ? 'Good afternoon.' : 'Good evening.',
+    // The line under the greeting is the only place that says what is actually
+    // waiting, so it says the number rather than a mood.
+    sub: plan.due
+      ? `${plan.due} word${plan.due === 1 ? '' : 's'} are ready for review.`
+      : plan.new
+        ? 'Ready to learn a few words?'
+        : s.known
+          ? 'Nothing is due. Practise ahead, or take the day.'
+          : 'Open a module and meet your first ten words.',
+    journey: `Your learning journey · Day ${day}`,
+  };
+}
+
+/** The four tiles, as the strings they are printed as. */
+function fourNumbers(state) {
+  const d = dashboard(state);
+  return {
+    words: d.words.toLocaleString(),
+    mastery: d.mastery === null ? '—' : `${Math.round(d.mastery * 100)}%`,
+    streak: String(d.streak),
+    // Under a minute it says the seconds: "0 min" after a real session that
+    // just started reads as though nothing was counted.
+    time: d.seconds && d.seconds < 60
+      ? `${d.seconds} sec`
+      : `${Math.round(d.seconds / 60)} min`,
+  };
+}
+
+const STATE_LABEL = {
+  new: 'Not started', learning: 'Learning', review: 'Reviewing',
+  mastered: 'Mastered', leech: 'Needs work',
+};
+
+/** The recent rows, each carrying the word its state is named in. */
+function recentRows(state, n) {
+  return recentlyLearned(state, n)
+    .map((row) => ({ ...row, stateLabel: STATE_LABEL[row.state] || row.state }));
 }
 
 /**
@@ -721,7 +821,7 @@ function statLine(s, state) {
  */
 function startedModules(state) {
   const lessons = state.lessons || {};
-  return Object.entries(lessons)
+  const started = Object.entries(lessons)
     .map(([id, sets]) => {
       const entry = moduleManifest.find((m) => m.id === id);
       if (!entry) return null;
@@ -729,6 +829,8 @@ function startedModules(state) {
       return {
         id,
         title: entry.title,
+        level: entry.level || '',
+        started: true,
         done: results.filter((r) => r?.passed).length,
         sets: Math.ceil((entry.count || 0) / SET_WORDS) || results.length,
         at: Math.max(0, ...results.map((r) => r?.at || 0)),
@@ -737,6 +839,31 @@ function startedModules(state) {
     .filter(Boolean)
     .sort((a, b) => b.at - a.at)
     .slice(0, 4);
+
+  /* Below three rows the card is mostly empty, and the thing a learner with
+     one module needs is the next one — so the rest of the row is filled with
+     packs they have not opened, nearest their own level first. */
+  if (started.length >= 3) return started;
+  const level = state.profile.level;
+  const rest = moduleManifest
+    .filter((m) => !lessons[m.id])
+    .sort((a, b) => matchesLevel(b, level) - matchesLevel(a, level))
+    .slice(0, 3 - started.length)
+    .map((m) => ({
+      id: m.id,
+      title: m.title,
+      level: m.level || '',
+      started: false,
+      done: 0,
+      sets: Math.ceil((m.count || 0) / SET_WORDS),
+      at: 0,
+    }));
+  return [...started, ...rest];
+}
+
+/** 1 when a pack's CEFR band contains the learner's own, 0 otherwise. */
+function matchesLevel(entry, level) {
+  return level && (entry.level || '').includes(level) ? 1 : 0;
 }
 
 /**
@@ -983,6 +1110,7 @@ function wireInstall() {
   installer = createInstaller({ onChange: drawInstall });
 
   $('#installGo').addEventListener('click', runInstall);
+  $('#navInstallGo').addEventListener('click', runInstall);
   $('#homeInstallGo').addEventListener('click', runInstall);
   $('#homeInstallClose').replaceChildren(icon('close'));
   $('#homeInstallClose').addEventListener('click', () => {

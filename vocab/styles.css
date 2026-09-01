@@ -32,6 +32,11 @@
   --radius-sm: 11px;
   --tap:       44px;
   --maxw:      660px;
+  /* Two different measures. --maxw is the reading column — a flashcard, a
+     definition, a settings list — and stays narrow at every width. --shell is
+     how wide the app itself may run, which the dashboard needs and prose does
+     not; below the widest breakpoint they are the same thing. */
+  --shell:     var(--maxw);
   /* How wide the navigation panel is whenever it is open. */
   --rail-w:    245px;
   /* Fallback height for the Ask chat; ui.js measures the real one per device. */
@@ -249,7 +254,7 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 
 .app {
   position: relative;
-  max-width: var(--maxw);
+  max-width: var(--shell);
   margin: 0 auto;
   min-height: 100dvh;
   padding-bottom: 36px;
@@ -264,7 +269,9 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--rule);
 }
-.topbar__brand { display: flex; align-items: center; gap: 10px; }
+.topbar__brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.topbar__brand > div { min-width: 0; }
+.brand__name, .brand__sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The undo offer. Under the card rather than over it, so nothing is covered
    and nothing has to be dismissed before the next card can be graded. */
 .undobar {
@@ -353,7 +360,10 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 
 /* ── layout ─────────────────────────────────────────────────────────────── */
 .views { padding: 16px 18px 26px; }
-.stack { display: flex; flex-direction: column; gap: 14px; }
+.stack {
+  display: flex; flex-direction: column; gap: 14px;
+  max-width: var(--maxw); margin-inline: auto;
+}
 .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .row--between { justify-content: space-between; }
 /* Buttons that should read as one group: equal widths when they fit on a line,
@@ -670,6 +680,123 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 }
 .module__meter i.is-done { background: var(--ok); }
 
+/* ── home: the dashboard ────────────────────────────────────────────────────
+   Home is the one view that is a dashboard rather than a page of prose, so it
+   opts out of the reading measure and lays itself out across the shell. */
+.dash { display: flex; flex-direction: column; gap: 18px; }
+
+/* Who, when, and how far in. The right-hand line drops under the greeting on a
+   phone rather than squeezing it. */
+.hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; }
+.eyebrow {
+  font-family: var(--sans); font-size: 11.5px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .09em; color: var(--accent);
+  margin-bottom: 6px;
+}
+.hero__title {
+  font-family: var(--sans); font-size: 27px; font-weight: 700; line-height: 1.12;
+  letter-spacing: var(--tracking-lg); color: var(--ink); margin-bottom: 6px;
+}
+.hero__sub { font-size: 14px; color: var(--ink-2); }
+.hero__aside { font-size: 12.5px; color: var(--ink-3); white-space: nowrap; }
+/* The greeting and the day counter stop sharing a line before either has to
+   wrap mid-word. Stretch, not flex-start: the greeting keeps the full width
+   so a long one wraps against the margin rather than against itself. */
+@media (max-width: 620px) {
+  .hero { flex-direction: column; align-items: stretch; gap: 4px; }
+  .hero__aside { order: -1; margin-bottom: 4px; }
+}
+
+/* Four numbers. Two across on a phone, four once there is room. */
+.stats { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.stat {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 10px;
+  padding: 16px; background: var(--card);
+  border: 1px solid var(--edge); border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.stat__num {
+  display: block;
+  font-family: var(--sans); font-size: 23px; font-weight: 700; line-height: 1.1;
+  letter-spacing: var(--tracking-lg); color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+.stat small { display: block; margin-top: 3px; font-size: 12px; color: var(--ink-3); }
+.stat__icon {
+  display: grid; place-items: center; flex: none;
+  width: 36px; height: 36px; border-radius: var(--radius-sm);
+  background: var(--accent-soft); color: var(--accent);
+}
+
+/* One wide column and one narrow one, stacked until there is room for both. */
+/* minmax(0, 1fr), not 1fr: a grid item's automatic minimum is its content, so
+   one long module title inside would push the whole column past the viewport. */
+.dash__grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); }
+/* The footer row is two peers rather than a main and a side, and either of
+   them may be away — so it fits what is actually there. */
+.dash__grid--even { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+.dash__side { display: flex; flex-direction: column; gap: 16px; }
+
+/* A card whose own padding is set by its head and body, so a table can run
+   edge to edge inside it. */
+.card--pad0 { padding: 0; }
+.card-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 17px 18px 12px;
+}
+.card-body { padding: 0 18px 18px; }
+.card-body--flush { padding: 0 18px 6px; overflow-x: auto; }
+.link {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font-family: var(--sans); font-size: 12.5px; font-weight: 650; color: var(--accent);
+}
+
+/* The one panel that is tinted rather than white: what to do right now. */
+.card--review {
+  display: flex; flex-direction: column; gap: 10px;
+  background: var(--accent-soft); border-color: transparent;
+}
+.card--review .module__meter { margin: 2px 0 4px; background: var(--card); }
+.card--review .hint { color: var(--ink-2); }
+.card--review .btn--quiet { background: var(--card); }
+.review__title {
+  font-family: var(--sans); font-size: 18px; font-weight: 700;
+  letter-spacing: var(--tracking-md); color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+/* What the last sessions taught. Meaning is the column that gives way first. */
+.word-table { width: 100%; border-collapse: collapse; }
+.word-table th {
+  font-family: var(--sans); font-size: 10.5px; font-weight: 650;
+  text-transform: uppercase; letter-spacing: .08em; color: var(--ink-3);
+  text-align: left; white-space: nowrap;
+}
+.word-table th, .word-table td { padding: 11px 10px 11px 0; border-bottom: 1px solid var(--edge); }
+.word-table tr:last-child td { border-bottom: 0; }
+.word-table td { font-size: 13.5px; color: var(--ink-2); vertical-align: top; }
+.word-table .t-word { font-family: var(--sans); font-weight: 650; color: var(--ink); white-space: nowrap; }
+/* The definition is the only thing here that can run long; it takes whatever
+   width is left and gives up the rest to an ellipsis. */
+.word-table .t-mean { width: 99%; max-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tag {
+  display: inline-block; padding: 3px 8px; border-radius: 7px;
+  background: var(--paper-sunk); color: var(--ink-3);
+  font-family: var(--sans); font-size: 11px; font-weight: 600; white-space: nowrap;
+}
+.t-state { font-family: var(--sans); font-size: 12px; font-weight: 650; white-space: nowrap; }
+.t-state[data-state="mastered"] { color: var(--ok); }
+.t-state[data-state="review"] { color: var(--accent); }
+.t-state[data-state="learning"] { color: var(--warn); }
+.t-state[data-state="leech"] { color: var(--danger); }
+/* On a phone the meaning column gets about six characters before the ellipsis,
+   which teaches nobody anything — the word, its band and where it stands all
+   fit, so those are what the row keeps. */
+@media (max-width: 620px) {
+  .word-table th:nth-child(2), .word-table td:nth-child(2) { display: none; }
+  .word-table .t-word { white-space: normal; }
+}
+
 /* ── home: the habit strip ──────────────────────────────────────────────── */
 .streak-line { display: flex; align-items: baseline; gap: 7px; color: var(--accent); }
 .streak-line .ico { color: var(--accent); align-self: center; }
@@ -679,35 +806,56 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 
 /* Seven days as marks. A week with two study days should look like a week with
    two study days — the bar chart it replaces just looked empty. */
-.week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 12px; }
-.day { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+.week { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; margin-top: 10px; }
+/* column-reverse: the markup puts the mark first so the DOM reads
+   mark-then-label, the design reads label-then-mark. */
+.day { display: flex; flex-direction: column-reverse; align-items: center; gap: 6px; }
 .day i {
-  display: block; width: 100%; height: 30px; border-radius: var(--radius-sm);
-  background: var(--paper-sunk);
-  /* Without a cap these stretch into wide bars on a laptop and stop reading as
-     one mark per day. */
-  max-width: 44px;
+  display: grid; place-items: center;
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--paper-sunk); color: var(--ink-3);
+  font-size: 12px; font-style: normal;
 }
-.day.is-on i { background: var(--accent); }
+.day.is-on i { background: var(--accent); color: var(--accent-ink); }
+.day.is-on i::after { content: "\2713"; }
 /* The ring sits outside the mark, so it shows on a filled day and an empty one
    alike — an inset ring vanished against the filled colour. */
-.day.is-today i { box-shadow: 0 0 0 2px var(--card), 0 0 0 4px var(--accent); }
+.day.is-today i { box-shadow: 0 0 0 2px var(--card), 0 0 0 3px var(--accent); }
 .day.is-today span { color: var(--accent); font-weight: 700; }
 .day span { font-size: 10.5px; color: var(--ink-3); font-family: var(--sans); }
 
 /* ── home: modules in progress ──────────────────────────────────────────── */
 .mods { display: flex; flex-direction: column; gap: 10px; }
 .mod {
-  width: 100%; padding: 0; cursor: pointer; text-align: left;
-  background: transparent; border: 0; font-family: inherit;
+  width: 100%; cursor: pointer; text-align: left; font-family: inherit;
+  display: flex; align-items: center; gap: 14px;
+  padding: 14px; background: var(--card);
+  border: 1px solid var(--edge); border-radius: var(--radius-sm);
 }
-.mod__head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
-.mod__name { font-family: var(--sans); font-size: 14.5px; font-weight: 600; color: var(--ink); }
+.mod__icon {
+  display: grid; place-items: center; flex: none;
+  width: 46px; height: 46px; border-radius: 14px;
+  background: var(--accent-soft); color: var(--accent);
+  font-family: var(--sans); font-size: 11.5px; font-weight: 700; letter-spacing: -.01em;
+}
+.mod__body { flex: 1; min-width: 0; }
+.mod__name {
+  display: block; font-family: var(--sans); font-size: 14.5px; font-weight: 650;
+  color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .mod__count {
-  font-family: var(--sans); font-size: 12.5px; color: var(--ink-3);
+  display: block; margin-top: 1px;
+  font-family: var(--sans); font-size: 12px; color: var(--ink-3);
   font-variant-numeric: tabular-nums;
 }
-.mod + .mod { padding-top: 10px; border-top: 1px solid var(--edge); }
+.mod__body .module__meter { margin: 8px 0 0; }
+/* Not a button — it sits inside one — so it only has to look like the target
+   it already is. */
+.mod__go {
+  flex: none; padding: 9px 13px; border-radius: 10px;
+  background: var(--ink); color: var(--paper);
+  font-family: var(--sans); font-size: 12px; font-weight: 650;
+}
 
 /* One line where four stat tiles used to be. */
 .statline {
@@ -1013,6 +1161,40 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
   :root:not(.rail-closed) .brand__sub { display: none; }
 }
 
+/* ── the header's search and badge ───────────────────────────────────────── */
+.topsearch {
+  flex: 1 1 auto; max-width: 370px; min-width: 0;
+  display: flex; align-items: center; gap: 9px;
+  height: 42px; padding: 0 13px;
+  border: 1px solid var(--rule); border-radius: 12px;
+  background: var(--card); color: var(--ink-3);
+}
+.topsearch:focus-within { border-color: var(--accent); }
+.topsearch input {
+  /* Full height, not the intrinsic 25px an <input> comes with — the whole
+     pill is the target a finger aims at. */
+  flex: 1; min-width: 0; height: 100%; border: 0; outline: 0; background: none;
+  font: inherit; color: var(--ink);
+}
+.topsearch input::-webkit-search-cancel-button { cursor: pointer; }
+.avatar {
+  display: grid; place-items: center; flex: 0 0 auto;
+  width: 39px; height: 39px; border-radius: 50%;
+  /* The design's lavender disc, taken from the palette rather than written
+     out — a fixed light purple is a bright hole in the dark theme. */
+  background: linear-gradient(135deg,
+    color-mix(in srgb, var(--accent-soft) 100%, transparent),
+    color-mix(in srgb, var(--accent) 28%, var(--accent-soft)));
+  color: var(--accent);
+  font-family: var(--sans); font-size: 14px; font-weight: 800;
+}
+/* Below 550px the design drops the search rather than squeeze it. */
+@media (max-width: 549px) { .topsearch { display: none; } }
+/* And at 320px the badge goes too: the header still has to carry a menu
+   button, the name, the streak and the theme, and something has to give
+   before the name starts wrapping. */
+@media (max-width: 400px) { .avatar { display: none; } }
+
 /* ── opening and closing the rail ────────────────────────────────────────
    Everything that makes room for the rail — the body padding, the toasts —
    reads --rail, so closing it is one value plus the slide. */
@@ -1069,6 +1251,37 @@ body { transition: padding-left .22s ease; }
   letter-spacing: var(--tracking-lg); color: var(--ink);
 }
 .tabbar__brand img { width: 35px; height: 35px; border-radius: 11px; display: block; }
+/* The wordmark is one flex item, or the row's 10px gap opens up inside the
+   name and it reads "Vocab X". */
+.tabbar__brand b { font-weight: inherit; }
+.tabbar__brand span { color: var(--accent); }
+
+/* The design groups the nav under a small caps label. */
+.nav-label {
+  padding: 0 12px 8px;
+  font-family: var(--sans); font-size: 11px; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .1em; color: var(--ink-3);
+}
+
+/* The card at the foot of the sidebar. The design puts an upgrade offer here;
+   there is no paid tier to sell, so it carries the install prompt and, once
+   that is done or dismissed, the reason someone opened the app at all. */
+.nav-foot { margin-top: auto; padding-top: 18px; display: grid; gap: 10px; }
+.nav-card {
+  border-radius: 17px; padding: 16px;
+  background: #17181c; color: #fff;
+}
+.nav-card b { display: block; margin-bottom: 4px; font-family: var(--sans); font-size: 14px; }
+.nav-card p { margin: 0; font-size: 12px; line-height: 1.45; color: #b9bbc0; }
+.nav-card__btn {
+  margin-top: 12px; padding: 8px 12px; border: 0; border-radius: 10px; cursor: pointer;
+  background: #fff; color: #15171b;
+  font-family: var(--sans); font-size: 12px; font-weight: 700;
+}
+.nav-card--quiet {
+  background: var(--accent-soft); color: var(--accent);
+}
+.nav-card--quiet p { color: var(--ink-2); }
 
 .tab {
   display: flex; flex-direction: row; align-items: center; justify-content: flex-start; gap: 12px;
@@ -1153,8 +1366,14 @@ body { transition: padding-left .22s ease; }
 }
 
 @media (min-width: 900px) {
-  :root { --maxw: 760px; }
+  :root { --maxw: 760px; --shell: 980px; }
   .modules { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  /* The dashboard's own shape: four tiles across, then the wide column beside
+     the narrow one. Below this it is a single stack, in the same order. */
+  .stats { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .dash__grid { grid-template-columns: minmax(0, 1.45fr) minmax(0, .9fr); }
+  .dash__grid--even { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
+  .hero__title { font-size: 31px; }
   /* The rail carries the name at this width — but only while it is open, or
      closing it would leave the app with its name nowhere on screen. */
   :root:not(.rail-closed) .topbar .brand__name { display: none; }
@@ -1168,7 +1387,7 @@ body { transition: padding-left .22s ease; }
 }
 
 @media (min-width: 1240px) {
-  :root { --maxw: 840px; }
+  :root { --maxw: 840px; --shell: 1180px; }
   .tabbar { padding-left: 20px; padding-right: 20px; }
   .views { padding: 24px 28px 38px; }
 }
@@ -1180,6 +1399,8 @@ body { transition: padding-left .22s ease; }
   .term { font-size: 32px; }
   .card--flash { min-height: 0; }
   .stack { gap: 11px; }
+  .dash { gap: 12px; }
+  .hero__title { font-size: 22px; }
   .queue-summary__item { padding: 7px; }
   .queue-summary__item b { font-size: 17px; }
   .tabbar { padding-top: calc(46px + env(safe-area-inset-top)); }

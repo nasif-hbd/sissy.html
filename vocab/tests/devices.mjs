@@ -142,12 +142,29 @@ for (const device of DEVICES) {
   await page.waitForTimeout(200);
 
   const icons = await page.evaluate(() => {
-    // SVGElement has no offsetParent, so decide visibility from the owning view.
+    /* Two different faults, and the width test only ever caught the first.
+       An icon the layout squeezed to nothing is broken; an icon a media query
+       deliberately took off the page (the header search below 550px) is not,
+       so anything not being rendered at all is skipped. A <use> pointing at a
+       symbol that moved paints nothing while still measuring 20px, which is
+       why the href is resolved as well. */
     const shown = [...document.querySelectorAll('.ico')]
-      .filter((i) => !i.closest('[hidden]') && !(i.closest('.view')?.hidden));
-    return { total: shown.length, dead: shown.filter((i) => i.getBoundingClientRect().width < 8).length };
+      .filter((i) => i.checkVisibility());
+    const broken = [];
+    for (const i of document.querySelectorAll('.ico use')) {
+      const href = i.getAttribute('href') || '';
+      if (!href.startsWith('#') || !document.querySelector(href)) broken.push(href || '(none)');
+    }
+    return {
+      total: shown.length,
+      dead: shown.filter((i) => i.getBoundingClientRect().width < 8).length,
+      broken: [...new Set(broken)],
+    };
   });
   if (icons.dead) problems.push(`${device.name}: ${icons.dead} of ${icons.total} icons did not paint`);
+  if (icons.broken.length) {
+    problems.push(`${device.name}: <use> points at nothing — ${icons.broken.join(', ')}`);
+  }
 
   await context.close();
 }

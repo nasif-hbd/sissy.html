@@ -44,6 +44,8 @@
     <symbol id="i-flame" viewBox="0 0 24 24"><path d="M13 3c.5 3-1.5 4.5-3 6S7 12 7 14.5A5 5 0 0 0 17 15c0-2.5-1.5-4-2.5-5.5C15.5 10 17 11 17.5 13c1-3 .5-7-4.5-10z"/></symbol>
     <symbol id="i-plane" viewBox="0 0 24 24"><path d="M20 4L3.5 10.5l6.5 2.5 2.5 6.5z"/><path d="M20 4l-10 9"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
+    <symbol id="i-trend" viewBox="0 0 24 24"><path d="M4 16.5l5-5 3.5 3.5L20 7.5"/><path d="M15 7.5h5v5"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
 </svg>
 
 <div id="app" class="app" hidden>
@@ -66,11 +68,22 @@
         <p class="brand__sub" id="brandSub">Learn more. Know more.</p>
       </div>
     </div>
+    <!-- Searches the 117,845-word dictionary and your own deck at once, which
+         is the one thing the header had no way to reach. -->
+    <form class="topsearch" id="topSearchForm" role="search">
+      <svg class="ico ico--sm" aria-hidden="true"><use href="#i-search"/></svg>
+      <input id="topSearch" type="search" placeholder="Search vocabulary…"
+             aria-label="Search vocabulary" autocomplete="off">
+    </form>
+
     <div class="topbar__meta">
       <div class="streak" id="streakChip" title="Current streak">
         <svg class="ico ico--sm" aria-hidden="true"><use href="#i-flame"/></svg><span id="streakCount">0</span>
       </div>
       <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle colour theme"><svg class="ico" aria-hidden="true"><use href="#i-theme"/></svg><span id="themeLabel">Auto</span></button>
+      <!-- The design's avatar. It is the level badge here: there are no
+           accounts, so a photograph of nobody would be a lie. -->
+      <span class="avatar" id="levelBadge" title="Your level">1</span>
     </div>
   </header>
 
@@ -84,69 +97,124 @@
     <!-- ───────────────────────── Home ───────────────────────── -->
     <section class="view" id="view-home" data-view="home">
       <h2 class="sr-only">Home</h2>
-      <div class="stack">
-        <div class="card">
-          <div class="row row--between">
-            <h3 class="card__title">Today</h3>
-            <span class="today__count" id="homeCount">0 of 20 reviews</span>
+
+      <!-- The dashboard, in the order the design sets it: who and when, the
+           four numbers, what to do now beside the habit, then the words the
+           last few sessions actually taught. -->
+      <div class="dash">
+        <header class="hero">
+          <div class="grow">
+            <p class="eyebrow" id="homeDate"></p>
+            <h3 class="hero__title" id="homeGreeting">Welcome back.</h3>
+            <p class="hero__sub" id="homeSub">Ready to learn a few words?</p>
           </div>
-          <div class="module__meter"><i id="homeGoalFill"></i></div>
-          <p class="hint" id="homeGoalHint" hidden></p>
-          <button class="btn btn--primary btn--wide" id="homeStart">Start learning</button>
-          <button class="btn btn--quiet btn--wide" id="homePractice"><svg class="ico" aria-hidden="true"><use href="#i-drill"/></svg>Practise instead</button>
+          <p class="hero__aside" id="homeJourney"></p>
+        </header>
+
+        <!-- Four tiles. They read "0" on a fresh install, which is the truth
+             on day one and the reason the hero above says what to do next. -->
+        <div class="stats">
+          <div class="stat">
+            <div><b class="stat__num" id="statWords">0</b><small>Words learned</small></div>
+            <span class="stat__icon"><svg class="ico" aria-hidden="true"><use href="#i-index"/></svg></span>
+          </div>
+          <div class="stat">
+            <div><b class="stat__num" id="statMastery">—</b><small>Mastery</small></div>
+            <span class="stat__icon"><svg class="ico" aria-hidden="true"><use href="#i-trend"/></svg></span>
+          </div>
+          <div class="stat">
+            <div><b class="stat__num" id="statStreak">0</b><small>Day streak</small></div>
+            <span class="stat__icon"><svg class="ico" aria-hidden="true"><use href="#i-flame"/></svg></span>
+          </div>
+          <div class="stat">
+            <div><b class="stat__num" id="statTime">0 min</b><small>Today’s time</small></div>
+            <span class="stat__icon"><svg class="ico" aria-hidden="true"><use href="#i-clock"/></svg></span>
+          </div>
         </div>
 
-        <!-- The habit: the streak, and the seven days behind it. Replaces both
-             a "Streak: 0" tile and a bar chart that was empty most weeks. -->
-        <div class="card card--tight">
-          <div class="row row--between">
-            <p class="streak-line">
-              <svg class="ico" aria-hidden="true"><use href="#i-flame"/></svg>
-              <b id="homeStreakBig">0</b><span id="homeStreakWord">days in a row</span>
-            </p>
-            <span class="hint" id="homeWeekCount"></span>
-          </div>
-          <div class="week" id="homeWeek"></div>
-        </div>
-
-        <!-- Offered once, dismissible. Nobody wants to be asked twice. -->
-        <div class="card card--tight" id="homeInstallCard" hidden>
-          <div class="row row--between">
-            <div class="grow">
-              <h3 class="card__title">Install VocabX</h3>
-              <p class="hint" id="homeInstallHow"></p>
+        <div class="dash__grid">
+          <!-- The path: modules with work in them, most recently touched
+               first, each carrying the set it stopped at. -->
+          <div class="card card--pad0">
+            <div class="card-head">
+              <h3 class="card__title">Continue learning</h3>
+              <button class="link" id="homeModulesAll" type="button">View all</button>
             </div>
-            <button class="icon-btn icon-btn--sm" id="homeInstallClose" type="button" aria-label="Not now"></button>
-          </div>
-          <button class="btn btn--primary btn--wide" id="homeInstallGo">Install</button>
-        </div>
-
-        <!-- Where you stand: the XP level you have earned, and the CEFR level
-             the check measured. Two different things, so both are named. -->
-        <div class="card card--tight" id="homeLevelCard">
-          <div class="row row--between">
-            <div class="grow">
-              <h3 class="card__title">Level <span id="homeXpLevel">1</span> · <span id="homeXpTitle">Beginner</span></h3>
-              <p class="hint" id="homeXpNext">100 XP to the next level</p>
+            <div class="card-body">
+              <p class="hint" id="homeModsEmpty" hidden>Nothing started yet — pick one of these.
+                 You learn ten words at a time, and each set ends in a short exam that earns XP.</p>
+              <div class="mods" id="homeMods"></div>
+              <button class="btn btn--primary btn--wide" id="homeContinue" hidden>Continue</button>
             </div>
-            <b class="level-badge" id="homeLevelBadge" hidden></b>
           </div>
-          <div class="module__meter"><i id="homeXpFill"></i></div>
-          <p class="hint" id="homeLevelLine"></p>
-          <button class="btn btn--quiet btn--wide" id="homeAssess">Check my level</button>
+
+          <div class="dash__side">
+            <!-- What to do now. The accent panel of the design, carrying the
+                 day's goal and the one button that starts a session. -->
+            <div class="card card--review">
+              <p class="eyebrow">Today</p>
+              <h3 class="review__title" id="homeCount">0 of 20 reviews</h3>
+              <div class="module__meter"><i id="homeGoalFill"></i></div>
+              <p class="hint" id="homeGoalHint" hidden></p>
+              <button class="btn btn--primary btn--wide" id="homeStart">Start learning</button>
+              <button class="btn btn--quiet btn--wide" id="homePractice"><svg class="ico" aria-hidden="true"><use href="#i-drill"/></svg>Practise instead</button>
+            </div>
+
+            <!-- The habit: the streak, and the seven days behind it. -->
+            <div class="card card--tight">
+              <div class="row row--between">
+                <p class="streak-line">
+                  <svg class="ico" aria-hidden="true"><use href="#i-flame"/></svg>
+                  <b id="homeStreakBig">0</b><span id="homeStreakWord">days in a row</span>
+                </p>
+                <span class="hint" id="homeWeekCount"></span>
+              </div>
+              <div class="week" id="homeWeek"></div>
+            </div>
+          </div>
         </div>
 
-        <!-- The path. Home never showed the modules the whole app is built
-             around; it showed a Continue button only mid-set. -->
-        <div class="card">
-          <div class="row row--between">
-            <h3 class="card__title">Your modules</h3>
-            <button class="btn btn--quiet btn--sm" id="homeModulesAll">See all</button>
+        <!-- What the last sessions taught, with where each word stands now. -->
+        <div class="card card--pad0" id="homeRecentCard" hidden>
+          <div class="card-head">
+            <h3 class="card__title">Recently learned</h3>
+            <button class="link" id="homeRecentAll" type="button">Open vocabulary</button>
           </div>
-          <p class="hint" id="homeModsEmpty" hidden>Nothing started yet. Open a module and
-             learn ten words at a time — each set ends in a short exam that earns XP.</p>
-          <div class="mods" id="homeMods"></div>
-          <button class="btn btn--primary btn--wide" id="homeContinue" hidden>Continue</button>
+          <div class="card-body card-body--flush">
+            <table class="word-table">
+              <thead><tr><th>Word</th><th>Meaning</th><th>Level</th><th>Status</th></tr></thead>
+              <tbody id="homeRecent"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="dash__grid dash__grid--even">
+          <!-- Where you stand: the XP level you have earned, and the CEFR
+               level the check measured. Two different things, so both named. -->
+          <div class="card card--tight" id="homeLevelCard">
+            <div class="row row--between">
+              <div class="grow">
+                <h3 class="card__title">Level <span id="homeXpLevel">1</span> · <span id="homeXpTitle">Beginner</span></h3>
+                <p class="hint" id="homeXpNext">100 XP to the next level</p>
+              </div>
+              <b class="level-badge" id="homeLevelBadge" hidden></b>
+            </div>
+            <div class="module__meter"><i id="homeXpFill"></i></div>
+            <p class="hint" id="homeLevelLine"></p>
+            <button class="btn btn--quiet btn--wide" id="homeAssess">Check my level</button>
+          </div>
+
+          <!-- Offered once, dismissible. Nobody wants to be asked twice. -->
+          <div class="card card--tight" id="homeInstallCard" hidden>
+            <div class="row row--between">
+              <div class="grow">
+                <h3 class="card__title">Install VocabX</h3>
+                <p class="hint" id="homeInstallHow"></p>
+              </div>
+              <button class="icon-btn icon-btn--sm" id="homeInstallClose" type="button" aria-label="Not now"></button>
+            </div>
+            <button class="btn btn--primary btn--wide" id="homeInstallGo">Install</button>
+          </div>
         </div>
 
         <p class="statline" id="homeStats"></p>
@@ -781,8 +849,9 @@
 
   <nav class="tabbar" id="tabbar">
     <p class="tabbar__brand" aria-hidden="true">
-      <img src="./icons/mark-64.webp" alt="" width="35" height="35">VocabX
+      <img src="./icons/mark-64.webp" alt="" width="35" height="35"><b>Vocab<span>X</span></b>
     </p>
+    <p class="nav-label">Workspace</p>
     <button class="tab is-active" data-tab="home" aria-current="page"><svg class="ico" aria-hidden="true"><use href="#i-home"/></svg><span class="tab__label">Home</span></button>
     <button class="tab" data-tab="learn"><svg class="ico" aria-hidden="true"><use href="#i-study"/></svg><span class="tab__label">Learn</span></button>
     <button class="tab" data-tab="modules"><svg class="ico" aria-hidden="true"><use href="#i-modules"/></svg><span class="tab__label">Modules</span></button>
@@ -791,6 +860,18 @@
     <button class="tab" data-tab="words"><svg class="ico" aria-hidden="true"><use href="#i-index"/></svg><span class="tab__label">Words</span></button>
     <button class="tab" data-tab="progress"><svg class="ico" aria-hidden="true"><use href="#i-ledger"/></svg><span class="tab__label">Progress</span></button>
     <button class="tab" data-tab="settings"><svg class="ico" aria-hidden="true"><use href="#i-setup"/></svg><span class="tab__label">Settings</span></button>
+
+    <div class="nav-foot">
+      <div class="nav-card" id="navInstall" hidden>
+        <b>Install VocabX</b>
+        <p id="navInstallHow"></p>
+        <button class="nav-card__btn" id="navInstallGo" type="button">Install</button>
+      </div>
+      <div class="nav-card nav-card--quiet" id="navStreak">
+        <b id="navStreakTitle">Nothing learned yet</b>
+        <p id="navStreakNote">Ten words a day is twenty minutes and 3,650 words a year.</p>
+      </div>
+    </div>
   </nav>
 
   <!-- Feedback: fixed to the corner, above the toasts, on every screen. -->
