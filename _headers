@@ -1,0 +1,33 @@
+# Cloudflare Pages reads this file from the output root and applies it to the
+# responses it serves. Rules are matched top to bottom; the most specific wins.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  # The app talks to your own AI proxy, wherever you host it. Nothing else.
+  Permissions-Policy: geolocation=(), camera=(), microphone=(), payment=()
+
+# The service worker decides when the app updates. If a browser serves a stale
+# copy of this file, it keeps serving a stale copy of everything — the single
+# most common way a PWA gets stuck on an old version.
+/vocab/sw.js
+  Cache-Control: no-cache
+
+/vocab/manifest.webmanifest
+  Cache-Control: no-cache
+
+# The typeface is a fixed file; a new one would be a new name.
+/vocab/fonts/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Word packs and dictionary shards keep their names when they are rebuilt, so
+# they are cached for an hour rather than forever — long enough to be worth it,
+# short enough that a rebuilt pack reaches people the same day.
+/vocab/data/*
+  Cache-Control: public, max-age=3600
+
+/vocab/icons/*
+  Cache-Control: public, max-age=604800
+
+/download/*
+  Cache-Control: public, max-age=3600
