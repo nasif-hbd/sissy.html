@@ -103,9 +103,37 @@ Pages serves files; it does not run Node. `vocab/server/proxy.mjs` needs a
 host that does — Render, Railway, Fly.io or a small VPS all work, and the
 first three have a free tier.
 
-There are two shapes, and the first is much harder to get wrong.
+There are three shapes. The first needs no other account and no repository
+connection, which is why it is first.
 
-### Either: one host serves both (recommended)
+### A — A Cloudflare Worker (recommended if the app is already on Pages)
+
+`vocab/server/worker.mjs` is the same proxy, built for Workers: the same
+prompts, the same schemas, the same Gemini client as the Node proxy, sharing
+the files rather than copying them. Workers have no Node, so it drops the
+three things that need one — serving the app's files, web push, and emailed
+feedback over SMTP. The seven AI routes and translation are all there.
+
+Free tier, no cold start, and it lives in the dashboard you already have.
+
+**With no CLI and no connected repository:**
+
+1. Run `vocab/server/build-worker.sh` — it writes `dist/worker.js`, one file.
+2. Cloudflare dashboard → **Workers & Pages → Create → Start with Hello
+   World → Deploy**, then **Edit code**, and paste `dist/worker.js` over
+   what is there. Deploy.
+3. **Settings → Variables and Secrets** on the Worker:
+   - Secret **`GEMINI_API_KEY`** — your key.
+   - Variable **`ALLOWED_ORIGIN`** — `https://vocabx.ylarena.online`, no path,
+     no trailing slash. Without it the Worker answers anyone, and anyone who
+     finds the URL can spend your API credit.
+4. In the app: **Settings → AI help → Gemini → Your server** = the Worker's
+   URL (`https://vocabx-proxy.<you>.workers.dev`).
+
+**With the CLI**, from `vocab/server`: `npx wrangler secret put GEMINI_API_KEY`
+then `npx wrangler deploy`. `wrangler.toml` is already there.
+
+### B — One host serves both
 
 `proxy.mjs` already serves the app beside its own API — the whole of `vocab/`
 is on the same origin as `/api/...`. Deploy the repo to a Node host, point
@@ -118,7 +146,7 @@ That is the whole configuration. No CORS, no `ALLOWED_ORIGIN`, no second
 address to keep in step, and no way to point at the wrong one. You can drop
 Cloudflare Pages entirely, or keep it in front as a CDN.
 
-### Or: Pages serves the app, the proxy lives elsewhere
+### C — Pages serves the app, a Node proxy lives elsewhere
 
 Keep the Pages deployment from Parts 1–3 and host only the proxy. Then:
 

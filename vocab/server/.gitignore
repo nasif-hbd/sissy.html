@@ -2,3 +2,4 @@ node_modules/
 subscriptions.json
 .env
 feedback.jsonl
+dist/

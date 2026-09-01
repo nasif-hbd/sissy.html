@@ -11,7 +11,22 @@
  */
 const BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
-export const geminiKey = () => process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY || '';
+/*
+ * Where the key and the model come from.
+ *
+ * Under Node they are environment variables. A Cloudflare Worker has no
+ * `process.env` — its secrets arrive as a per-request `env` object — so
+ * `configure()` lets the Worker hand them over at the top of a request
+ * without every function in this file growing a parameter.
+ */
+let injected = null;
+export function configure({ apiKey, model } = {}) {
+  injected = { apiKey: apiKey || '', model: model || '' };
+}
+const fromEnv = (name) => (typeof process !== 'undefined' ? process.env?.[name] : '') || '';
+
+export const geminiKey = () =>
+  injected?.apiKey || fromEnv('GEMINI_API_KEY') || fromEnv('GOOGLE_API_KEY');
 export const hasGeminiKey = () => Boolean(geminiKey());
 
 /**
@@ -23,7 +38,12 @@ export const hasGeminiKey = () => Boolean(geminiKey());
  * models that answer 404 on generateContent for the same key, so a new id
  * belongs here only once it has actually been called.
  */
-export const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
+export const DEFAULT_MODEL = 'gemini-flash-lite-latest';
+/** A getter, not a constant: a Worker learns its model after this file loads. */
+export const geminiDefaultModel = () =>
+  injected?.model || fromEnv('GEMINI_MODEL') || DEFAULT_MODEL;
+/** Kept for the Node proxy, which reads it once at startup to print it. */
+export const GEMINI_MODEL = fromEnv('GEMINI_MODEL') || DEFAULT_MODEL;
 
 /**
  * The model to actually call.
@@ -34,7 +54,7 @@ export const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-lite-lates
  * not a Gemini id falls back to the configured default.
  */
 export function geminiModel(asked) {
-  return /^(gemini|gemma)[\w.-]*$/i.test(String(asked || '')) ? asked : GEMINI_MODEL;
+  return /^(gemini|gemma)[\w.-]*$/i.test(String(asked || '')) ? asked : geminiDefaultModel();
 }
 
 /** Our history shape → Gemini's. It calls the assistant turn "model". */

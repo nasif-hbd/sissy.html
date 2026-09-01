@@ -1,0 +1,20 @@
+# Deploying the AI proxy as a Cloudflare Worker.
+#
+#   npx wrangler secret put GEMINI_API_KEY     # never in this file
+#   npx wrangler deploy
+#
+# Or skip the CLI entirely: run ./build-worker.sh and paste dist/worker.js
+# into the dashboard's editor.
+name = "vocabx-proxy"
+main = "worker.mjs"
+compatibility_date = "2025-09-01"
+
+[vars]
+# The exact origin your app is served from — no path, no trailing slash.
+# Leave this unset and the Worker answers requests from anywhere, which means
+# anyone who finds the URL can spend your API credit.
+ALLOWED_ORIGIN = "https://vocabx.ylarena.online"
+
+# Keys are secrets, not vars. `wrangler secret put GEMINI_API_KEY`, or
+# Settings → Variables and Secrets in the dashboard. A key written here would
+# be committed to your repository.
