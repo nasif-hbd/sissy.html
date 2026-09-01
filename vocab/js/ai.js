@@ -32,6 +32,19 @@ export const AIClient = {
   },
   get isLive() { return this.provider !== 'built-in'; },
   get providerLabel() { return PROVIDERS[this.provider]?.label || 'Built-in'; },
+  /**
+   * The model id for whichever engine is answering.
+   *
+   * Settings keeps the two picks apart — `model` is the Claude one, and
+   * `geminiModel` the Gemini one — and every call used to send `model`
+   * whichever engine was chosen. Gemini was being asked for
+   * "claude-haiku-4-5", which it answers 404 to, so the Gemini engine could
+   * not complete a single request from the browser and its model menu did
+   * nothing at all.
+   */
+  get model() {
+    return this.provider === 'gemini' ? cfg().geminiModel : cfg().model;
+  },
 
   url(route) {
     const base = (cfg().endpoint || '').replace(/\/+$/, '');
@@ -61,7 +74,7 @@ export const AIClient = {
   /** Full dictionary entry for a word: definition, examples, mnemonic… */
   async enrichWord(term, opts = {}) {
     if (!this.isLive) return localWord(term, opts.level);
-    return post(this.url(AI.routes.word), { term, level: opts.level, model: cfg().model, provider: this.provider });
+    return post(this.url(AI.routes.word), { term, level: opts.level, model: this.model, provider: this.provider });
   },
 
   /** A multiple-choice item for `word`, with plausible distractors. */
@@ -72,7 +85,7 @@ export const AIClient = {
       definition: word.definition,
       distractors: pool.map((w) => w.term).slice(0, 8),
       level: opts.level,
-      model: cfg().model,
+      model: this.model,
       provider: this.provider,
     });
   },
@@ -85,7 +98,7 @@ export const AIClient = {
       known: opts.known || [],
       struggling: opts.struggling || [],
       count: opts.count || 6,
-      model: cfg().model,
+      model: this.model,
       provider: this.provider,
     });
   },
@@ -103,7 +116,7 @@ export const AIClient = {
       definition: word.definition,
       level: opts.level,
       sentence: `Explain "${word.term}" to a ${opts.level || 'B1'} learner: two short sentences of plain English, one natural example sentence, then one memory hook.`,
-      model: cfg().model,
+      model: this.model,
       provider: this.provider,
     }, onToken);
   },
@@ -112,7 +125,7 @@ export const AIClient = {
   async coach({ term, definition, sentence, level }, onToken) {
     if (!this.isLive) return replay(localCoach(term, sentence), onToken);
     return stream(this.url(AI.routes.coach),
-      { term, definition, sentence, level, model: cfg().model, provider: this.provider }, onToken);
+      { term, definition, sentence, level, model: this.model, provider: this.provider }, onToken);
   },
 
   /**
@@ -127,7 +140,7 @@ export const AIClient = {
       return replay(answer || OFFLINE_MISS, onToken);
     }
     return stream(this.url(AI.routes.ask),
-      { question, history, level, model: cfg().model, provider: this.provider }, onToken);
+      { question, history, level, model: this.model, provider: this.provider }, onToken);
   },
 
   /**
@@ -137,13 +150,13 @@ export const AIClient = {
    */
   async assess(payload, onToken) {
     if (!this.isLive) return replay(localAssess(payload), onToken);
-    return stream(this.url(AI.routes.assess), { ...payload, model: cfg().model, provider: this.provider }, onToken);
+    return stream(this.url(AI.routes.assess), { ...payload, model: this.model, provider: this.provider }, onToken);
   },
 
   /** Weekly progress write-up from the tracking snapshot. */
   async report(payload, onToken) {
     if (!this.isLive) return replay(localReport(payload), onToken);
-    return stream(this.url(AI.routes.report), { stats: payload, model: cfg().model, provider: this.provider }, onToken);
+    return stream(this.url(AI.routes.report), { stats: payload, model: this.model, provider: this.provider }, onToken);
   },
 };
 

@@ -120,7 +120,10 @@ async function askJsonVia(who, prompt, schema, body) {
 async function streamVia(who, prompt, res, body) {
   if (who !== 'gemini') return streamText(prompt, res, pickModel(body));
   try {
-    await geminiStream(prompt, (text) => sse(res, { type: 'text_delta', text }));
+    // The model the client chose, the same as askJsonVia — without it every
+    // streamed answer silently came from the server default instead.
+    await geminiStream(prompt, (text) => sse(res, { type: 'text_delta', text }),
+                       body?.model || undefined);
     sse(res, { type: 'done' });
   } catch (err) {
     sse(res, { type: 'error', error: err.message });

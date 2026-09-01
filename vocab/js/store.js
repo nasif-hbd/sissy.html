@@ -178,6 +178,13 @@ function migrate(s) {
   const ai = s.settings?.ai;
   if (ai && !ai.provider) ai.provider = ai.mode === 'proxy' ? 'anthropic' : 'built-in';
   if (ai && !ai.geminiModel) ai.geminiModel = AI.geminiModels[0].id;
+  /* Google retires model ids, and a retired one answers 404 rather than
+     falling back — so a saved id the app no longer offers is a broken AI tab
+     until it is replaced. Anyone carrying one is moved to the current
+     default; a pick that is still on the list is left alone. */
+  if (ai?.geminiModel && !AI.geminiModels.some((m) => m.id === ai.geminiModel)) {
+    ai.geminiModel = AI.geminiModels[0].id;
+  }
   // Reminders grew from a flat list of times into a routine of steps. Convert
   // rather than discard — someone chose those times.
   const rem = s.settings?.reminders;

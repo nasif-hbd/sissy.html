@@ -15,10 +15,27 @@ export const geminiKey = () => process.env.GEMINI_API_KEY || process.env.GOOGLE_
 export const hasGeminiKey = () => Boolean(geminiKey());
 
 /**
- * Model ids move faster than this file will. The default is the cheapest tier
- * Google publishes; override with GEMINI_MODEL if it has been renamed.
+ * Model ids move faster than this file will, and a retired one answers 404 —
+ * which is why the default is one of Google's floating aliases rather than a
+ * pinned version. Override with GEMINI_MODEL to pin.
+ *
+ * ListModels is not a reliable guide to what a key may call: it advertises
+ * models that answer 404 on generateContent for the same key, so a new id
+ * belongs here only once it has actually been called.
  */
-export const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-2.0-flash-lite';
+export const GEMINI_MODEL = process.env.GEMINI_MODEL || 'gemini-flash-lite-latest';
+
+/**
+ * The model to actually call.
+ *
+ * A client that names a model belonging to another engine — "claude-haiku-4-5"
+ * reached here for months, because the browser sent one `model` field whichever
+ * engine was chosen — must not turn into a 404 from Google. Anything that is
+ * not a Gemini id falls back to the configured default.
+ */
+export function geminiModel(asked) {
+  return /^(gemini|gemma)[\w.-]*$/i.test(String(asked || '')) ? asked : GEMINI_MODEL;
+}
 
 /** Our history shape → Gemini's. It calls the assistant turn "model". */
 const toContents = (messages) => messages.map((m) => ({
@@ -37,19 +54,38 @@ function body({ system, user, messages }, extra = {}) {
   };
 }
 
-async function call(path, payload, model) {
+/**
+ * One request, with a single retry on the two statuses that mean "ask again"
+ * rather than "you asked wrong": 503 is Gemini's model-overloaded, and 429 is
+ * a rate limit. Both clear on a retry more often than not, and a learner
+ * waiting on a hint should not be shown an error for either.
+ */
+async function call(path, payload, model, attempt = 0) {
   const res = await fetch(`${BASE}/${model}:${path}&key=${encodeURIComponent(geminiKey())}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) {
-    const detail = await res.text().catch(() => '');
-    // The key is in the URL, so an error echoing it back must never be logged
-    // or forwarded verbatim.
-    throw new Error(`Gemini responded ${res.status}. ${scrub(detail).slice(0, 200)}`);
+  if (res.ok) return res;
+
+  const detail = await res.text().catch(() => '');
+  if ((res.status === 503 || res.status === 429) && attempt === 0) {
+    await new Promise((done) => setTimeout(done, 1200));
+    return call(path, payload, model, attempt + 1);
   }
-  return res;
+  // The key is in the URL, so an error echoing it back must never be logged
+  // or forwarded verbatim.
+  throw new Error(`${reason(res.status)} ${scrub(detail).slice(0, 200)}`);
+}
+
+/** What the status actually means to someone using the app. */
+function reason(status) {
+  if (status === 404) return 'Gemini has no such model (404) — the id may have been retired.';
+  if (status === 400) return 'Gemini rejected the request (400).';
+  if (status === 401 || status === 403) return 'Gemini rejected the key (' + status + ').';
+  if (status === 429) return 'Gemini is rate-limiting this key (429).';
+  if (status === 503) return 'Gemini is overloaded right now (503).';
+  return `Gemini responded ${status}.`;
 }
 
 const scrub = (text) => String(text).replace(/key=[\w-]+/gi, 'key=…');
@@ -61,11 +97,11 @@ const scrub = (text) => String(text).replace(/key=[\w-]+/gi, 'key=…');
  * JSON-Schema keywords it does not implement — `additionalProperties` among
  * them — so the schema is trimmed before it is sent.
  */
-export async function geminiJson(prompt, schema, model = GEMINI_MODEL) {
+export async function geminiJson(prompt, schema, model) {
   const res = await call('generateContent?', body(prompt, {
     responseMimeType: 'application/json',
     responseSchema: forGemini(schema),
-  }), model);
+  }), geminiModel(model));
 
   const data = await res.json();
   const text = data?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '';
@@ -89,27 +125,36 @@ export function forGemini(schema) {
 }
 
 /** Streaming request: every text delta is handed to `onToken`. */
-export async function geminiStream(prompt, onToken, model = GEMINI_MODEL) {
-  const res = await call('streamGenerateContent?alt=sse', body(prompt), model);
+export async function geminiStream(prompt, onToken, model) {
+  const res = await call('streamGenerateContent?alt=sse', body(prompt), geminiModel(model));
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
   let full = '';
 
+  const take = (frame) => {
+    const line = frame.split(/\r?\n/).find((l) => l.startsWith('data:'));
+    if (!line) return;
+    let evt;
+    try { evt = JSON.parse(line.slice(5).trim()); } catch { return; }
+    const text = evt?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '';
+    if (text) { full += text; onToken(text); }
+  };
+
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
-    const frames = buffer.split('\n\n');
+    /* Google separates frames with CRLF, not LF. Splitting on "\n\n" alone
+       matched nothing at all — every frame stayed in the buffer and the whole
+       answer was dropped on the floor, which is what made the tutor chat
+       stream silence. */
+    const frames = buffer.split(/\r?\n\r?\n/);
     buffer = frames.pop() || '';
-    for (const frame of frames) {
-      const line = frame.split('\n').find((l) => l.startsWith('data:'));
-      if (!line) continue;
-      let evt;
-      try { evt = JSON.parse(line.slice(5).trim()); } catch { continue; }
-      const text = evt?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('') || '';
-      if (text) { full += text; onToken(text); }
-    }
+    for (const frame of frames) take(frame);
   }
+  // A stream that ends without a blank line after the last frame still has one
+  // frame's worth of answer left in the buffer.
+  if (buffer.trim()) take(buffer);
   return full;
 }

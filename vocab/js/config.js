@@ -107,7 +107,7 @@ export const PROVIDERS = {
     needsProxy: true,
   },
   gemini: {
-    label: 'Gemini', blurb: 'Your proxy calls the Google Gemini API. Needs GEMINI_API_KEY on the server.',
+    label: 'Gemini', blurb: 'Your proxy calls the Google Gemini API — the same help as Claude, on Google\'s models. Needs GEMINI_API_KEY on the server.',
     needsProxy: true,
   },
 };
@@ -122,11 +122,19 @@ export const AI = {
    * compromise. Settings offers the others.
    */
   defaultModel: 'claude-haiku-4-5',
-  /** Gemini's cheapest tiers. Ids move; GEMINI_MODEL on the server overrides. */
+  /**
+   * Gemini's cheap tiers, every one of them called once before it was listed.
+   *
+   * Google retires ids, and a retired id answers 404 rather than falling back
+   * — the 2.0 Flash ids that used to be here now do exactly that. So the
+   * default is a floating alias that Google keeps pointing at something live,
+   * with a pinned version beside it for anyone who would rather the model
+   * never changed under them. GEMINI_MODEL on the server overrides both.
+   */
   geminiModels: [
-    { id: 'gemini-2.0-flash-lite', label: 'Flash Lite — fastest and cheapest' },
-    { id: 'gemini-2.0-flash', label: 'Flash — a step up' },
-    { id: 'gemini-2.5-flash', label: 'Flash 2.5 — the most capable of these' },
+    { id: 'gemini-flash-lite-latest', label: 'Flash Lite — fastest and cheapest' },
+    { id: 'gemini-3.5-flash-lite', label: 'Flash Lite 3.5 — the same, pinned' },
+    { id: 'gemini-3.5-flash', label: 'Flash 3.5 — a step up' },
   ],
   models: [
     { id: 'claude-haiku-4-5', label: 'Haiku 4.5 — fastest and cheapest' },
