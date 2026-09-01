@@ -5,3 +5,5 @@ node_modules
 # The web package is the repo itself, rebuilt — scripts/package-web.sh makes it
 # on demand. Committing 16MB of it every round would bloat history for nothing.
 download/vocabx-web.zip
+
+download/vocabx-pages-with-ai.zip

@@ -12,13 +12,24 @@ cd "$(dirname "$0")"
 BUNDLER="npx --yes esbuild"
 
 mkdir -p dist
+
+# Two builds of the same proxy, for the two ways it can be deployed.
+#   worker.js   a Worker of its own, on its own address.
+#   _worker.js  Pages "advanced mode": the app and the proxy on one origin,
+#               deployed by the same folder upload as the site.
 $BUNDLER worker.mjs \
   --bundle --format=esm --target=es2022 --platform=neutral \
   --outfile=dist/worker.js --legal-comments=none
 
+$BUNDLER pages-worker.mjs \
+  --bundle --format=esm --target=es2022 --platform=neutral \
+  --outfile=dist/_worker.js --legal-comments=none
+
 # A Worker that references a Node builtin fails at deploy, not at review time,
 # and the shared modules are edited with the Node proxy in mind.
-if grep -qE 'from *"node:|require\("node:' dist/worker.js; then
-  echo "refusing to ship: the bundle pulls in a Node builtin"; exit 1
-fi
-printf 'bundled %s  →  %s\n' "$(du -h dist/worker.js | cut -f1)" "$(pwd)/dist/worker.js"
+for built in dist/worker.js dist/_worker.js; do
+  if grep -qE 'from *"node:|require\("node:' "$built"; then
+    echo "refusing to ship: $built pulls in a Node builtin"; exit 1
+  fi
+  printf 'bundled %6s  →  %s\n' "$(du -h "$built" | cut -f1)" "$(pwd)/$built"
+done

@@ -12,6 +12,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 OUT=$(pwd)/download/vocabx-web.zip
+# The same site with the AI proxy inside it, as one Pages deployment.
+OUT_AI=$(pwd)/download/vocabx-pages-with-ai.zip
 STAGE=$(mktemp -d)/vocabx-web
 trap 'rm -rf "$(dirname "$STAGE")"' EXIT
 
@@ -46,9 +48,21 @@ if find "$STAGE" -name '.env' -o -name '*.key' -o -name 'subscriptions.json' \
 fi
 
 mkdir -p "$(dirname "$OUT")"
-rm -f "$OUT"
+rm -f "$OUT" "$OUT_AI"
 # Zipped from inside the staging directory, so index.html is at the root of
 # the archive. A host's drag-and-drop upload takes the archive's root as the
 # site root; a wrapper folder would serve the whole site one level down.
 (cd "$STAGE" && zip -qr "$OUT" . -x '.DS_Store')
 echo "packaged $(du -h "$OUT" | cut -f1)  $(unzip -l "$OUT" | tail -1 | awk '{print $2}') files  →  $OUT"
+
+# And again with _worker.js in the root, which is how Pages runs the AI proxy
+# itself: one upload, one origin, and no proxy address to configure. Built
+# only when the bundle is already there, so this script never needs esbuild.
+BUILT=vocab/server/dist/_worker.js
+if [ -f "$BUILT" ]; then
+  cp "$BUILT" "$STAGE/_worker.js"
+  (cd "$STAGE" && zip -qr "$OUT_AI" . -x '.DS_Store')
+  echo "packaged $(du -h "$OUT_AI" | cut -f1)  $(unzip -l "$OUT_AI" | tail -1 | awk '{print $2}') files  →  $OUT_AI"
+else
+  echo "skipped $OUT_AI — run vocab/server/build-worker.sh first"
+fi

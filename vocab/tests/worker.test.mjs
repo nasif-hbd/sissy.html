@@ -141,3 +141,60 @@ test('a stream failure arrives as an SSE error frame, not a dead connection', as
     `expected an error or a delta, got ${JSON.stringify(frames)}`);
   assert.equal(frames.at(-1).type === 'done' || frames.at(-1).type === 'error', true);
 });
+
+/* ── the Pages build: app and proxy on one origin ───────────────────────── */
+
+/**
+ * Pages "advanced mode" hands every request to the Worker and serves the
+ * site through an ASSETS binding — which also means the `_headers` file is
+ * never read. The rules it carries have to be reapplied here, and the first
+ * of them is not cosmetic: without it a browser can pin a stale service
+ * worker, which is how a PWA gets stuck on an old version for good.
+ */
+const pages = await import('../server/pages-worker.mjs').then((m) => m.default);
+
+/** A stand-in ASSETS binding that answers everything. */
+const ASSETS = { fetch: async () => new Response('<!doctype html>', { headers: { 'content-type': 'text/html' } }) };
+const site = (pathname, env = { ASSETS, GEMINI_API_KEY: 'k' }) =>
+  pages.fetch(new Request(`https://vocabx.example${pathname}`), env, {});
+
+test('the site and the API answer on one origin', async () => {
+  const page = await site('/vocab/');
+  assert.equal(page.status, 200);
+  assert.match(page.headers.get('content-type'), /text\/html/);
+
+  const api = await site('/api/health');
+  assert.equal((await api.json()).providers.gemini.ready, true,
+    'the same deployment serves both, which is the whole point of this build');
+});
+
+test('the caching rules from _headers survive advanced mode', async () => {
+  const cases = [
+    ['/vocab/sw.js', 'no-cache'],
+    ['/vocab/manifest.webmanifest', 'no-cache'],
+    ['/vocab/fonts/space-grotesk.woff2', 'public, max-age=31536000, immutable'],
+    ['/vocab/data/modules/index.json', 'public, max-age=3600'],
+    ['/vocab/icons/mark-64.webp', 'public, max-age=604800'],
+  ];
+  for (const [pathname, expected] of cases) {
+    assert.equal((await site(pathname)).headers.get('cache-control'), expected,
+      `${pathname} lost its rule`);
+  }
+});
+
+test('the security headers survive too', async () => {
+  const res = await site('/vocab/');
+  assert.equal(res.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(res.headers.get('referrer-policy'), 'strict-origin-when-cross-origin');
+  assert.match(res.headers.get('permissions-policy'), /camera=\(\)/);
+});
+
+test('a page with no rule of its own is left uncached rather than mis-cached', async () => {
+  assert.equal((await site('/vocab/index.html')).headers.get('cache-control'), null);
+});
+
+test('the proxy is pinned to its own origin, whatever the environment says', async () => {
+  // A copy of this file running elsewhere must not answer for this domain.
+  const res = await site('/api/health', { ASSETS, GEMINI_API_KEY: 'k', ALLOWED_ORIGIN: 'https://somewhere.else' });
+  assert.equal(res.headers.get('access-control-allow-origin'), 'https://vocabx.example');
+});
