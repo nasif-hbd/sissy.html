@@ -191,10 +191,46 @@ function drawXp(state) {
 }
 
 // ── tabs ───────────────────────────────────────────────────────────────────
+/**
+ * The rail opens and closes, and stays how it was left.
+ *
+ * It is closed to begin with: eight labelled buttons down the side of a phone
+ * is most of the screen spent on furniture. The hamburger is the whole of the
+ * navigation until someone asks for it.
+ */
+function setRail(open) {
+  document.documentElement.classList.toggle('rail-closed', !open);
+  const btn = $('#railToggle');
+  btn.setAttribute('aria-expanded', String(open));
+  btn.setAttribute('aria-label', open ? 'Hide navigation' : 'Show navigation');
+  if (Store.state.settings.railOpen !== open) {
+    Store.commit((st) => { st.settings.railOpen = open; });
+  }
+}
+
+function wireRail() {
+  setRail(Store.state.settings.railOpen === true);
+  $('#railToggle').addEventListener('click', () => {
+    const opening = document.documentElement.classList.contains('rail-closed');
+    setRail(opening);
+    // Opening it with the keyboard should land you in it, not behind it.
+    if (opening) $('.tab.is-active, .tab')?.focus();
+  });
+  addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape' || document.documentElement.classList.contains('rail-closed')) return;
+    setRail(false);
+    $('#railToggle').focus();
+  });
+}
+
 function wireTabs() {
+  wireRail();
   for (const tab of $$('.tab')) {
     tab.addEventListener('click', () => {
       switchView(tab.dataset.tab);
+      // On a narrow screen the open rail is most of the width, so choosing a
+      // view puts it away again; on a wide one there is room to leave it.
+      if (window.innerWidth < 900) setRail(false);
       if (tab.dataset.tab === 'progress') { renderProgress(Store.state); drawXp(Store.state); }
       if (tab.dataset.tab === 'practice') ensurePracticeSeed();
       if (tab.dataset.tab === 'modules') loadModules();

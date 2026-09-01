@@ -65,8 +65,17 @@ export const DEFAULTS = {
  * and selects a palette in styles.css; `paper`/`accent` only draw the swatch.
  * Add one here and in the stylesheet — nothing else needs to know.
  */
+/**
+ * Themes, in the order the toggle cycles them.
+ *
+ * "Auto" follows the device and paints Iris by day and Ink by night. The three
+ * named ones are there because the palette is a matter of taste and a learner
+ * who dislikes it is not going to stay: Iris is the current design, Paper is
+ * the one this app shipped with, and Linen and Ink are the warm and dark ends.
+ */
 export const THEMES = [
-  { id: 'auto',  label: 'Auto',  paper: '#f6f7f8', accent: '#e2620a', note: 'follows the device' },
+  { id: 'auto',  label: 'Auto',  paper: '#f7f8fa', accent: '#6c5ce7', note: 'follows the device' },
+  { id: 'iris',  label: 'Iris',  paper: '#f7f8fa', accent: '#6c5ce7', note: 'light, violet' },
   { id: 'paper', label: 'Paper', paper: '#ffffff', accent: '#e2620a', note: 'white, orange' },
   { id: 'linen', label: 'Linen', paper: '#f2efe8', accent: '#0f6f70', note: 'off-white, teal' },
   { id: 'ink',   label: 'Ink',   paper: '#12151a', accent: '#4d9dff', note: 'black, blue' },

@@ -20,8 +20,63 @@
   src: url("fonts/space-grotesk.woff2") format("woff2");
 }
 
-/* ── Paper — white, orange (default) ────────────────────────────────────── */
+/* ═══ Palettes ═════════════════════════════════════════════════════════════
+   Every colour in the app comes from these blocks and nothing below picks one
+   directly, which is why adding a theme is one block and no component work.
+   Order matters: the shared block is first, and each named theme overrides it.
+========================================================================== */
+
+/* Shared by every theme. */
+:root {
+  --radius:    16px;
+  --radius-sm: 11px;
+  --tap:       44px;
+  --maxw:      660px;
+  --rail:      64px;
+  /* Fallback height for the Ask chat; ui.js measures the real one per device. */
+  --chat-min:  60vh;
+  --sans: "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --text: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+}
+
+/* ── Iris — light, violet. The default, and what Auto paints by day ──────
+   Softer shadows and a wider radius than the rest: these cards are meant to
+   lift off the page rather than be ruled off from it. */
 :root,
+:root[data-theme="iris"],
+:root[data-theme="auto"] {
+  --paper:       #f7f8fa;
+  --paper-sunk:  #eeeff3;
+  --card:        #ffffff;
+  --ink:         #15171b;
+  --ink-2:       #5a606a;
+  --ink-3:       #9296a0;
+  --rule:        #e8e9ed;
+  --rule-firm:   #d6d8de;
+  --edge:        #e8e9ed;
+
+  --accent:      #6c5ce7;
+  --accent-ink:  #ffffff;
+  --accent-soft: #efedff;
+  --danger:      #d93a3a;
+  --danger-soft: #fdeaea;
+  --warn:        #a8760c;
+  --warn-soft:   #fdf2dd;
+  --ok:          #1da56b;
+  --ok-soft:     #e4f6ee;
+  --info:        #3a6ecb;
+  --info-soft:   #eaf0fc;
+
+  --shadow:      0 1px 2px rgb(27 24 51 / .04), 0 12px 34px -18px rgb(27 24 51 / .22);
+  --shadow-sm:   0 1px 2px rgb(27 24 51 / .05);
+  --shadow-lift: 0 2px 8px rgb(27 24 51 / .06), 0 18px 50px -22px rgb(27 24 51 / .3);
+
+  --radius:    20px;
+  --radius-sm: 12px;
+}
+
+/* ── Paper — white, orange. What the app shipped with ───────────────────── */
 :root[data-theme="paper"] {
   --paper:       #f4f5f7;
   --paper-sunk:  #eceef1;
@@ -49,17 +104,8 @@
   --shadow-sm:   0 1px 2px rgb(23 26 31 / .06);
   --shadow-lift: 0 2px 6px rgb(23 26 31 / .07), 0 14px 32px -18px rgb(23 26 31 / .34);
 
-  /* not theme-dependent */
   --radius:    16px;
   --radius-sm: 11px;
-  --tap:       44px;
-  --maxw:      660px;
-  --rail:      64px;
-  /* Fallback height for the Ask chat; ui.js measures the real one per device. */
-  --chat-min:  60vh;
-  --sans: "Space Grotesk", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --text: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
 }
 
 /* ── Linen — warm off-white, teal ───────────────────────────────────────── */
@@ -89,6 +135,9 @@
   --shadow:      0 1px 2px rgb(30 28 24 / .06), 0 8px 22px -14px rgb(30 28 24 / .3);
   --shadow-sm:   0 1px 2px rgb(30 28 24 / .07);
   --shadow-lift: 0 2px 6px rgb(30 28 24 / .08), 0 14px 32px -18px rgb(30 28 24 / .36);
+
+  --radius:    16px;
+  --radius-sm: 11px;
 }
 
 /* ── Ink — black, blue ──────────────────────────────────────────────────── */
@@ -120,6 +169,9 @@
   --shadow:      0 1px 2px rgb(0 0 0 / .4), 0 10px 26px -14px rgb(0 0 0 / .8);
   --shadow-sm:   0 1px 2px rgb(0 0 0 / .4);
   --shadow-lift: 0 2px 8px rgb(0 0 0 / .45), 0 16px 36px -18px rgb(0 0 0 / .9);
+
+  --radius:    16px;
+  --radius-sm: 11px;
 }
 
 :root[data-theme="auto"] { color-scheme: light; }
@@ -911,6 +963,36 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
   margin-top: 6px;
 }
 
+/* The rail already shows the mark, so the header does not repeat it while the
+   rail is open — on a narrow screen that duplicate is what makes the header
+   wrap onto two lines. */
+:root:not(.rail-closed) .brand__mark { display: none; }
+/* Below 600px the open rail leaves the header about half a screen, which the
+   word count spills out of onto a second line. The rail is showing; the count
+   can wait until it is put away. */
+@media (max-width: 599px) {
+  :root:not(.rail-closed) .brand__sub { display: none; }
+}
+
+/* ── opening and closing the rail ────────────────────────────────────────
+   Everything that makes room for the rail — the body padding, the toasts —
+   reads --rail, so closing it is one value plus the slide. */
+:root.rail-closed { --rail: 0px; }
+:root.rail-closed .tabbar {
+  transform: translateX(-100%);
+  visibility: hidden;                /* and out of the tab order while closed */
+}
+.tabbar {
+  transition: transform .22s ease, visibility .22s;
+  box-shadow: var(--shadow-sm);
+}
+body { transition: padding-left .22s ease; }
+.icon-btn--square { padding: 0; width: var(--tap); }
+.icon-btn--square .ico { margin: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .tabbar, body { transition: none; }
+}
+
 /* ── the rail ───────────────────────────────────────────────────────────── */
 .tabbar {
   position: fixed; left: 0; top: 0; bottom: 0; z-index: 30;
@@ -1036,7 +1118,9 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
     min-height: 44px; padding: 0 14px; font-size: 13.5px; letter-spacing: 0;
   }
   .tab .ico { width: 19px; height: 19px; }
-  .topbar .brand__name { display: none; }
+  /* The rail carries the name at this width — but only while it is open, or
+     closing it would leave the app with its name nowhere on screen. */
+  :root:not(.rail-closed) .topbar .brand__name { display: none; }
   .toasts { align-items: flex-end; padding-right: 26px; }
   /* minmax(0,1fr), not 1fr: a grid item's automatic minimum is its content,
      so a long headword would otherwise push the column past the viewport. */

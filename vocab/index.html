@@ -29,6 +29,7 @@
     <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="5.5"/><path d="M14.5 14.5L19.5 19.5"/></symbol>
     <symbol id="i-pen" viewBox="0 0 24 24"><path d="M19.5 4.5L9 15l-1.5 4.5L12 18 19.5 4.5z"/><path d="M13.5 6.5l4 4"/></symbol>
     <symbol id="i-skip" viewBox="0 0 24 24"><path d="M6 6l8 6-8 6z"/><path d="M17.5 6v12"/></symbol>
+    <symbol id="i-bars" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="M6.5 6.5l11 11M17.5 6.5l-11 11"/></symbol>
     <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4.5 7h15M9.5 7V4.5h5V7M6.5 7l1 12.5h9L17.5 7"/></symbol>
     <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 4v10.5M8 11l4 4 4-4"/><path d="M5 19.5h14"/></symbol>
@@ -50,6 +51,12 @@
   <a class="skip" href="#viewTop">Skip to content</a>
 
   <header class="topbar">
+    <!-- The rail is closed by default and this is what opens it. It is the
+         first thing in the topbar because it is the first thing it acts on. -->
+    <button class="icon-btn icon-btn--square" id="railToggle" type="button"
+            aria-label="Show navigation" aria-expanded="false" aria-controls="tabbar">
+      <svg class="ico" aria-hidden="true"><use href="#i-bars"/></svg>
+    </button>
     <div class="topbar__brand">
       <span class="brand__mark"><img src="./icons/mark-64.webp" alt="" width="30" height="30"></span>
       <div>

@@ -81,15 +81,25 @@ for (const device of DEVICES) {
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(300);
 
+  /* The rail starts closed, and choosing a view closes it again on a narrow
+     screen — so the sweep opens it before each move rather than once. */
+  const goto = async (tab) => {
+    if (await page.evaluate(() => document.documentElement.classList.contains('rail-closed'))) {
+      await page.click('#railToggle');
+      await page.waitForTimeout(260);          // the slide
+    }
+    await page.click(`.tab[data-tab="${tab}"]`);
+  };
+
   const stops = [
     ...VIEWS.map((view) => ({ view, tab: view })),
     ...DEEP_VIEWS,
   ];
 
   for (const { view, tab, open, ready, sit } of stops) {
-    if (tab) await page.click(`.tab[data-tab="${tab}"]`);
+    if (tab) await goto(tab);
     else {
-      await page.click('.tab[data-tab="home"]');
+      await goto('home');
       await page.waitForTimeout(120);
       await page.click(open);
       await page.waitForSelector(ready, { state: 'visible' });
@@ -127,7 +137,7 @@ for (const device of DEVICES) {
     if (small.length) problems.push(`${device.name}: tap targets too small — ${small.join(', ')}`);
   }
 
-  await page.click('.tab[data-tab="learn"]');
+  await goto('learn');
   await page.click('#revealBtn');
   await page.waitForTimeout(200);
 
