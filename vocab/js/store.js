@@ -43,7 +43,7 @@ function freshState() {
       push: { enabled: false, endpoint: null },
       ai: {
         provider: 'built-in',
-        mode: AI.defaultMode, endpoint: AI.proxyUrl,
+        mode: AI.defaultMode,
         model: AI.defaultModel, geminiModel: AI.geminiModels[0].id,
       },
     },
@@ -178,13 +178,10 @@ function migrate(s) {
   const ai = s.settings?.ai;
   if (ai && !ai.provider) ai.provider = ai.mode === 'proxy' ? 'anthropic' : 'built-in';
   if (ai && !ai.geminiModel) ai.geminiModel = AI.geminiModels[0].id;
-  /* The address stopped being a question anyone is asked: the build carries
-     it. Anyone still holding the old localhost default never chose it — it
-     was simply what a new install started with — so move them onto the
-     build's own address. A deliberate pick is left alone. */
-  if (ai?.endpoint === 'http://localhost:8787' && AI.proxyUrl !== 'http://localhost:8787') {
-    ai.endpoint = AI.proxyUrl;
-  }
+  /* The address is the build's, not the reader's — a published app must not
+     let a visitor point it at another server. Any saved one is dropped rather
+     than left sitting in storage looking like it still means something. */
+  if (ai) delete ai.endpoint;
   /* Google retires model ids, and a retired one answers 404 rather than
      falling back — so a saved id the app no longer offers is a broken AI tab
      until it is replaced. Anyone carrying one is moved to the current

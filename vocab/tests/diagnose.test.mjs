@@ -16,9 +16,10 @@ async function loadWith({ origin, endpoint }) {
   globalThis.location = { protocol: url.protocol, hostname: url.hostname,
                           host: url.host, origin: url.origin };
   const { Store } = await import('../js/store.js');
-  Store.state = { settings: { ai: { endpoint, provider: 'gemini', mode: 'proxy' } } };
+  Store.state = { settings: { ai: { provider: 'gemini', mode: 'proxy' } } };
   const { diagnose } = await import('../js/ai.js');
-  return diagnose;
+  // The address is a build setting now, so it is passed in rather than stored.
+  return (err) => diagnose(err, endpoint);
 }
 
 const failedToFetch = () => Object.assign(new TypeError('Failed to fetch'), { name: 'TypeError' });
@@ -56,14 +57,14 @@ test('an https page with an http server is told browsers block it', async () => 
 
 test('an empty address is a setting to fill in, not a network fault', async () => {
   const diagnose = await loadWith({ origin: 'https://vocabx.ylarena.online', endpoint: '   ' });
-  assert.match(diagnose(failedToFetch()), /no server address is set/);
+  assert.match(diagnose(failedToFetch()), /no AI server set/);
 });
 
 test('a malformed address says so rather than guessing', async () => {
   const diagnose = await loadWith({
     origin: 'https://vocabx.ylarena.online', endpoint: 'not a url',
   });
-  assert.match(diagnose(failedToFetch()), /not a valid address/);
+  assert.match(diagnose(failedToFetch()), /not a valid server address/);
 });
 
 test('a timeout is reported as a timeout, not as unreachable', async () => {
@@ -171,4 +172,44 @@ test('a fresh install starts on the built-in address, not on localhost', async (
   // freshState() is what a new browser gets; it must not need editing.
   const fresh = Store.freshState ? Store.freshState() : null;
   if (fresh) assert.equal(fresh.settings.ai.endpoint, AI.proxyUrl);
+});
+
+/**
+ * The address is the build's, not the reader's.
+ *
+ * This is published to the public. A visitor must not be able to point the
+ * app at another server — not through the interface, which no longer offers
+ * the field, and not by editing what is in their own browser storage, which
+ * is why nothing reads it any more.
+ */
+test('a saved address in storage cannot redirect the app', async () => {
+  const { Store } = await import('../js/store.js');
+  const { AI } = await import('../js/config.js');
+  const { proxyBase } = await import('../js/ai.js');
+
+  Store.state = { settings: { ai: { provider: 'gemini', endpoint: 'https://attacker.example' } } };
+  assert.equal(proxyBase(), AI.proxyUrl.replace(/\/+$/, ''),
+    'the build decides, whatever storage says');
+});
+
+test('an address left over from an older save is dropped, not kept', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const source = fs.readFileSync(path.join(ROOT, 'js', 'store.js'), 'utf8');
+  assert.match(source, /delete ai\.endpoint/,
+    'a stale address sitting in storage looks like it still means something');
+});
+
+test('no screen offers the address as something to type', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  for (const file of ['index.html', 'js/app.js']) {
+    const source = fs.readFileSync(path.join(ROOT, file), 'utf8');
+    assert.doesNotMatch(source, /aiEndpoint/,
+      `${file} still carries the address field`);
+  }
 });

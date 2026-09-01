@@ -184,7 +184,7 @@ export const Push = {
       const result = await Notifier.request();
       if (result !== 'granted') throw new Error('Notification permission denied.');
     }
-    const base = (Store.get('settings.ai.endpoint') || '').replace(/\/+$/, '');
+    const base = proxyBase();
     const keyRes = await fetch(`${base}${PUSH.routes.publicKey}`);
     if (!keyRes.ok) throw new Error('Proxy has no VAPID key configured.');
     const { publicKey } = await keyRes.json();
@@ -215,7 +215,7 @@ export const Push = {
     const reg = swReg || (await navigator.serviceWorker.getRegistration());
     const sub = await reg?.pushManager.getSubscription();
     if (sub) {
-      const base = (Store.get('settings.ai.endpoint') || '').replace(/\/+$/, '');
+      const base = proxyBase();
       await fetch(`${base}${PUSH.routes.unsubscribe}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },

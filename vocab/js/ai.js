@@ -21,13 +21,21 @@ import { localAnswer, OFFLINE_MISS } from './chat.js';
 const cfg = () => Store.state.settings.ai;
 
 /**
- * The address, less anything that is not the address.
+ * Where the AI server is, for this build.
  *
- * This field wants the base — the app appends its own routes. But the thing
- * people have in the clipboard is whatever they were last told to open, which
- * is usually the health check, and pasting that produced a request for
- * /api/health/api/health and a 404 that blamed the server. A trailing route is
- * dropped rather than being made someone's problem to spot.
+ * Read from config, never from stored settings. It is a fact about the
+ * deployment — one address, decided by whoever built it — not a preference,
+ * and a published app must not let a visitor point it somewhere else.
+ */
+export const proxyBase = () => baseOf(AI.proxyUrl);
+
+/**
+ * An address, less anything that is not the address.
+ *
+ * The base is what the app appends its routes to, so a trailing `/api/...`
+ * has to come off — the health-check URL is exactly what anyone setting this
+ * up has in their clipboard, and pasting it produced a request for
+ * /api/health/api/health and a 404 that blamed the server.
  */
 export function baseOf(endpoint) {
   return String(endpoint || '')
@@ -80,7 +88,7 @@ export const AIClient = {
   },
 
   url(route) {
-    return `${baseOf(cfg().endpoint)}${route}`;
+    return `${proxyBase()}${route}`;
   },
 
   /** Is the proxy reachable? Returns a short human-readable status string. */
@@ -93,7 +101,7 @@ export const AIClient = {
          right but nothing is deployed at it yet — "check the server logs"
          sends someone looking for a server that is not running. */
       if (res.status === 404) {
-        const at = baseOf(cfg().endpoint) || location.origin;
+        const at = proxyBase() || location.origin;
         return `No proxy at ${at} — that address answered, but it has no /api routes. `
           + 'Deploy the proxy there, or point this at where it is running.';
       }
@@ -236,18 +244,19 @@ const LOCAL_HOST = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0)$/i;
  * someone on a deployed site staring at "Failed to fetch" with no idea that
  * the address still pointed at their own laptop.
  */
-export function diagnose(err, endpoint = cfg().endpoint || '') {
+export function diagnose(err, endpoint = proxyBase()) {
   if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
     return `the server did not answer within ${Math.round(AI.timeoutMs / 1000)} seconds.`;
   }
   // A real HTTP answer — the server was reached, so it speaks for itself.
   if (!/Failed to fetch|NetworkError|Load failed/i.test(err?.message || '')) return err?.message || String(err);
 
-  if (!endpoint.trim()) return 'no server address is set. Open Settings → AI help and add one.';
+  // Empty is same-origin, which is a real answer, not a missing one.
+  if (!endpoint.trim()) return 'this app has no AI server set for it.';
 
   let url;
   try { url = new URL(endpoint); } catch {
-    return `"${endpoint}" is not a valid address. Settings → AI help.`;
+    return `"${endpoint}" is not a valid server address for this build.`;
   }
 
   const pageIsHttps = typeof location !== 'undefined' && location.protocol === 'https:';

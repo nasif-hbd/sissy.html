@@ -16,7 +16,7 @@ export const APP = {
    * by hunting for a changed sentence somewhere in the interface is how an
    * afternoon disappears. Bumped with the service worker's cache name.
    */
-  build: 'v27',
+  build: 'v28',
   /**
    * Where feedback goes when there is no proxy to post it to.
    *
@@ -111,12 +111,15 @@ export const PROVIDERS = {
     label: 'Built-in', blurb: 'Answers from the dictionary on this device. No key, no network, no cost.',
     needsProxy: false,
   },
+  /* Blurbs are read by whoever opens the app, not by whoever deployed it, so
+     they say what changes for the reader rather than naming an environment
+     variable on a server they will never see. */
   anthropic: {
-    label: 'Claude', blurb: 'Your proxy calls the Anthropic API. Needs ANTHROPIC_API_KEY on the server.',
+    label: 'Claude', blurb: 'Answers are written fresh by Claude. Best for open questions and nuance.',
     needsProxy: true,
   },
   gemini: {
-    label: 'Gemini', blurb: 'Your proxy calls the Google Gemini API — the same help as Claude, on Google\'s models. Needs GEMINI_API_KEY on the server.',
+    label: 'Gemini', blurb: 'Answers are written fresh by Google Gemini. Fast, and good at plain explanations.',
     needsProxy: true,
   },
 };

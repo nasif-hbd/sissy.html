@@ -13,7 +13,7 @@ import { schedule, buildQueue, bucket, plannedSession, queueCounts, spokenDelta 
 import { makeSessionTimer, reportPayload, weakest, summary, window as windowStats, recentDays,
          dashboard, recentlyLearned, activeDays } from './stats.js';
 import { Notifier, Push } from './notify.js';
-import { AIClient, baseOf } from './ai.js';
+import { AIClient } from './ai.js';
 import {
   $, $$, el, icon, toast, announce, applyTheme, switchView, renderHeader, renderQueueSummary,
   renderCard, renderEmptyQueue, renderWordList, renderProgress, renderSuggestions,
@@ -1919,8 +1919,6 @@ function wireSettings() {
      localhost default here put that address back in the box every time
      Settings was opened, so clearing it — which is what you do when the proxy
      serves the app itself — looked like it had not worked. */
-  $('#aiEndpoint').value = s.ai.endpoint ?? AICFG.proxyUrl;
-  showEndpointHelp();
   const modelSelect = $('#aiModel');
 
   $('#aiModePicker').replaceChildren(...Object.entries(PROVIDERS).map(([id, p]) =>
@@ -1951,23 +1949,6 @@ function wireSettings() {
     modelSelect.value = models.some((m) => m.id === saved) ? saved : models[0].id;
   };
 
-  /**
-   * Offer the one-press fix for the one address that cannot work.
-   *
-   * A published page pointed at localhost is the mistake everybody makes,
-   * because it is the development default and it works perfectly on the
-   * machine that set it up. Explaining that in a paragraph is worse than
-   * offering the button.
-   */
-  function showEndpointHelp() {
-    const endpoint = Store.state.settings.ai.endpoint || '';
-    let host = '';
-    try { host = new URL(endpoint).hostname; } catch { host = ''; }
-    const pointsAtThisMachine = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0)$/i.test(host);
-    const pageIsLocal = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\])$/i.test(location.hostname);
-    $('#aiEndpointClear').hidden = !(pointsAtThisMachine && !pageIsLocal);
-  }
-
   async function refreshAIStatus() {
     const text = $('#aiStatusText');
     const dot = $('#aiStatus');
@@ -1978,21 +1959,6 @@ function wireSettings() {
     dot.dataset.state = !AIClient.isLive || /^Connected/.test(msg) ? 'ok' : 'bad';
   }
 
-  $('#aiEndpoint').addEventListener('change', (e) => {
-    // Stored as it will be used, so the box never shows one thing while the
-    // app sends another — a pasted /api/health is the common case.
-    const base = baseOf(e.target.value);
-    e.target.value = base;
-    Store.set('settings.ai.endpoint', base);
-    showEndpointHelp();
-    refreshAIStatus();
-  });
-  $('#aiEndpointClear').addEventListener('click', () => {
-    $('#aiEndpoint').value = '';
-    Store.set('settings.ai.endpoint', '');
-    showEndpointHelp();
-    refreshAIStatus();
-  });
   modelSelect.addEventListener('change', (e) => {
     Store.set(AIClient.provider === 'gemini' ? 'settings.ai.geminiModel' : 'settings.ai.model',
       e.target.value);

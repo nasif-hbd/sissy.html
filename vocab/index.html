@@ -811,39 +811,19 @@
         <div class="card">
           <h3 class="card__title">AI help</h3>
           <p class="hint">Explanations, suggested words, sentence coaching, the tutor chat and the
-             weekly summary. The built-in tutor answers from the dictionary on your device, with no
-             network and no key; Claude or Gemini writes them fresh through your own server.</p>
+             weekly summary. The built-in tutor answers from the dictionary on your device — no
+             network, nothing sent anywhere. Claude and Gemini write them fresh instead.</p>
           <div class="seg seg--wide" id="aiModePicker" role="tablist"></div>
           <p class="hint" id="aiProviderBlurb"></p>
           <p class="status" id="aiStatus"><i class="status__dot"></i><span id="aiStatusText">Checking…</span></p>
           <div id="aiProxyFields" hidden>
-            <!-- The server's address is a property of the deployment, not a
-                 preference, and the one person who knows it is whoever deployed
-                 this build. It lives in config.js now; this is here for the rare
-                 case of pointing one build at someone else's proxy. -->
-            <details class="advanced">
-              <summary>Advanced — where the server is</summary>
-              <label class="field">
-                <span>Server address</span>
-                <input class="input" id="aiEndpoint" type="text" placeholder="This website (recommended)">
-                <button class="btn btn--quiet btn--sm btn--inline" id="aiEndpointClear" type="button" hidden>
-                  <svg class="ico ico--sm" aria-hidden="true"><use href="#i-check"/></svg>Use this website's own server</button>
-                <span class="hint">Leave it empty and the app uses whatever address it is
-                   loaded from, which is right when the same deployment serves both. Only
-                   fill this in to point at a proxy hosted somewhere else. A
-                   <code>localhost</code> address only ever works on the computer running
-                   the proxy.</span>
-              </label>
-            </details>
             <label class="field">
               <span>Model</span>
               <select class="input input--select" id="aiModel"></select>
             </label>
             <div class="row">
-              <button class="btn btn--quiet btn--sm" id="aiTest" type="button">Test connection</button>
+              <button class="btn btn--quiet btn--sm" id="aiTest" type="button">Check again</button>
             </div>
-            <p class="hint">The API key never touches the browser — the proxy in <code>server/</code>
-               holds it. See the README to run it.</p>
           </div>
         </div>
 
