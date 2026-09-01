@@ -1912,7 +1912,11 @@ function wireSettings() {
   level.addEventListener('change', (e) => Store.set('profile.level', e.target.value));
 
   // AI — one choice of engine, one status line, server fields only when needed.
-  $('#aiEndpoint').value = s.ai.endpoint || AICFG.defaultEndpoint;
+  /* The stored value verbatim, including an empty one. Falling back to the
+     localhost default here put that address back in the box every time
+     Settings was opened, so clearing it — which is what you do when the proxy
+     serves the app itself — looked like it had not worked. */
+  $('#aiEndpoint').value = s.ai.endpoint ?? AICFG.defaultEndpoint;
   const modelSelect = $('#aiModel');
 
   $('#aiModePicker').replaceChildren(...Object.entries(PROVIDERS).map(([id, p]) =>

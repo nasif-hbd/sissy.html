@@ -454,11 +454,20 @@ function rateLimit(req, limit = 40, windowMs = 60_000) {
   return entry.count <= limit;
 }
 
+/* Every extension the app actually ships. A type that is missing here is
+   served as application/octet-stream, which a browser will not render as a
+   font at all — the logo and both typefaces were coming down as raw bytes
+   whenever the app was served through this proxy rather than by a static
+   host. */
 const MIME = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8',
   '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json',
   '.svg': 'image/svg+xml', '.png': 'image/png', '.ico': 'image/x-icon',
+  '.webp': 'image/webp', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg',
+  '.woff2': 'font/woff2', '.woff': 'font/woff',
+  '.txt': 'text/plain; charset=utf-8', '.md': 'text/plain; charset=utf-8',
+  '.zip': 'application/zip',
 };
 
 function serveStatic(pathname, res) {

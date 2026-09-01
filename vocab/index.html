@@ -819,7 +819,10 @@
           <div id="aiProxyFields" hidden>
             <label class="field">
               <span>Your server</span>
-              <input class="input" id="aiEndpoint" type="url" placeholder="http://localhost:8787">
+              <input class="input" id="aiEndpoint" type="text" placeholder="https://your-proxy.example.com">
+              <span class="hint">The address your proxy is reachable at. Leave it empty if the proxy
+                 is serving this page too — then there is nothing to get wrong. A
+                 <code>localhost</code> address only ever works on the computer running the proxy.</span>
             </label>
             <label class="field">
               <span>Model</span>

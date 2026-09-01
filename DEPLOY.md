@@ -100,21 +100,35 @@ phone how to add VocabX to their home screen, and a redirect skips it.
 ## Part 4 — The AI proxy, if you want the AI features
 
 Pages serves files; it does not run Node. `vocab/server/proxy.mjs` needs a
-host that does. Any of these work, and all have a free tier:
+host that does — Render, Railway, Fly.io or a small VPS all work, and the
+first three have a free tier.
 
-- **Render**, **Railway** or **Fly.io** — closest to "upload this folder and
-  run `npm start`".
-- **A small VPS** you already have.
+There are two shapes, and the first is much harder to get wrong.
 
-Wherever it lands:
+### Either: one host serves both (recommended)
+
+`proxy.mjs` already serves the app beside its own API — the whole of `vocab/`
+is on the same origin as `/api/...`. Deploy the repo to a Node host, point
+your domain at it, and:
+
+1. Set `GEMINI_API_KEY` (or `ANTHROPIC_API_KEY`).
+2. In the app: **Settings → AI help → Your server** — **leave it empty**.
+
+That is the whole configuration. No CORS, no `ALLOWED_ORIGIN`, no second
+address to keep in step, and no way to point at the wrong one. You can drop
+Cloudflare Pages entirely, or keep it in front as a CDN.
+
+### Or: Pages serves the app, the proxy lives elsewhere
+
+Keep the Pages deployment from Parts 1–3 and host only the proxy. Then:
 
 1. Set the environment variables from `vocab/server/.env.example`. At minimum
    `ANTHROPIC_API_KEY` (or `GEMINI_API_KEY`).
 2. Set **`ALLOWED_ORIGIN=https://ylarena.online`** — no path, no trailing
    slash. Without it the proxy answers requests from anywhere, and anyone can
    spend your API credit.
-3. In the app: **Settings → AI → Proxy URL**, and enter the address the proxy
-   is reachable at.
+3. In the app: **Settings → AI help → Your server**, and enter the **https**
+   address the proxy is reachable at.
 
 The API key stays on the proxy and never reaches the browser. That is the
 entire reason the proxy exists.
