@@ -16,7 +16,7 @@ export const APP = {
    * by hunting for a changed sentence somewhere in the interface is how an
    * afternoon disappears. Bumped with the service worker's cache name.
    */
-  build: 'v29',
+  build: 'v30',
   /**
    * Where feedback goes when there is no proxy to post it to.
    *

@@ -83,6 +83,7 @@ async function boot() {
   wireInstall();
   wireFeedback();
   wireFeedbackView();
+  wireInbox();
   wireTest();
   wireAsk();
   wireAssess();
@@ -96,8 +97,13 @@ async function boot() {
   $('#app').hidden = false;
 
   const startView = location.hash.replace('#', '');
-  if ($$('.tab').some((t) => t.dataset.tab === startView)) switchView(startView);
+  if (startView === 'inbox') openInbox();
+  else if ($$('.tab').some((t) => t.dataset.tab === startView)) switchView(startView);
   else switchView('home');
+  // So #inbox works without a reload, typed into the bar of an app already open.
+  window.addEventListener('hashchange', () => {
+    if (location.hash === '#inbox' && $('#view-inbox').hidden) openInbox();
+  });
 
   await Notifier.registerServiceWorker();
   if (Store.state.settings.reminders.enabled) Notifier.start();
@@ -1354,6 +1360,95 @@ function openFeedbackView() {
   drawManifest();
   drawFeedbackHistory();
   $('#fbText').focus();
+}
+
+// ── the inbox ──────────────────────────────────────────────────────────────
+
+/**
+ * Where feedback ends up, for whoever runs the app.
+ *
+ * A note stored on the proxy is no use if reading it means a curl command, so
+ * this is the reader. There is no link to it anywhere — it is reached by
+ * putting #inbox in the address bar — because it is not a feature of the app,
+ * and a visitor who finds it sees a token box and nothing behind it.
+ *
+ * The token is kept in this browser rather than in the deck, so it is not
+ * carried into an export someone might share, and it never becomes part of
+ * the state a reader's own device holds.
+ */
+const INBOX_TOKEN_KEY = 'vocabx.inbox.token';
+
+function wireInbox() {
+  $('#inboxLoad').addEventListener('click', loadInbox);
+  $('#inboxForget').addEventListener('click', () => {
+    try { localStorage.removeItem(INBOX_TOKEN_KEY); } catch { /* private mode */ }
+    $('#inboxToken').value = '';
+    $('#inboxList').replaceChildren();
+    $('#inboxNote').textContent = 'Token forgotten on this device.';
+  });
+}
+
+function openInbox() {
+  switchView('inbox');
+  try { $('#inboxToken').value = localStorage.getItem(INBOX_TOKEN_KEY) || ''; } catch { /* ignore */ }
+  $('#inboxNote').textContent = '';
+  if ($('#inboxToken').value) loadInbox();
+}
+
+async function loadInbox() {
+  const token = $('#inboxToken').value.trim();
+  if (!token) { $('#inboxNote').textContent = 'Paste the token first.'; return; }
+
+  const btn = $('#inboxLoad');
+  btn.disabled = true;
+  $('#inboxNote').textContent = 'Reading…';
+  try {
+    const res = await fetch(AIClient.url('/api/feedback/list'), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ token }),
+    });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok || body.ok === false) throw new Error(body.error || `server responded ${res.status}`);
+
+    try { localStorage.setItem(INBOX_TOKEN_KEY, token); } catch { /* private mode */ }
+    drawInbox(body.data || []);
+  } catch (err) {
+    $('#inboxList').replaceChildren();
+    $('#inboxNote').textContent = err.message;
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function drawInbox(notes) {
+  const anon = notes.filter((n) => n.anonymous).length;
+  $('#inboxNote').textContent = notes.length
+    ? `${notes.length} note${notes.length === 1 ? '' : 's'}, ${anon} anonymous. Newest first.`
+    : 'Nothing yet.';
+  $('#inboxSub').textContent = notes.length
+    ? 'What people have sent you.'
+    : 'Nothing has come in yet.';
+
+  $('#inboxList').replaceChildren(...notes.map((n) => {
+    const when = new Date(n.at);
+    const c = n.context || {};
+    /* Only what the sender chose to attach. An anonymous note has no context
+       at all, and this must not invent one from the absence. */
+    const where = [c.view, c.provider, c.level && `level ${c.level}`,
+                   c.words != null && `${c.words} words`, c.screen].filter(Boolean).join(' · ');
+    return el('div', { class: 'fb-log__row' },
+      el('div', { class: 'fb-log__head' },
+        el('span', { class: 'fb-log__kind', text: FB_KIND[n.kind] || n.kind }),
+        n.mood ? el('span', { class: 'tag', text: n.mood }) : null,
+        el('span', { class: 'fb-log__when',
+          text: when.toLocaleString(undefined, { month: 'short', day: 'numeric',
+                                                 hour: '2-digit', minute: '2-digit' }) }),
+        n.anonymous ? el('span', { class: 'tag', text: 'anonymous' }) : null),
+      el('p', { class: 'fb-log__text', text: n.text }),
+      n.from ? el('p', { class: 'hint' }, el('a', { href: `mailto:${n.from}`, text: n.from })) : null,
+      where ? el('p', { class: 'hint', text: where }) : null);
+  }));
 }
 
 // ── feedback ───────────────────────────────────────────────────────────────

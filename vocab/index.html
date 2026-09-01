@@ -819,6 +819,43 @@
       </div>
     </section>
 
+    <!-- ─────────────────────── Inbox (owner only) ───────────────────────
+         No tab, no link: reached by putting #inbox in the address bar. It is
+         for whoever runs the app, and everything it shows comes from the
+         proxy behind a token, so a visitor who finds the URL sees a form
+         and nothing else. -->
+    <section class="view" id="view-inbox" data-view="inbox" hidden>
+      <h2 class="sr-only">Feedback inbox</h2>
+      <div class="stack">
+
+        <header class="hero">
+          <div class="grow">
+            <p class="eyebrow">Owner</p>
+            <h3 class="hero__title">Feedback inbox</h3>
+            <p class="hero__sub" id="inboxSub">What people have sent you.</p>
+          </div>
+        </header>
+
+        <div class="card card--tight">
+          <label class="field">
+            <span>Your reading token</span>
+            <input class="input" id="inboxToken" type="password" autocomplete="off"
+                   placeholder="FEEDBACK_TOKEN from your Worker"
+                   aria-label="Your reading token">
+            <span class="hint">Set <code>FEEDBACK_TOKEN</code> on the Worker, then paste it
+               here. It is kept in this browser only, and the inbox stays shut without it.</span>
+          </label>
+          <div class="row row--even">
+            <button class="btn btn--primary" id="inboxLoad" type="button">Open the inbox</button>
+            <button class="btn btn--quiet" id="inboxForget" type="button">Forget the token</button>
+          </div>
+          <p class="hint" id="inboxNote"></p>
+        </div>
+
+        <div class="fb-log" id="inboxList"></div>
+      </div>
+    </section>
+
     <section class="view" id="view-settings" data-view="settings" hidden>
       <h2 class="sr-only">Settings</h2>
       <div class="stack">

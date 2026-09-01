@@ -153,3 +153,33 @@ test('a wrong token is refused, and a right one is answered', async () => {
   assert.equal(ok.data.length, 2);
   assert.equal(ok.data[0].text, 'two', 'newest first');
 });
+
+/* ── reading the inbox back ─────────────────────────────────────────────── */
+
+test('the reader is not linked from anywhere in the app', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+
+  // It is for whoever runs the app, reached by typing #inbox. A visitor who
+  // finds it sees a token box and nothing behind it — but they should not be
+  // walked to it by a button either.
+  assert.doesNotMatch(html, /data-tab="inbox"/, 'the inbox must not have a tab');
+  assert.doesNotMatch(html, /href="#inbox"/, 'nor a link');
+  assert.match(html, /id="view-inbox"/, 'though the view itself is there');
+});
+
+test('the reading token is kept outside the deck, so an export cannot carry it', async () => {
+  const fs = await import('node:fs');
+  const path = await import('node:path');
+  const { fileURLToPath } = await import('node:url');
+  const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+  const app = fs.readFileSync(path.join(ROOT, 'js', 'app.js'), 'utf8');
+
+  assert.match(app, /localStorage\.setItem\(INBOX_TOKEN_KEY/,
+    'the token belongs in this browser, not in state someone might export');
+  assert.doesNotMatch(app, /Store\.set\(['"]settings[^)]*token/i,
+    'a token in the deck travels with every export and backup');
+});

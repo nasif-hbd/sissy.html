@@ -38,6 +38,7 @@ const VIEWS = ['home', 'learn', 'modules', 'test', 'ask', 'words', 'progress', '
  */
 const DEEP_VIEWS = [
   { view: 'feedback', open: '#settingsFeedback', ready: '#fbManifest', from: 'settings' },
+  { view: 'inbox', hash: '#inbox', ready: '#inboxToken' },
   { view: 'assess', open: '#homeAssess', ready: '#assessIntro' },
   { view: 'assess-result', open: '#homeAssess', ready: '#assessIntro', sit: true },
 ];
@@ -97,9 +98,13 @@ for (const device of DEVICES) {
     ...DEEP_VIEWS,
   ];
 
-  for (const { view, tab, open, ready, sit, from } of stops) {
+  for (const { view, tab, open, ready, sit, from, hash } of stops) {
     if (tab) await goto(tab);
-    else {
+    else if (hash) {
+      // The owner's inbox has no button anywhere; it is reached by typing.
+      await page.evaluate((h) => { location.hash = h; }, hash);
+      await page.waitForSelector(ready, { state: 'visible' });
+    } else {
       await goto(from || 'home');
       await page.waitForTimeout(120);
       await page.click(open);
