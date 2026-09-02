@@ -1175,7 +1175,17 @@ function wireInstall() {
 
   $('#installGo').addEventListener('click', runInstall);
   $('#navInstallGo').addEventListener('click', runInstall);
-  $('#homeInstallGo').addEventListener('click', runInstall);
+  /* The one Home button is whichever offer this device can actually take:
+     the browser's install prompt, or — where there is none — the steps, which
+     are in Settings beside the rest of the install answer. */
+  $('#homeInstallGo').addEventListener('click', (e) => {
+    if (e.currentTarget.dataset.action === 'how') {
+      switchView('settings');
+      $('#installTitle').closest('.card')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    } else {
+      runInstall();
+    }
+  });
   $('#homeInstallClose').replaceChildren(icon('close'));
   $('#homeInstallClose').addEventListener('click', () => {
     // Asked once. Someone who said no does not want it every time they open
@@ -1205,13 +1215,22 @@ function drawInstall(state = installer?.state()) {
 /**
  * Files offered for download, by platform.
  *
- * Relative to the app, so they work wherever the app is hosted; a link is only
- * shown once its file is actually reachable, or a fresh checkout would offer a
- * 404.
+ * Only Windows has one. Everywhere else "getting the app" means installing
+ * this page, which is a different thing with a different button — offering a
+ * download on an iPhone would promise a file that does not exist.
+ *
+ * The path is relative to the app and the file is committed beside it, so the
+ * link resolves wherever the app is hosted rather than depending on a build
+ * step someone has to remember to run.
  */
 const DOWNLOADS = [
-  { os: 'windows', label: 'Windows download', href: '../download/vocabx-windows.zip',
-    note: 'Unzip and run VocabX.exe. No browser install, no runtime.' },
+  {
+    os: 'windows',
+    label: 'Download for Windows',
+    href: '../download/vocabx-windows.zip',
+    note: 'Unzip it anywhere and run VocabX.exe — no browser install, nothing else to fetch. '
+      + 'It is not code-signed, so Windows warns the first time: More info \u2192 Run anyway.',
+  },
 ];
 
 // ── the feedback screen ────────────────────────────────────────────────────

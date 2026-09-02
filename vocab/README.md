@@ -444,9 +444,27 @@ Safari, the ⋮ menu on Android, and the Windows download alongside on Windows.
 **Inside the app**, Settings carries the same offer permanently, and Home shows
 it once — dismissible, and the dismissal sticks. Nobody wants to be asked twice.
 
-`js/install.js` does the detection, and `platformOf()` is pure so every branch
-is tested against real user-agent strings. The branches matter more than they
-look: one "Install" button everywhere silently does nothing for everyone on
+**One button, named for the device holding it.** `installOffer()` turns the
+detected platform into the single thing that will actually happen there:
+*Download for Windows*, *Add to your iPhone*, *Install on your Android phone*,
+*Install on your Chromebook*. The word "Download" appears only where a file
+exists — which the caller decides, by passing the href it actually ships, not
+the module by assuming. On iOS that word would promise something Apple has no
+route to deliver, so the label says "Add" and the steps say why. Where a
+platform has both a file and a prompt, the file leads and the prompt is the
+second, smaller option; a button that opens the browser's install dialog is
+never labelled "Download", because that is not what pressing it does.
+
+Every card that carries the offer follows the same rule, so the heading, the
+button and the link can never name three different things: Home, the sidebar,
+Settings, and the landing page all render from one `installOffer()` result.
+Settings also keeps a closed *Installing on another device* section — for
+putting it on the family PC from a phone, or on a phone from the PC.
+
+`js/install.js` does the detection, and both `platformOf()` and
+`installOffer()` are pure, so every branch is tested against real user-agent
+strings. The branches matter more than they look:
+one "Install" button everywhere silently does nothing for everyone on
 Safari and Firefox, and a captured `beforeinstallprompt` is trusted over the
 user agent because the event is proof where the string is a guess. Three traps
 the tests hold shut — an iPad reports itself as a Mac and is caught by its

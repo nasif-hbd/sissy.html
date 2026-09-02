@@ -208,12 +208,17 @@
           <div class="card card--tight" id="homeInstallCard" hidden>
             <div class="row row--between">
               <div class="grow">
-                <h3 class="card__title">Install VocabX</h3>
+                <h3 class="card__title" id="homeInstallTitle">Install VocabX</h3>
                 <p class="hint" id="homeInstallHow"></p>
               </div>
               <button class="icon-btn icon-btn--sm" id="homeInstallClose" type="button" aria-label="Not now"></button>
             </div>
             <button class="btn btn--primary btn--wide" id="homeInstallGo">Install</button>
+            <!-- Windows is the one platform with a file, so the link appears
+                 only there; everywhere else the button above is the whole
+                 answer. -->
+            <a class="btn btn--quiet btn--wide" id="homeInstallDownload" hidden download>
+              <svg class="ico" aria-hidden="true"><use href="#i-download"/></svg><span id="homeInstallDownloadLabel">Download</span></a>
           </div>
         </div>
 
@@ -946,12 +951,33 @@
         </div>
 
         <div class="card">
-          <h3 class="card__title">Install VocabX</h3>
+          <h3 class="card__title" id="installTitle">Install VocabX</h3>
           <p class="status" id="installStatus"><i class="status__dot"></i><span id="installHow"></span></p>
+          <!-- The file first where there is one, since the heading names it;
+               empty and invisible on every other platform. -->
+          <div id="installDownloads"></div>
           <button class="btn btn--primary btn--wide" id="installGo" hidden>Install as an app</button>
           <ol class="steps" id="installSteps"></ol>
           <p class="hint" id="installNote" hidden></p>
-          <div class="row row--even" id="installDownloads"></div>
+
+          <!-- The card above answers for the device in your hand. This is for
+               the other one: putting it on the family PC from your phone, or
+               on your phone from the PC. -->
+          <details class="advanced">
+            <summary>Installing on another device</summary>
+            <div class="other-devices">
+              <p><b>iPhone or iPad</b> — open this page in Safari, tap Share, then
+                 “Add to Home Screen”. There is no file to download on iOS.</p>
+              <p><b>Android phone or tablet</b> — open this page in Chrome, tap the
+                 ⋮ menu, then “Install app”.</p>
+              <p><b>Mac or MacBook</b> — Safari’s File menu → “Add to Dock”, or install
+                 it from Chrome or Edge.</p>
+              <p><b>Windows PC or laptop</b> — install it from Chrome or Edge, or
+                 <a href="../download/vocabx-windows.zip" download>download the Windows version</a>
+                 and run VocabX.exe. Nothing else to install.</p>
+              <p><b>Linux or Chromebook</b> — install it from Chrome or Edge.</p>
+            </div>
+          </details>
         </div>
 
         <div class="card card--tight">

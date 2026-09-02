@@ -148,7 +148,7 @@
  * The detection is the same module the app uses, so the landing page and
  * Settings can never disagree about what a device can do.
  */
-import { platformOf, createInstaller } from './vocab/js/install.js';
+import { installOffer, createInstaller } from './vocab/js/install.js';
 
 const title = document.getElementById('installTitle');
 const sub   = document.getElementById('installSub');
@@ -158,22 +158,29 @@ const installer = createInstaller({ onChange: draw });
 draw(installer.state());
 
 function draw(state) {
-  title.textContent = state.installed ? 'VocabX is installed' : `Install on ${state.label}`;
-  sub.textContent = state.how;
+  /* One offer, named for the device reading it. "Download" is only true on
+     Windows, where a file exists; on an iPhone the same word would promise
+     something Apple has no route to deliver, so the label says what will
+     actually happen there instead. */
+  const offer = installOffer(state, { downloadHref: './download/vocabx-windows.zip' });
+  title.textContent = state.installed ? 'VocabX is installed' : offer.label;
+  sub.textContent = state.installed ? state.how : offer.hint;
 
   // Rebuild the buttons under the heading, leaving the two <p> in place.
   for (const el of card.querySelectorAll('.btn, ol, .note')) el.remove();
 
-  if (state.canPrompt) card.append(button('go', 'Install VocabX', 'One tap. It appears with your other apps.', prompt));
+  // The headline offer leads. On Windows that is the file; everywhere the
+  // browser can install, it is the one-tap install.
+  if (offer.kind === 'download') {
+    card.append(link('go', offer.href, offer.label, 'Unzip and run VocabX.exe — no browser install needed'));
+    if (offer.also) card.append(button('', offer.also.label, offer.also.hint, prompt));
+  } else if (state.canPrompt) {
+    card.append(button('go', offer.label, offer.hint, prompt));
+  }
 
-  card.append(button(state.canPrompt ? '' : 'go', 'Open VocabX',
+  card.append(button(offer.kind === 'download' || state.canPrompt ? '' : 'go', 'Open VocabX',
     state.installed ? 'Opens the app you installed' : 'Works right now, in this browser',
     () => { location.href = './vocab/'; }));
-
-  if (state.os === 'windows' && !state.installed) {
-    card.append(link('./download/vocabx-windows.zip', 'Download for Windows',
-      'Unzip and run VocabX.exe — no browser install needed'));
-  }
 
   // No button to press: the steps are the instruction.
   if (!state.canPrompt && !state.installed && state.steps.length) {
@@ -186,7 +193,9 @@ function draw(state) {
     card.append(ol);
   }
 
-  if (state.note && !state.installed) {
+  /* The Windows note only says a download exists, which the button above now
+     says better; the rest are still worth reading. */
+  if (state.note && !state.installed && offer.kind !== 'download') {
     const p = document.createElement('p');
     p.className = 'note';
     p.textContent = state.note;
@@ -208,9 +217,9 @@ function button(kind, label, hint, onClick) {
   return b;
 }
 
-function link(href, label, hint) {
+function link(kind, href, label, hint) {
   const a = document.createElement('a');
-  a.className = 'btn';
+  a.className = `btn${kind ? ' btn--' + kind : ''}`;
   a.href = href;
   a.setAttribute('download', '');
   a.innerHTML = `<span class="btn__text"></span>`;

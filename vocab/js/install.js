@@ -35,6 +35,22 @@ export function platformOf(ua = '', { standalone = false, touchPoints = 0 } = {}
   const isFirefox = has(/Firefox|FxiOS/i);
   const isChromium = has(/Chrome|Chromium|CriOS|Edg|OPR/i);
 
+  /* The device in the words its owner would use. Android's UA carries
+     "Mobile" on a phone and drops it on a tablet, which is the only reliable
+     signal either way round; iPadOS gives itself away through touch points.
+     A Mac is called a Mac and not a MacBook, because nothing in the user
+     agent separates a laptop from an iMac and guessing wrong on someone's
+     own hardware reads worse than being general. */
+  const device = iPadDesktopUA || has(/iPad/i) ? 'iPad'
+    : has(/iPhone/i) ? 'iPhone'
+    : has(/iPod/i) ? 'iPod touch'
+    : isAndroid ? (has(/Mobile/i) ? 'Android phone' : 'Android tablet')
+    : has(/Windows/i) ? 'Windows PC'
+    : has(/CrOS/i) ? 'Chromebook'
+    : has(/Mac OS X|Macintosh/i) ? 'Mac'
+    : has(/Linux/i) ? 'Linux PC'
+    : 'this device';
+
   const os = isIOS ? 'ios'
     : isAndroid ? 'android'
     : has(/Windows/i) ? 'windows'
@@ -45,7 +61,7 @@ export function platformOf(ua = '', { standalone = false, touchPoints = 0 } = {}
 
   if (standalone) {
     return {
-      id: 'installed', os, label: 'Already installed',
+      id: 'installed', os, device, label: 'Already installed',
       how: 'You are running the installed app.',
       steps: [], canPrompt: false, installed: true,
     };
@@ -55,7 +71,7 @@ export function platformOf(ua = '', { standalone = false, touchPoints = 0 } = {}
     // Every iOS browser is Safari underneath, and only Safari's own share sheet
     // can add to the Home Screen.
     return {
-      id: 'ios', os, label: 'iPhone or iPad', canPrompt: false, installed: false,
+      id: 'ios', os, device, label: 'iPhone or iPad', canPrompt: false, installed: false,
       how: isSafari
         ? 'Add VocabX to your Home Screen from the Share menu.'
         : 'Open this page in Safari first — only Safari can add apps to the iOS Home Screen.',
@@ -70,7 +86,7 @@ export function platformOf(ua = '', { standalone = false, touchPoints = 0 } = {}
 
   if (isAndroid) {
     return {
-      id: 'android', os, label: 'Android', canPrompt: isChromium, installed: false,
+      id: 'android', os, device, label: 'Android', canPrompt: isChromium, installed: false,
       how: isChromium
         ? 'Install it straight from this page.'
         : 'Open this page in Chrome to install it.',
@@ -83,7 +99,7 @@ export function platformOf(ua = '', { standalone = false, touchPoints = 0 } = {}
 
   if (isFirefox) {
     return {
-      id: 'firefox', os, label: 'Firefox', canPrompt: false, installed: false,
+      id: 'firefox', os, device, label: 'Firefox', canPrompt: false, installed: false,
       how: 'Firefox does not install web apps on the desktop. Everything still works in the tab.',
       steps: [],
       note: 'For a real app window, open this page in Chrome or Edge — or on Windows use the downloadable version.',
@@ -97,7 +113,7 @@ export function platformOf(ua = '', { standalone = false, touchPoints = 0 } = {}
   // that is not there.
   if (isSafari) {
     return {
-      id: 'safari-desktop', os, label: names[os] || 'Safari', canPrompt: false, installed: false,
+      id: 'safari-desktop', os, device, label: names[os] || 'Safari', canPrompt: false, installed: false,
       how: 'Add VocabX to your Dock from Safari\u2019s File menu.',
       steps: ['Open the File menu', 'Choose "Add to Dock"', 'Click "Add"'],
       note: 'On macOS Sonoma or later. Older Safari cannot install web apps — Chrome or Edge can.',
@@ -105,7 +121,7 @@ export function platformOf(ua = '', { standalone = false, touchPoints = 0 } = {}
   }
 
   return {
-    id: 'desktop', os, label: names[os] || 'Desktop', canPrompt: isChromium, installed: false,
+    id: 'desktop', os, device, label: names[os] || 'Desktop', canPrompt: isChromium, installed: false,
     how: isChromium
       ? 'Install it as a desktop app from this page.'
       : 'Open this page in Chrome or Edge to install it as a desktop app.',
@@ -117,6 +133,52 @@ export function platformOf(ua = '', { standalone = false, touchPoints = 0 } = {}
       ? 'Windows also has a downloadable version that needs no browser install.'
       : undefined,
   };
+}
+
+/**
+ * The one button, for whatever is reading this.
+ *
+ * Windows is the only platform with a file to download; everywhere else
+ * "getting the app" means installing the page, which is a different verb and
+ * a different result. Saying "Download" on an iPhone would promise a file
+ * that does not exist and cannot exist — Apple has no route for one — so the
+ * label names what will actually happen on that device.
+ *
+ * `downloadHref` is the caller's answer to "is there a file for this device",
+ * not a hint: pass null and no download is offered, whatever the platform.
+ * The caller is the one that knows what it actually ships.
+ */
+export function installOffer(state, { downloadHref = '../download/vocabx-windows.zip' } = {}) {
+  const on = state.device && state.device !== 'this device'
+    ? `your ${state.device}`.replace('your Windows PC', 'Windows')
+    : 'this device';
+
+  if (state.installed) {
+    return { kind: 'done', label: 'Already installed', hint: 'You are running the installed app.' };
+  }
+  if (state.os === 'windows' && downloadHref) {
+    return {
+      kind: 'download',
+      label: 'Download for Windows',
+      hint: 'A folder you unzip and run. No browser install needed.',
+      href: downloadHref,
+      // Windows can do both, and the browser install is the smaller one.
+      also: state.canPrompt
+        ? { kind: 'prompt', label: 'Or install from this page', hint: 'One click, and it opens in its own window.' }
+        : null,
+    };
+  }
+  if (state.canPrompt) {
+    return { kind: 'prompt', label: `Install on ${on}`, hint: 'One tap. It appears with your other apps.' };
+  }
+  if (state.os === 'ios') {
+    return {
+      kind: 'steps',
+      label: `Add to your ${state.device === 'iPad' ? 'iPad' : 'iPhone'}`,
+      hint: 'Three taps in Safari — there is no file to download on iOS.',
+    };
+  }
+  return { kind: 'steps', label: `Install on ${on}`, hint: state.how };
 }
 
 /**
