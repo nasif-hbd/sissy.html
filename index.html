@@ -126,13 +126,18 @@
       <ol><li>Open this page in <b>Safari</b></li><li>Tap Share (the square with an arrow)</li><li>Tap “Add to Home Screen”</li></ol>
       <h3>Android</h3>
       <ol><li>Open this page in <b>Chrome</b></li><li>Tap the ⋮ menu</li><li>Tap “Install app”</li></ol>
-      <h3>Windows, Mac, Linux, ChromeOS</h3>
+      <h3>Download it instead — Windows, Mac or Linux</h3>
+      <ol>
+        <li><a href="./download/vocabx-windows.zip" download>Windows</a> — unzip, run <b>VocabX.exe</b></li>
+        <li><a href="./download/vocabx-mac.zip" download>Mac</a> — unzip, drag <b>VocabX</b> to Applications</li>
+        <li><a href="./download/vocabx-linux.zip" download>Linux</a> — unzip, run <b>./VocabX</b></li>
+      </ol>
+      <p class="note">No installer and no runtime: each one is a launcher and the app in a folder,
+         and it serves itself on 127.0.0.1 with nothing exposed to your network. None of them is
+         signed, so the first run needs one extra click — “More info → Run anyway” on Windows,
+         right-click → Open on a Mac. The README inside each says so too.</p>
+      <h3>Chromebook, or any of the above from the browser</h3>
       <ol><li>Open this page in <b>Chrome or Edge</b></li><li>Click the install icon in the address bar, or ⋮ → “Install VocabX”</li></ol>
-      <h3>Windows, without a browser install</h3>
-      <ol><li><a href="./download/vocabx-windows.zip" download>Download the Windows version</a></li><li>Unzip it anywhere</li><li>Double-click <b>VocabX.exe</b></li></ol>
-      <p class="note">The Windows download is not code-signed, so SmartScreen warns the first time:
-         click “More info” → “Run anyway”. If you would rather not, the browser install above
-         gives you the same app, window and offline support.</p>
     </div>
   </details>
 
@@ -148,7 +153,7 @@
  * The detection is the same module the app uses, so the landing page and
  * Settings can never disagree about what a device can do.
  */
-import { installOffer, createInstaller } from './vocab/js/install.js';
+import { installOffer, createInstaller, downloadFor } from './vocab/js/install.js';
 
 const title = document.getElementById('installTitle');
 const sub   = document.getElementById('installSub');
@@ -162,7 +167,7 @@ function draw(state) {
      Windows, where a file exists; on an iPhone the same word would promise
      something Apple has no route to deliver, so the label says what will
      actually happen there instead. */
-  const offer = installOffer(state, { downloadHref: './download/vocabx-windows.zip' });
+  const offer = installOffer(state, { download: downloadFor(state.os, { base: './download/' }) });
   title.textContent = state.installed ? 'VocabX is installed' : offer.label;
   sub.textContent = state.installed ? state.how : offer.hint;
 
@@ -172,7 +177,8 @@ function draw(state) {
   // The headline offer leads. On Windows that is the file; everywhere the
   // browser can install, it is the one-tap install.
   if (offer.kind === 'download') {
-    card.append(link('go', offer.href, offer.label, 'Unzip and run VocabX.exe — no browser install needed'));
+    card.append(link('go', offer.href, offer.label,
+      'No installer and no runtime — it runs from the folder'));
     if (offer.also) card.append(button('', offer.also.label, offer.also.hint, prompt));
   } else if (state.canPrompt) {
     card.append(button('go', offer.label, offer.hint, prompt));
@@ -182,8 +188,10 @@ function draw(state) {
     state.installed ? 'Opens the app you installed' : 'Works right now, in this browser',
     () => { location.href = './vocab/'; }));
 
-  // No button to press: the steps are the instruction.
-  if (!state.canPrompt && !state.installed && state.steps.length) {
+  /* The steps are the last resort, for a device with no file and no prompt.
+     Under a download button they describe a different way of getting the app
+     than the one the heading just offered; the section below still has them. */
+  if (!state.canPrompt && !state.installed && offer.kind !== 'download' && state.steps.length) {
     const ol = document.createElement('ol');
     for (const step of state.steps) {
       const li = document.createElement('li');
@@ -193,12 +201,15 @@ function draw(state) {
     card.append(ol);
   }
 
-  /* The Windows note only says a download exists, which the button above now
-     says better; the rest are still worth reading. */
-  if (state.note && !state.installed && offer.kind !== 'download') {
+  /* The one caveat worth the space: what the first run will ask of you. The
+     file's own note where there is a file, the platform's where there is not
+     — never both, and never the old "there is also a download" note now that
+     the download is the button at the top. */
+  const note = state.installed ? '' : (offer.note || state.note || '');
+  if (note) {
     const p = document.createElement('p');
     p.className = 'note';
-    p.textContent = state.note;
+    p.textContent = note;
     card.append(p);
   }
 }

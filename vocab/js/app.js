@@ -36,7 +36,7 @@ import { STARTERS, contextFor } from './chat.js';
 import { feedbackAsText, feedbackSubject, feedbackMailto, anonymise,
          manifestOf } from './feedback.js';
 import { SUBJECTS, modesFor, buildRound, markOne, markRound } from './testlab.js';
-import { createInstaller } from './install.js';
+import { createInstaller, downloadFor } from './install.js';
 
 // ── session state ──────────────────────────────────────────────────────────
 const session = {
@@ -1208,30 +1208,10 @@ function drawInstall(state = installer?.state()) {
   if (!state) return;
   renderInstall(state, {
     dismissed: Boolean(Store.state.settings.installDismissed),
-    downloads: DOWNLOADS,
+    // The app sits one level below the site root, where download/ lives.
+    download: downloadFor(state.os, { base: '../download/' }),
   });
 }
-
-/**
- * Files offered for download, by platform.
- *
- * Only Windows has one. Everywhere else "getting the app" means installing
- * this page, which is a different thing with a different button — offering a
- * download on an iPhone would promise a file that does not exist.
- *
- * The path is relative to the app and the file is committed beside it, so the
- * link resolves wherever the app is hosted rather than depending on a build
- * step someone has to remember to run.
- */
-const DOWNLOADS = [
-  {
-    os: 'windows',
-    label: 'Download for Windows',
-    href: '../download/vocabx-windows.zip',
-    note: 'Unzip it anywhere and run VocabX.exe — no browser install, nothing else to fetch. '
-      + 'It is not code-signed, so Windows warns the first time: More info \u2192 Run anyway.',
-  },
-];
 
 // ── the feedback screen ────────────────────────────────────────────────────
 

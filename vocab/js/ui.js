@@ -515,20 +515,21 @@ function drawRecent(data, handlers) {
  * fire. Everywhere else the steps carry it, because a button that silently
  * does nothing is worse than a sentence that tells the truth.
  */
-export function renderInstall(state, { dismissed = false, downloads = [] } = {}) {
+export function renderInstall(state, { dismissed = false, download = null } = {}) {
+  /* Someone already running the installed app is not offered the file. */
+  const file = state.installed ? null : download;
+
+  /* One offer, named for the device reading it: "Download for Mac" where there
+     is a file, "Add to your iPhone" where there is not and never will be. A
+     single "Install" label is wrong on most of them. */
+  const offer = installOffer(state, { download: file });
+
+  /* The readout says what this device can do about the offer above it. Where
+     there is a file that is "yes, and here is what it is" — `state.how` would
+     answer a question about the browser that the heading did not ask. */
   const status = $('#installStatus');
-  status.dataset.state = state.installed ? 'ok' : state.canPrompt ? 'ok' : 'wait';
-  $('#installHow').textContent = state.how;
-
-  /* Only the platform's own download, and only when there is one — this is
-     what decides whether "Download" is a word we are allowed to use. */
-  const mine = state.installed ? [] : downloads.filter((d) => d.os === state.os);
-  const download = mine[0] || null;
-
-  /* One offer, named for the device reading it: "Add to your iPhone" where
-     there is no file to download and never will be, "Download for Windows"
-     where there is. A single "Install" label is wrong on most of them. */
-  const offer = installOffer(state, { downloadHref: download ? download.href : null });
+  status.dataset.state = state.installed || file || state.canPrompt ? 'ok' : 'wait';
+  $('#installHow').textContent = file ? offer.hint : state.how;
   $('#installTitle').textContent = state.installed ? 'VocabX is installed' : offer.label;
   /* The button prompts the browser, so it says so. Where the headline offer
      is a file (Windows), the heading carries that and this button carries the
@@ -539,27 +540,28 @@ export function renderInstall(state, { dismissed = false, downloads = [] } = {})
   if (state.canPrompt) go.textContent = offer.also ? offer.also.label : offer.label;
   // Where a file leads, the file is the emphasised button and this is the
   // quiet alternative — otherwise two primary buttons compete for the same tap.
-  go.classList.toggle('btn--primary', !download);
-  go.classList.toggle('btn--quiet', Boolean(download));
+  go.classList.toggle('btn--primary', !file);
+  go.classList.toggle('btn--quiet', Boolean(file));
 
-  // Steps are the fallback for platforms with no prompt — and pointless noise
-  // next to a working button, or once the app is already installed.
-  const showSteps = !state.installed && !state.canPrompt && state.steps.length;
+  /* Steps are the last resort: no file, no prompt, nothing to press. Next to
+     a download button they are noise — worse than noise, since they describe
+     a different way of getting the app than the one the heading offered. The
+     collapsed "another device" section below still has them. */
+  const showSteps = !state.installed && !state.canPrompt && !file && state.steps.length;
   $('#installSteps').replaceChildren(...(showSteps
     ? state.steps.map((step) => el('li', { text: step })) : []));
 
-  /* Each file's caveat sits with the file rather than at the bottom of the
+  /* The file's own caveat sits with the file rather than at the bottom of the
      card, so what you are agreeing to is next to the button that starts it. */
-  $('#installDownloads').replaceChildren(...mine.flatMap((d, i) => [
-    // The first is the offer the heading made; any other is an alternative.
-    el('a', { class: `btn ${i ? 'btn--quiet' : 'btn--primary'} btn--wide`, href: d.href, download: '' },
-      icon('download'), d.label),
-    ...(d.note ? [el('p', { class: 'hint', text: d.note })] : []),
-  ]));
+  $('#installDownloads').replaceChildren(...(file ? [
+    el('a', { class: 'btn btn--primary btn--wide', href: file.href, download: '' },
+      icon('download'), file.label),
+    ...(file.note ? [el('p', { class: 'hint', text: file.note })] : []),
+  ] : []));
 
   /* Where the download is on screen, the platform note only says a download
      exists — which the button said better. */
-  const note = mine.length ? '' : state.note || '';
+  const note = file ? '' : state.note || '';
   $('#installNote').textContent = note;
   $('#installNote').hidden = !note;
 
@@ -588,21 +590,21 @@ export function renderInstall(state, { dismissed = false, downloads = [] } = {})
     }
 
     const link = $('#homeInstallDownload');
-    link.hidden = !download;
-    if (download) {
-      link.href = download.href;
-      $('#homeInstallDownloadLabel').textContent = download.label;
+    link.hidden = !file;
+    if (file) {
+      link.href = file.href;
+      $('#homeInstallDownloadLabel').textContent = file.label;
     }
 
     /* The headline offer is the emphasised button and comes first, whichever
        one it is — a quiet "Download for Windows" under a bright "Or install
        from this page" contradicts the heading above both. */
     const card = $('#homeInstallCard');
-    card.insertBefore(download ? link : homeGo, download ? homeGo : link);
-    link.classList.toggle('btn--primary', Boolean(download));
-    link.classList.toggle('btn--quiet', !download);
-    homeGo.classList.toggle('btn--primary', !download);
-    homeGo.classList.toggle('btn--quiet', Boolean(download));
+    card.insertBefore(file ? link : homeGo, file ? homeGo : link);
+    link.classList.toggle('btn--primary', Boolean(file));
+    link.classList.toggle('btn--quiet', !file);
+    homeGo.classList.toggle('btn--primary', !file);
+    homeGo.classList.toggle('btn--quiet', Boolean(file));
   }
 
   // The sidebar carries it too, where the design puts an upgrade offer, and

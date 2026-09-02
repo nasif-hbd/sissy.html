@@ -20,8 +20,13 @@ import { chromium } from 'playwright';
 
 /* The source lives outside icons/ because everything in icons/ is served and
    packaged, and a megabyte of artwork nothing requests has no business there. */
-const SRC = process.argv[2] || 'brand/vocabx.png';
-const OUT = 'icons';
+const args = process.argv.slice(2);
+/* The desktop downloads need the same mark at the sizes macOS and Linux ask
+   for. Same source, same crop, same ground — an app whose Dock icon does not
+   match its favicon looks like two different programs. */
+const DESKTOP = args.includes('--desktop');
+const SRC = args.find((a) => !a.startsWith('--')) || 'brand/vocabx.png';
+const OUT = DESKTOP ? 'desktop/icon' : 'icons';
 
 /** How much of an icon the mark should fill. Maskable icons are cropped to a
  *  circle by some launchers, and 80% is the safe zone every platform agrees on. */
@@ -33,7 +38,10 @@ const FILL = 0.74;
  * WebP, and the app's whole first load is 133 KB. PNG stays for the two places
  * with a reason — the iOS home-screen icon, and a favicon fallback.
  */
-const jobs = [
+const jobs = DESKTOP ? [
+  // The set macOS packs into an .icns, and Linux hangs in its launcher.
+  1024, 512, 256, 128, 64, 32, 16,
+].map((size) => ({ name: `icon-${size}.png`, size, type: 'image/png' })) : [
   { name: 'mark-512.webp', size: 512, type: 'image/webp', q: 0.9 },
   { name: 'mark-192.webp', size: 192, type: 'image/webp', q: 0.9 },
   { name: 'mark-64.webp', size: 64, type: 'image/webp', q: 0.92 },
@@ -117,9 +125,10 @@ const result = await page.evaluate(async ({ uri, jobs, lockup, fill }) => {
 
   return {
     split, mark, ground,
-    files: [...jobs, lockup].map((j) => ({ ...j, uri: draw(j.size, j.mode || 'mark', j.type, j.q) })),
+    files: (lockup ? [...jobs, lockup] : jobs)
+      .map((j) => ({ ...j, uri: draw(j.size, j.mode || 'mark', j.type, j.q) })),
   };
-}, { uri, jobs, lockup: LOCKUP, fill: FILL });
+}, { uri, jobs, lockup: DESKTOP ? null : LOCKUP, fill: FILL });
 
 await browser.close();
 

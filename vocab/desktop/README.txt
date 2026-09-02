@@ -7,7 +7,7 @@ folder.
 WHAT IT IS
 
 VocabX is a web app. On a desktop the honest way to run it is to serve the same
-files over loopback and open the browser at them — one 43 KB native binary
+files over loopback and open the browser at them — one small native binary
 instead of a second copy of the app that drifts out of step with the web one.
 
   · It serves ONLY the `app` folder next to it
@@ -41,7 +41,7 @@ BUILDING IT YOURSELF
 
 The source is one C file, and the build is one command:
 
-    ./build.sh                       (needs mingw-w64)
+    ./build.sh windows               (needs mingw-w64)
 
-Read vocabx.c first if you like — it is about 200 lines, and the whole of it is
+Read vocabx.c first if you like — it is about 300 lines, and the whole of it is
 "serve these files on localhost, then open a browser".

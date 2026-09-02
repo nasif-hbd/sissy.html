@@ -136,19 +136,71 @@ export function platformOf(ua = '', { standalone = false, touchPoints = 0 } = {}
 }
 
 /**
+ * The desktop downloads, by operating system.
+ *
+ * Every desktop has a real file: Windows and Linux get a compiled launcher,
+ * macOS gets a proper .app bundle. They all do the same thing — serve the app
+ * folder beside them on 127.0.0.1 and open the browser at it — so what you
+ * download is the same app the site runs, not a second copy of it.
+ *
+ * The phones are the gap, and it is not one more work would close. iOS has no
+ * route to an app outside the App Store, and Android would need a signed APK.
+ * Both install from the browser in one tap instead, which is why the offer
+ * below is per-OS rather than a download button pointed at nothing.
+ *
+ * The filename is stored rather than a path, because the app and the landing
+ * page sit at different depths above download/ and a single hard-coded href
+ * would be broken in one of them.
+ */
+export const DOWNLOADS = {
+  windows: {
+    file: 'vocabx-windows.zip',
+    label: 'Download for Windows',
+    hint: 'A folder you unzip and run. No install, no browser needed.',
+    note: 'Unzip it anywhere and run VocabX.exe — nothing else to fetch. It is not '
+      + 'code-signed, so Windows warns the first time: More info \u2192 Run anyway.',
+  },
+  mac: {
+    file: 'vocabx-mac.zip',
+    label: 'Download for Mac',
+    hint: 'A real app. Unzip it and drag VocabX to Applications.',
+    note: 'The first time, right-click VocabX and choose Open — macOS blocks apps from '
+      + 'developers who have not paid Apple for a certificate. After that it opens normally.',
+  },
+  linux: {
+    file: 'vocabx-linux.zip',
+    label: 'Download for Linux',
+    hint: 'A folder you unzip and run. No install, no root, no runtime.',
+    note: 'Unzip it anywhere and run ./VocabX. install-menu.sh inside puts it in your '
+      + 'application menu; nothing is written outside the folder either way.',
+  },
+};
+
+/**
+ * The file for this operating system, or null where there is none.
+ *
+ * `base` is where download/ sits relative to the page asking — the app is one
+ * level deeper than the landing page, and both call this.
+ */
+export function downloadFor(os, { base = '../download/' } = {}) {
+  const d = DOWNLOADS[os];
+  return d ? { ...d, href: base + d.file } : null;
+}
+
+/**
  * The one button, for whatever is reading this.
  *
- * Windows is the only platform with a file to download; everywhere else
- * "getting the app" means installing the page, which is a different verb and
- * a different result. Saying "Download" on an iPhone would promise a file
- * that does not exist and cannot exist — Apple has no route for one — so the
- * label names what will actually happen on that device.
+ * Every desktop has a file to download. The phones do not, and "getting the
+ * app" there means installing the page — a different verb with a different
+ * result. Saying "Download" on an iPhone would promise a file that does not
+ * exist and cannot exist, so the label names what will actually happen on the
+ * device reading it.
  *
- * `downloadHref` is the caller's answer to "is there a file for this device",
- * not a hint: pass null and no download is offered, whatever the platform.
- * The caller is the one that knows what it actually ships.
+ * `download` is the caller's answer to "is there a file for this device", not
+ * a hint: pass null and no download is offered, whatever the platform. The
+ * caller is the one that knows what it actually ships.
  */
-export function installOffer(state, { downloadHref = '../download/vocabx-windows.zip' } = {}) {
+export function installOffer(state, { download = downloadFor(state?.os) } = {}) {
   const on = state.device && state.device !== 'this device'
     ? `your ${state.device}`.replace('your Windows PC', 'Windows')
     : 'this device';
@@ -156,13 +208,14 @@ export function installOffer(state, { downloadHref = '../download/vocabx-windows
   if (state.installed) {
     return { kind: 'done', label: 'Already installed', hint: 'You are running the installed app.' };
   }
-  if (state.os === 'windows' && downloadHref) {
+  if (download) {
     return {
       kind: 'download',
-      label: 'Download for Windows',
-      hint: 'A folder you unzip and run. No browser install needed.',
-      href: downloadHref,
-      // Windows can do both, and the browser install is the smaller one.
+      label: download.label,
+      hint: download.hint,
+      href: download.href,
+      note: download.note,
+      // A desktop can do both, and the browser install is the smaller one.
       also: state.canPrompt
         ? { kind: 'prompt', label: 'Or install from this page', hint: 'One click, and it opens in its own window.' }
         : null,

@@ -8,7 +8,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { platformOf, installOffer } from '../js/install.js';
+import { platformOf, installOffer, downloadFor, DOWNLOADS } from '../js/install.js';
 
 const UA = {
   iphoneSafari:  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
@@ -159,31 +159,60 @@ test('every platform, installed or not, carries a device name', () => {
   }
 });
 
-test('only Windows is offered a download, because only Windows has a file', () => {
-  // Saying "Download" on an iPhone would promise a file that does not exist
-  // and cannot exist — Apple has no route for one.
-  const win = installOffer(platformOf(UA.winChrome));
-  assert.equal(win.kind, 'download');
-  assert.match(win.label, /^Download for Windows$/);
-  assert.ok(win.href, 'a download offer with no file to download');
-
-  for (const ua of [UA.iphoneSafari, UA.androidChrome, UA.macSafari, UA.linuxChrome]) {
+test('every desktop is offered its own file', () => {
+  for (const [name, ua, expect] of [
+    ['windows', UA.winChrome, 'Download for Windows'],
+    ['mac', UA.macSafari, 'Download for Mac'],
+    ['linux', UA.linuxChrome, 'Download for Linux'],
+  ]) {
     const offer = installOffer(platformOf(ua, { touchPoints: 0 }));
-    assert.notEqual(offer.kind, 'download', `promised a download for: ${ua.slice(0, 30)}`);
-    assert.doesNotMatch(offer.label, /download/i);
+    assert.equal(offer.kind, 'download', `${name} was not offered its file`);
+    assert.equal(offer.label, expect);
+    assert.ok(offer.href, `${name}: a download offer with nothing to download`);
+    assert.ok(offer.note, `${name}: a download with no word about what running it means`);
   }
 });
 
-test('no file means no download button, even on Windows', () => {
+test('a phone is never offered a download, because there is no file', () => {
+  // Saying "Download" on an iPhone would promise a file that does not exist
+  // and cannot exist — Apple has no route for one — and Android would need a
+  // signed APK we do not ship. Both install from the browser instead.
+  for (const ua of [UA.iphoneSafari, UA.iphoneChrome, UA.androidChrome, UA.androidFirefox]) {
+    const offer = installOffer(platformOf(ua));
+    assert.notEqual(offer.kind, 'download', `promised a download for: ${ua.slice(0, 30)}`);
+    assert.doesNotMatch(offer.label, /download/i);
+    assert.equal(offer.href, undefined);
+  }
+  assert.equal(downloadFor('ios'), null);
+  assert.equal(downloadFor('android'), null);
+});
+
+test('no file means no download button, even on a desktop', () => {
   // The caller ships the file, so the caller decides. A build that dropped
   // the zip must not still put "Download for Windows" on the screen.
-  const offer = installOffer(platformOf(UA.winChrome), { downloadHref: null });
+  const offer = installOffer(platformOf(UA.winChrome), { download: null });
   assert.notEqual(offer.kind, 'download');
   assert.doesNotMatch(offer.label, /download/i);
   assert.equal(offer.label, 'Install on Windows');
 });
 
-test('Windows keeps the browser install as the second, smaller option', () => {
+test('the download path is built for the page that asks', () => {
+  // The app sits a level below the landing page, and a single hard-coded
+  // href would be broken in one of them.
+  assert.equal(downloadFor('mac').href, '../download/vocabx-mac.zip');
+  assert.equal(downloadFor('mac', { base: './download/' }).href, './download/vocabx-mac.zip');
+  assert.equal(downloadFor('nonsense'), null);
+});
+
+test('every download names a real file and says what running it costs', () => {
+  for (const [os, d] of Object.entries(DOWNLOADS)) {
+    assert.match(d.file, /^vocabx-[a-z]+\.zip$/, `${os}: odd filename`);
+    assert.match(d.label, /^Download for /, `${os}: the button does not say download`);
+    assert.ok(d.hint && d.note, `${os}: no word about what it is or what it costs`);
+  }
+});
+
+test('a desktop keeps the browser install as the second, smaller option', () => {
   const win = installOffer({ ...platformOf(UA.winChrome), canPrompt: true });
   assert.ok(win.also, 'Chrome on Windows can do both and should say so');
   assert.equal(win.also.kind, 'prompt');
@@ -191,6 +220,8 @@ test('Windows keeps the browser install as the second, smaller option', () => {
   // Firefox on Windows cannot install at all, so there is no second option
   // to offer — the file is the whole answer.
   assert.equal(installOffer(platformOf(UA.winFirefox)).also, null);
+  // Nor can Safari, which is where most Macs start.
+  assert.equal(installOffer(platformOf(UA.macSafari, { touchPoints: 0 })).also, null);
 });
 
 test('iOS is told to add, not to install or download', () => {
@@ -202,10 +233,12 @@ test('iOS is told to add, not to install or download', () => {
   assert.equal(ipad.label, 'Add to your iPad');
 });
 
-test('a device that can prompt is offered one tap, by name', () => {
+test('a device with no file to download is offered the one-tap install', () => {
   assert.equal(installOffer(platformOf(UA.androidChrome)).label, 'Install on your Android phone');
+  assert.equal(installOffer(platformOf(UA.androidTablet)).label, 'Install on your Android tablet');
+  // ChromeOS runs on the browser it installs into, so there is nothing to ship.
   assert.equal(installOffer(platformOf(UA.chromeOS)).label, 'Install on your Chromebook');
-  assert.equal(installOffer(platformOf(UA.macChrome, { touchPoints: 0 })).label, 'Install on your Mac');
+  assert.equal(downloadFor('chromeos'), null);
 });
 
 test('an installed app is offered nothing at all', () => {

@@ -446,14 +446,19 @@ it once — dismissible, and the dismissal sticks. Nobody wants to be asked twic
 
 **One button, named for the device holding it.** `installOffer()` turns the
 detected platform into the single thing that will actually happen there:
-*Download for Windows*, *Add to your iPhone*, *Install on your Android phone*,
-*Install on your Chromebook*. The word "Download" appears only where a file
-exists — which the caller decides, by passing the href it actually ships, not
-the module by assuming. On iOS that word would promise something Apple has no
-route to deliver, so the label says "Add" and the steps say why. Where a
-platform has both a file and a prompt, the file leads and the prompt is the
-second, smaller option; a button that opens the browser's install dialog is
-never labelled "Download", because that is not what pressing it does.
+*Download for Windows*, *Download for Mac*, *Download for Linux*, *Add to your
+iPhone*, *Install on your Android phone*. Every desktop has a real file; the
+phones do not, and no amount of work would change that — iOS has no route to an
+app outside the App Store, and Android would need a signed APK. On those two
+the word "Download" would promise something that cannot be delivered, so the
+label says what will happen instead.
+
+Where a platform has both a file and a browser prompt, the file leads and the
+prompt is the second, smaller option; a button that opens the browser's install
+dialog is never labelled "Download", because that is not what pressing it does.
+And where the file is on screen, the browser-install steps are not: they
+describe a different way of getting the app than the heading just offered. The
+collapsed *Installing on another device* section keeps them.
 
 Every card that carries the offer follows the same rule, so the heading, the
 button and the link can never name three different things: Home, the sidebar,
@@ -472,25 +477,50 @@ touch points; Chrome on iOS is Safari underneath and still cannot add to the
 Home Screen; and Safari installs through Add to Dock, so pointing a Safari user
 at Chrome's address-bar icon sends them hunting for a button that is not there.
 
-## Windows desktop build
+## Desktop builds
 
-`desktop/` holds a 43 KB native launcher. Double-clicked, it serves the app on
-loopback and opens the browser at it — one small binary rather than a second
-copy of the app that drifts out of step with the web one.
+`desktop/` holds a launcher for each desktop system. Double-clicked, it serves
+the app on loopback and opens the browser at it — one small program rather than
+a second copy of the app that drifts out of step with the web one.
 
-    cd desktop && ./build.sh          # needs mingw-w64; cross-compiles from Linux
+    cd desktop && ./build.sh          # VocabX.exe (mingw-w64) and VocabX (cc)
+    ./package.sh                      # → download/vocabx-{windows,mac,linux}.zip
 
-It serves only the `app` folder beside it, binds only to 127.0.0.1, and
-uploads nothing. The path resolver is the security boundary: a decoded request
-is rejected if it contains a parent-directory step, a drive letter or a
-backslash, and the canonicalised result must still sit under the app root.
-Content types matter more than they look — a browser refuses to execute an ES
-module served as `text/plain`, so a wrong type there is a blank page rather
-than a slow one.
+`vocabx.c` is one file for Windows and Linux both. They differ in four small
+places — sockets, threads, "where am I", and "open this URL" — so those are
+shimmed at the top and the server below is the same code everywhere; a second
+implementation per platform would be three things to keep correct instead of
+one. The Windows binary is 43 KB, the Linux one 16 KB.
 
-It is not code-signed, so SmartScreen will warn on first run. That is worth
-saying plainly rather than hiding: anyone who would rather not run an unsigned
-binary can use Edge or Chrome's "Install this site as an app" instead and get
+macOS gets a real `.app` bundle whose executable is `vocabx.pl`, a Perl port of
+the same server. Not because Perl is nicer, but because a Mach-O binary has to
+be linked on a Mac and nothing here is one: `/usr/bin/perl` has shipped with
+macOS forever, `IO::Socket::INET` is core, and so the download needs nothing
+installed and nothing fetched. The bundle carries its own icon, packed into an
+`.icns` by `build-icns.py` — the format is a container of PNGs and Apple's own
+`iconutil` only runs on macOS, so writing the eleven-entry file directly beats
+shipping an app with no icon.
+
+There is no Android or iOS download, and that is not an oversight. iOS has no
+route to an app outside the App Store. Android would need a signed APK, and
+Google's SDK host is not reachable from the machine this was built on. Both
+install from the browser in one tap instead, which is the offer they get.
+
+Every launcher serves only the `app` folder beside it, binds only to
+127.0.0.1, and uploads nothing. The path resolver is the security boundary: a
+decoded request is rejected if it contains a parent-directory step, a drive
+letter or a backslash; the canonicalised result must still sit under the app
+root *and* be followed by a separator, or a sibling folder named `app-backup`
+would pass on the prefix alone; and only regular files are served, since a
+directory opens happily on Linux and then reads as nothing, which would answer
+200 with an empty body. Content types matter more than they look — a browser
+refuses to execute an ES module served as `text/plain`, so a wrong type there
+is a blank page rather than a slow one.
+
+None of the three is code-signed, so each warns once on first run — SmartScreen
+on Windows, right-click → Open on a Mac. That is worth saying plainly rather
+than hiding, and each README inside the download says it. Anyone who would
+rather not run an unsigned binary can use the browser install instead and get
 the same desktop icon, window and offline support.
 
 ## Feedback
