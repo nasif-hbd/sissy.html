@@ -199,8 +199,8 @@ test('no file means no download button, even on a desktop', () => {
 test('the download path is built for the page that asks', () => {
   // The app sits a level below the landing page, and a single hard-coded
   // href would be broken in one of them.
-  assert.equal(downloadFor('mac').href, '../download/vocabx-mac.zip');
-  assert.equal(downloadFor('mac', { base: './download/' }).href, './download/vocabx-mac.zip');
+  assert.equal(downloadFor('mac').href, '../download/vocabx-desktop.zip');
+  assert.equal(downloadFor('mac', { base: './download/' }).href, './download/vocabx-desktop.zip');
   assert.equal(downloadFor('nonsense'), null);
 });
 
@@ -210,6 +210,19 @@ test('every download names a real file and says what running it costs', () => {
     assert.match(d.label, /^Download for /, `${os}: the button does not say download`);
     assert.ok(d.hint && d.note, `${os}: no word about what it is or what it costs`);
   }
+});
+
+test('the desktops share one archive but not one set of words', () => {
+  // One file to host, because the 28MB of dictionary inside it is the same on
+  // every system. Three sets of instructions, because running it is not.
+  const files = new Set(Object.values(DOWNLOADS).map((d) => d.file));
+  assert.equal(files.size, 1, 'the desktops drifted onto separate archives again');
+
+  const notes = Object.values(DOWNLOADS).map((d) => d.note);
+  assert.equal(new Set(notes).size, notes.length, 'two systems were given the same instructions');
+  assert.match(DOWNLOADS.windows.note, /VocabX\.exe/);
+  assert.match(DOWNLOADS.mac.note, /right-click/i);
+  assert.match(DOWNLOADS.linux.note, /\.\/VocabX/);
 });
 
 test('a desktop keeps the browser install as the second, smaller option', () => {

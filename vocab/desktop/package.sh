@@ -1,17 +1,15 @@
 #!/usr/bin/env bash
-# Package the desktop downloads: one per system, each a launcher plus the whole
-# app beside it.
+# Package the desktop download: one archive, three launchers, one copy of the
+# app they all serve.
 #
 # The launcher serves ./app over 127.0.0.1, so what ships is exactly what the
 # web build ships — rebuild the data first (scripts/build-modules.mjs) and
 # re-run this, or the downloads go out with last release's word packs.
 #
-#   ./package.sh                 → all three, into ../../download/
-#   ./package.sh windows|mac|linux
+#   ./package.sh                 → ../../download/vocabx-desktop.zip
 set -euo pipefail
 cd "$(dirname "$0")"
 
-want=${1:-all}
 OUTDIR=$(cd ../.. && pwd)/download
 mkdir -p "$OUTDIR"
 
@@ -43,51 +41,33 @@ report() {             # report <zip>
   echo "packaged $(du -h "$1" | cut -f1)  $(unzip -l "$1" | tail -1 | awk '{print $2}') files  →  $1"
 }
 
-# ── Windows ───────────────────────────────────────────────────────────────
-if [ "$want" = all ] || [ "$want" = windows ]; then
-  [ -f VocabX.exe ] || { echo "No VocabX.exe — run ./build.sh first."; exit 1; }
-  STAGE=$(mktemp -d)/vocabx-windows
-  mkdir -p "$STAGE"
-  cp VocabX.exe "$STAGE/"
-  cp README.txt "$STAGE/"
-  copy_app "$STAGE/app"
-  check_clean "$STAGE"
-  OUT="$OUTDIR/vocabx-windows.zip"; rm -f "$OUT"
-  (cd "$(dirname "$STAGE")" && zip -qr "$OUT" vocabx-windows)
-  rm -rf "$(dirname "$STAGE")"
-  report "$OUT"
-fi
+# ── one folder, three launchers ───────────────────────────────────────────
+# The app is 28MB of dictionary, and it is the same 28MB on every system. Three
+# separate archives meant shipping it three times — 32MB of downloads to host,
+# for 60KB of difference between them. So one archive holds all three
+# launchers and one copy of the app, and each system's button points at it.
+STAGE=$(mktemp -d)/vocabx-desktop
+mkdir -p "$STAGE"
 
-# ── Linux ─────────────────────────────────────────────────────────────────
-if [ "$want" = all ] || [ "$want" = linux ]; then
-  [ -f VocabX ] || { echo "No VocabX binary — run ./build.sh first."; exit 1; }
-  STAGE=$(mktemp -d)/vocabx-linux
-  mkdir -p "$STAGE"
-  cp VocabX "$STAGE/"
-  chmod +x "$STAGE/VocabX"
-  cp README-linux.txt "$STAGE/README.txt"
-  cp install-menu.sh uninstall-menu.sh "$STAGE/"
-  cp icon/icon-256.png "$STAGE/icon.png"
-  copy_app "$STAGE/app"
-  check_clean "$STAGE"
-  OUT="$OUTDIR/vocabx-linux.zip"; rm -f "$OUT"
-  (cd "$(dirname "$STAGE")" && zip -qr "$OUT" vocabx-linux)
-  rm -rf "$(dirname "$STAGE")"
-  report "$OUT"
-fi
+[ -f VocabX.exe ] || { echo "No VocabX.exe — run ./build.sh first."; exit 1; }
+[ -f VocabX ]     || { echo "No VocabX binary — run ./build.sh first."; exit 1; }
+[ -f VocabX.icns ] || python3 build-icns.py icon VocabX.icns
 
-# ── macOS ─────────────────────────────────────────────────────────────────
-# A real .app bundle, so it double-clicks and carries its own icon. The
-# executable inside it is a two-line script that hands off to the Perl
-# launcher, because a Mach-O binary cannot be linked anywhere but on a Mac.
-if [ "$want" = all ] || [ "$want" = mac ]; then
-  [ -f VocabX.icns ] || python3 build-icns.py icon VocabX.icns
-  STAGE=$(mktemp -d)/vocabx-mac
-  APP="$STAGE/VocabX.app"
-  mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+cp VocabX.exe VocabX "$STAGE/"
+chmod +x "$STAGE/VocabX"
+cp README-desktop.txt "$STAGE/README.txt"
+cp install-menu.sh uninstall-menu.sh "$STAGE/"
+cp icon/icon-256.png "$STAGE/icon.png"
+copy_app "$STAGE/app"
 
-  VERSION=$(grep -o "build: *'v[0-9]*'" ../js/config.js | grep -o '[0-9]*')
-  cat > "$APP/Contents/Info.plist" <<PLIST
+# The macOS bundle. Its executable is two lines that hand off to vocabx.pl;
+# a Mach-O binary would have to be linked on a Mac, and this needs nothing
+# installed and nothing fetched.
+APP="$STAGE/VocabX.app"
+mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
+
+VERSION=$(grep -o "build: *'v[0-9]*'" ../js/config.js | grep -o '[0-9]*')
+cat > "$APP/Contents/Info.plist" <<PLIST
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -105,28 +85,26 @@ if [ "$want" = all ] || [ "$want" = mac ]; then
 </dict>
 </plist>
 PLIST
-  printf 'APPL????' > "$APP/Contents/PkgInfo"
+printf 'APPL????' > "$APP/Contents/PkgInfo"
 
-  cat > "$APP/Contents/MacOS/VocabX" <<'LAUNCH'
+cat > "$APP/Contents/MacOS/VocabX" <<'LAUNCH'
 #!/bin/bash
-# The bundle's executable. Everything it does is in vocabx.pl beside it —
-# this only works out where "beside it" is, which a script can do and a
-# plist cannot.
-here="$(cd "$(dirname "$0")/../Resources" && pwd)"
-exec /usr/bin/perl "$here/vocabx.pl" "$here/app"
+# The bundle's executable. Everything it does is in vocabx.pl beside it — this
+# only works out where the app folder is, which a script can do and a plist
+# cannot: inside the bundle if someone put it there, otherwise next to the
+# bundle, which is how the download is laid out.
+res="$(cd "$(dirname "$0")/../Resources" && pwd)"
+outside="$(cd "$(dirname "$0")/../../.." && pwd)/app"
+app="$res/app"; [ -f "$app/index.html" ] || app="$outside"
+exec /usr/bin/perl "$res/vocabx.pl" "$app"
 LAUNCH
-  chmod +x "$APP/Contents/MacOS/VocabX"
+chmod +x "$APP/Contents/MacOS/VocabX"
+cp vocabx.pl VocabX.icns "$APP/Contents/Resources/"
 
-  cp vocabx.pl "$APP/Contents/Resources/"
-  cp VocabX.icns "$APP/Contents/Resources/"
-  copy_app "$APP/Contents/Resources/app"
-  cp README-mac.txt "$STAGE/README.txt"
-  check_clean "$STAGE"
-
-  OUT="$OUTDIR/vocabx-mac.zip"; rm -f "$OUT"
-  # -y keeps symlinks as symlinks; the bundle has none today, but a zip that
-  # silently flattens one is a bundle that will not launch.
-  (cd "$(dirname "$STAGE")" && zip -qry "$OUT" vocabx-mac)
-  rm -rf "$(dirname "$STAGE")"
-  report "$OUT"
-fi
+check_clean "$STAGE"
+OUT="$OUTDIR/vocabx-desktop.zip"; rm -f "$OUT"
+# -y keeps symlinks as symlinks; the bundle has none today, but a zip that
+# silently flattens one is a bundle that will not launch.
+(cd "$(dirname "$STAGE")" && zip -qry "$OUT" vocabx-desktop)
+rm -rf "$(dirname "$STAGE")"
+report "$OUT"

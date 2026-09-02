@@ -136,12 +136,14 @@ export function platformOf(ua = '', { standalone = false, touchPoints = 0 } = {}
 }
 
 /**
- * The desktop downloads, by operating system.
+ * The desktop download, and what to call it on each system.
  *
- * Every desktop has a real file: Windows and Linux get a compiled launcher,
- * macOS gets a proper .app bundle. They all do the same thing — serve the app
- * folder beside them on 127.0.0.1 and open the browser at it — so what you
- * download is the same app the site runs, not a second copy of it.
+ * Every desktop has a real file, and it is the same file: Windows and Linux
+ * get a compiled launcher, macOS a proper .app bundle, and all three sit in
+ * one archive around a single copy of the app. The app is 28MB of dictionary
+ * and it is the same 28MB everywhere — three archives meant hosting it three
+ * times for 60KB of difference between them. Each system still gets its own
+ * button and its own words; only the bytes are shared.
  *
  * The phones are the gap, and it is not one more work would close. iOS has no
  * route to an app outside the App Store, and Android would need a signed APK.
@@ -152,23 +154,25 @@ export function platformOf(ua = '', { standalone = false, touchPoints = 0 } = {}
  * page sit at different depths above download/ and a single hard-coded href
  * would be broken in one of them.
  */
+const DESKTOP_ZIP = 'vocabx-desktop.zip';
+
 export const DOWNLOADS = {
   windows: {
-    file: 'vocabx-windows.zip',
+    file: DESKTOP_ZIP,
     label: 'Download for Windows',
     hint: 'A folder you unzip and run. No install, no browser needed.',
-    note: 'Unzip it anywhere and run VocabX.exe — nothing else to fetch. It is not '
-      + 'code-signed, so Windows warns the first time: More info \u2192 Run anyway.',
+    note: 'Unzip it anywhere and double-click VocabX.exe — nothing else to fetch. It is '
+      + 'not code-signed, so Windows warns the first time: More info \u2192 Run anyway.',
   },
   mac: {
-    file: 'vocabx-mac.zip',
+    file: DESKTOP_ZIP,
     label: 'Download for Mac',
-    hint: 'A real app. Unzip it and drag VocabX to Applications.',
+    hint: 'A real app, with its own icon. Unzip it and double-click VocabX.',
     note: 'The first time, right-click VocabX and choose Open — macOS blocks apps from '
-      + 'developers who have not paid Apple for a certificate. After that it opens normally.',
+      + 'developers who have not paid Apple for a certificate. Keep the folder together.',
   },
   linux: {
-    file: 'vocabx-linux.zip',
+    file: DESKTOP_ZIP,
     label: 'Download for Linux',
     hint: 'A folder you unzip and run. No install, no root, no runtime.',
     note: 'Unzip it anywhere and run ./VocabX. install-menu.sh inside puts it in your '

@@ -2,26 +2,16 @@
 # Package the static site for a web host — Cloudflare Pages, Netlify, GitHub
 # Pages, or anything that serves a folder.
 #
-# What ships is the landing page, the app, and the three desktop downloads the
-# landing page links to. What does not ship is the AI proxy (server/ is a Node service
+# What ships is the landing page, the app, and the desktop download the landing
+# page links to. What does not ship is the AI proxy (server/ is a Node service
 # you host separately, and it is where the keys live), the build scripts, the
 # tests, and the source artwork the icons are cut from.
 #
-#   ./scripts/package-web.sh                → download/vocabx-web.zip
-#   ./scripts/package-web.sh --no-downloads → download/vocabx-site.zip
-#
-# --no-downloads leaves the three desktop archives out. The result is 16MB
-# rather than 32MB, for a transfer that will not carry the whole thing — but
-# it is not a finished site on its own: the download buttons point into
-# download/, so those three files have to be put back beside it before it is
-# uploaded anywhere.
+#   ./scripts/package-web.sh     → download/vocabx-web.zip
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-WITH_DOWNLOADS=1
-[ "${1:-}" = --no-downloads ] && WITH_DOWNLOADS=0
-
-OUT=$(pwd)/download/$([ "$WITH_DOWNLOADS" = 1 ] && echo vocabx-web.zip || echo vocabx-site.zip)
+OUT=$(pwd)/download/vocabx-web.zip
 # The same site with the AI proxy inside it, as one Pages deployment.
 OUT_AI=$(pwd)/download/vocabx-pages-with-ai.zip
 STAGE=$(mktemp -d)/vocabx-web
@@ -42,33 +32,17 @@ done
 # The desktop downloads, so the buttons on the landing page work. Built here
 # if they are not lying around — they are assembled from committed launchers,
 # so this needs no compiler and there is no step to forget.
-if [ "$WITH_DOWNLOADS" = 1 ]; then
-  for z in windows mac linux; do
-    [ -f "download/vocabx-$z.zip" ] || vocab/desktop/package.sh "$z"
-    cp "download/vocabx-$z.zip" "$STAGE/download/"
-  done
-else
-  # A note where the files should be, so an incomplete upload is discovered
-  # by reading the folder rather than by a visitor clicking Download.
-  cat > "$STAGE/download/PUT-THE-DOWNLOADS-HERE.txt" <<'NOTE'
-This folder should hold three files:
-
-    vocabx-windows.zip
-    vocabx-mac.zip
-    vocabx-linux.zip
-
-They were left out of this archive because it was built with --no-downloads.
-Copy them in beside this note before uploading the site, or the Download
-button on every desktop will give visitors a 404. Then delete this file.
-NOTE
-fi
+# The desktop download, so the button on the landing page works. Built here if
+# it is not lying around — it is assembled from committed launchers, so this
+# needs no compiler and there is no step to forget.
+[ -f download/vocabx-desktop.zip ] || vocab/desktop/package.sh
+cp download/vocabx-desktop.zip "$STAGE/download/"
 
 # A missing part is a broken site on someone's domain, and the list above is
 # easy to forget to extend.
 for part in index.html _headers .nojekyll vocab/js vocab/data vocab/icons \
             vocab/fonts vocab/styles.css vocab/sw.js vocab/manifest.webmanifest \
-            $([ "$WITH_DOWNLOADS" = 1 ] && echo \
-              "download/vocabx-windows.zip download/vocabx-mac.zip download/vocabx-linux.zip"); do
+            download/vocabx-desktop.zip; do
   [ -e "$STAGE/$part" ] || { echo "packaging lost $part"; exit 1; }
 done
 
@@ -80,9 +54,7 @@ if find "$STAGE" -name '.env' -o -name '*.key' -o -name 'subscriptions.json' \
 fi
 
 mkdir -p "$(dirname "$OUT")"
-rm -f "$OUT"
-# Not $OUT_AI here: --no-downloads does not rebuild it, and removing it would
-# delete a good full archive to make a partial one.
+rm -f "$OUT" "$OUT_AI"
 # Zipped from inside the staging directory, so index.html is at the root of
 # the archive. A host's drag-and-drop upload takes the archive's root as the
 # site root; a wrapper folder would serve the whole site one level down.
@@ -93,12 +65,7 @@ echo "packaged $(du -h "$OUT" | cut -f1)  $(unzip -l "$OUT" | tail -1 | awk '{pr
 # itself: one upload, one origin, and no proxy address to configure. Built
 # only when the bundle is already there, so this script never needs esbuild.
 BUILT=vocab/server/dist/_worker.js
-if [ "$WITH_DOWNLOADS" = 0 ]; then
-  # The AI variant is the full site plus one file; building a second, partial
-  # copy of it under the same name would quietly replace the real one.
-  echo "skipped $OUT_AI — --no-downloads builds the site archive only"
-elif [ -f "$BUILT" ]; then
-  rm -f "$OUT_AI"
+if [ -f "$BUILT" ]; then
   cp "$BUILT" "$STAGE/_worker.js"
   (cd "$STAGE" && zip -qr "$OUT_AI" . -x '.DS_Store')
   echo "packaged $(du -h "$OUT_AI" | cut -f1)  $(unzip -l "$OUT_AI" | tail -1 | awk '{print $2}') files  →  $OUT_AI"

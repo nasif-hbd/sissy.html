@@ -484,7 +484,20 @@ the app on loopback and opens the browser at it — one small program rather tha
 a second copy of the app that drifts out of step with the web one.
 
     cd desktop && ./build.sh          # VocabX.exe (mingw-w64) and VocabX (cc)
-    ./package.sh                      # → download/vocabx-{windows,mac,linux}.zip
+    ./package.sh                      # → download/vocabx-desktop.zip
+
+**One archive, three launchers.** The app is 28MB of dictionary and it is the
+same 28MB on every system, so shipping a zip per platform meant hosting it
+three times for 60KB of difference — 32MB of downloads, and a deployable site
+too big to hand over in one piece. Now `VocabX.exe`, `VocabX` and `VocabX.app`
+sit in one folder around a single `app/`. Each system still gets its own button
+and its own words; only the bytes are shared, which is why `DOWNLOADS` in
+`install.js` is three entries pointing at one file rather than one entry.
+
+The cost is that the macOS bundle is no longer self-contained: its `app/` is
+beside it rather than inside `Contents/Resources`. So the bundle executable
+looks in both places, in that order — a hard-coded path breaks half the cases,
+and `tests/desktop.test.mjs` pins that it still checks each.
 
 `vocabx.c` is one file for Windows and Linux both. They differ in four small
 places — sockets, threads, "where am I", and "open this URL" — so those are
@@ -501,10 +514,15 @@ installed and nothing fetched. The bundle carries its own icon, packed into an
 `iconutil` only runs on macOS, so writing the eleven-entry file directly beats
 shipping an app with no icon.
 
-There is no Android or iOS download, and that is not an oversight. iOS has no
-route to an app outside the App Store. Android would need a signed APK, and
-Google's SDK host is not reachable from the machine this was built on. Both
-install from the browser in one tap instead, which is the offer they get.
+There is no Android or iOS download, and that is not an oversight — it is the
+one place where the honest answer is that no file can exist. iOS allows no
+route to an app outside the App Store, for anyone. Android would need a signed
+APK, and Google's SDK host is not reachable from the machine this was built on.
+Both install from the browser instead, and on both that install is a real app:
+its own icon in the drawer or on the Home Screen, its own window, and the same
+offline dictionary. They are in the same offer system as the desktops and get
+the same card in the same place — the label just names what will actually
+happen, because "Download" there would promise a file that is never coming.
 
 Every launcher serves only the `app` folder beside it, binds only to
 127.0.0.1, and uploads nothing. The path resolver is the security boundary: a
