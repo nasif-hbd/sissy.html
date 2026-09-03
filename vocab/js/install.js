@@ -178,6 +178,22 @@ export const DOWNLOADS = {
     note: 'Unzip it anywhere and run ./VocabX. install-menu.sh inside puts it in your '
       + 'application menu; nothing is written outside the folder either way.',
   },
+
+  /* Android, once there is an APK to serve. Building one needs Google's SDK,
+     which is a machine with internet and an hour — `android/README.md` walks
+     through it. Uncomment this after copying the built APK into download/,
+     and every Android visitor is offered the file instead of the one-tap
+     browser install. Leave it commented until the file is actually there: a
+     button pointing at a missing APK is worse than no button.
+
+  android: {
+    file: 'vocabx-android.apk',
+    label: 'Download for Android',
+    hint: 'The app, installed from a file. Chrome can also install it in one tap.',
+    note: 'Android asks permission to install apps from outside the Play Store the '
+      + 'first time. That prompt is normal for any app not from the store.',
+  },
+  */
 };
 
 /**

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The only place the app is allowed to hand files out from: the download
+     folder Chrome writes into. Anything wider would expose app storage. -->
+<paths>
+    <files-path name="downloads" path="downloads/" />
+    <cache-path name="cache" path="/" />
+</paths>

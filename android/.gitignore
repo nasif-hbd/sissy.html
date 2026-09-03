@@ -1,0 +1,12 @@
+# Build output and local machine paths — never committed.
+build/
+.gradle/
+local.properties
+*.apk
+*.aab
+
+# The signing key and its password. Losing this key means never being able to
+# update the app again; committing it means anyone can publish as you.
+*.jks
+*.keystore
+keystore.properties

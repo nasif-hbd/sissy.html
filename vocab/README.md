@@ -514,10 +514,17 @@ installed and nothing fetched. The bundle carries its own icon, packed into an
 `iconutil` only runs on macOS, so writing the eleven-entry file directly beats
 shipping an app with no icon.
 
-There is no Android or iOS download, and that is not an oversight — it is the
-one place where the honest answer is that no file can exist. iOS allows no
-route to an app outside the App Store, for anyone. Android would need a signed
-APK, and Google's SDK host is not reachable from the machine this was built on.
+There is no iOS download, and that is not an oversight: Apple allows no route
+to an app outside the App Store, for anyone.
+
+Android *can* have one, and `android/` holds the project that builds it — a
+Trusted Web Activity, so the installed app is the site itself with the browser
+interface removed rather than a second implementation to keep in step. It is
+not built here because the Android build tools are published only on
+`dl.google.com`, which this machine cannot reach; `android/README.md` is the
+walkthrough for a machine that can. The `android` entry in `DOWNLOADS` is
+written and commented out, to be uncommented once an APK is actually in
+`download/` — a button pointing at a missing file is worse than no button.
 Both install from the browser instead, and on both that install is a real app:
 its own icon in the drawer or on the Home Screen, its own window, and the same
 offline dictionary. They are in the same offer system as the desktops and get
