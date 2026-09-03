@@ -5,8 +5,9 @@
 | | |
 |---|---|
 | [`vocab/`](vocab/) | **VocabX** — English vocabulary app template: spaced repetition, reminders, progress tracking and Claude AI integration. No build step. [Read the docs](vocab/README.md) · [live](https://nasif-hbd.github.io/sissy.html/vocab/) |
-| [`sissy.html`](sissy.html) | The original button-explosion birthday page. [live](https://nasif-hbd.github.io/sissy.html/sissy.html) |
-| `index.html` | Redirects the site root to the app. |
+| `index.html` | The landing page: reads the visitor's device and offers the one way in that works there. |
+| [`android/`](android/) | The Android app — one WebView serving the whole of VocabX from inside the APK. [Build it](android/README.md) |
+| [`vocab/desktop/`](vocab/desktop/) | The Windows, Mac and Linux launchers, and the script that packages them. |
 
 GitHub Pages builds this site from the **`main`** branch, so anything on another
 branch is not live until it is merged.
