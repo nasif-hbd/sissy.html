@@ -963,8 +963,18 @@
           <!-- The card above answers for the device in your hand. This is for
                the other one: putting it on the family PC from your phone, or
                on your phone from the PC. -->
+          <!-- The file, from any device. Someone on a phone still wants to put
+               it on the family PC, and hiding that behind a disclosure meant
+               it did not exist for anyone who did not go looking. -->
+          <a class="btn btn--quiet btn--wide" id="installAnyDownload"
+             href="../download/vocabx-desktop.zip" download>
+            <svg class="ico" aria-hidden="true"><use href="#i-download"/></svg>
+            Download the desktop app</a>
+          <p class="hint">Windows, Mac and Linux in one folder — take it to whichever
+             computer you want it on.</p>
+
           <details class="advanced">
-            <summary>Installing on another device</summary>
+            <summary>Every device, and what it takes</summary>
             <div class="other-devices">
               <p><b>Windows, Mac or Linux</b> —
                  <a href="../download/vocabx-desktop.zip" download>download the app</a>.
@@ -1038,6 +1048,41 @@
       </div>
     </div>
   </nav>
+
+  <!-- Assistance: the same corner, stacked above Feedback. Two buttons in one
+       place is a deliberate pair — one is for asking the app for help, the
+       other for telling us it needs some. -->
+  <button class="fab fab--assist" id="assistBtn" type="button" aria-label="Get assistance">
+    <svg class="ico" aria-hidden="true"><use href="#i-bulb"/></svg>
+    <span class="fab__label">Assist</span>
+  </button>
+
+  <div class="sheet" id="assistSheet" hidden>
+    <div class="sheet__panel sheet__panel--form">
+      <div class="row row--between">
+        <p class="sheet__title">Assistance</p>
+        <span class="pill" id="assistEngine">Built in</span>
+      </div>
+
+      <!-- On screen before anything is asked, and computed on the device: the
+           panel should never make someone wait to learn what it already knows. -->
+      <p class="assist__headline" id="assistHeadline"></p>
+      <p class="hint" id="assistFacts"></p>
+
+      <div class="assist__prompts" id="assistPrompts"></div>
+
+      <div class="assist__reply" id="assistReply" hidden></div>
+
+      <div class="row">
+        <input class="input grow" id="assistInput" type="text" autocomplete="off"
+               placeholder="Ask about your learning…" aria-label="Ask about your learning">
+        <button class="btn btn--primary" id="assistSend" type="button">Ask</button>
+      </div>
+      <p class="footnote" id="assistNote"></p>
+
+      <button class="btn btn--quiet btn--wide" id="assistClose" type="button">Close</button>
+    </div>
+  </div>
 
   <!-- Feedback: fixed to the corner, above the toasts, on every screen. -->
   <button class="fab" id="feedbackBtn" type="button" aria-label="Send feedback">

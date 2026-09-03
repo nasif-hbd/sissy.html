@@ -541,6 +541,37 @@ than hiding, and each README inside the download says it. Anyone who would
 rather not run an unsigned binary can use the browser install instead and get
 the same desktop icon, window and offline support.
 
+## The assistance button
+
+A second button in the corner, stacked above Feedback: one is for asking the
+app for help, the other for telling us it needs some.
+
+It is the same engine as the Ask tab, asked a different way. Ask is where you
+bring a question about a word; this is where you bring a question about
+*yourself* — what to do now, why a word keeps slipping, whether the week has
+gone well. Those are unanswerable without the numbers, so `brief.js` derives a
+compact snapshot of the learner's own state and every message carries it.
+
+What rides along is counts, rates and a handful of terms — never the history
+log, never a word list, never anything typed into feedback. `tests/brief.test.mjs`
+pins that: a snapshot with `history` in it would be every word the learner has
+ever seen, leaving the device on every question, and nothing on screen would
+show it. It also pins the size, because a snapshot that grew past a few hundred
+characters would stop being free to send.
+
+Two things the panel does before any request leaves the device. It puts the
+headline on screen instantly — a panel that says "thinking…" for two seconds
+to report twelve due cards is worse than one that just says it. And where no
+engine is reachable it answers from the snapshot itself: `localAdvice()` reads
+the same numbers and says something true about them. `AIClient.ask` falls back
+to its own offline tutor rather than throwing, and that tutor knows about words
+rather than about you — asked "how am I doing" it says it needs a live engine —
+so the no-engine case is decided before the call, not in a catch block.
+
+The offered questions change with the state they are offered in. A learner with
+a backlog and one with an empty queue need different first moves, and a fixed
+list would ask someone who has never got a word wrong why they keep failing.
+
 ## Feedback
 
 A floating button on every screen. Each report carries the screen, the engine,

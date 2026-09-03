@@ -551,6 +551,24 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 #installDownloads .btn { text-decoration: none; }
 #homeInstallDownload { text-decoration: none; }
 
+.assist__headline {
+  font-family: var(--sans); font-size: 15px; font-weight: 600;
+  line-height: 1.4; color: var(--ink);
+}
+/* The one-tap questions. They wrap rather than scroll, because a question you
+   cannot see is a question you will not ask. */
+.assist__prompts { display: flex; flex-wrap: wrap; gap: 7px; }
+.assist__prompts .btn { flex: 1 1 auto; }
+/* The answer area grows to what it holds and then scrolls, so a long reply
+   cannot push the input box off the bottom of the sheet. */
+.assist__reply {
+  max-height: 40vh; overflow-y: auto;
+  padding: 12px 13px; border-radius: var(--radius-sm);
+  background: var(--paper-sunk); border: 1px solid var(--edge);
+  font-size: 14px; line-height: 1.6; color: var(--ink-2);
+  white-space: pre-wrap;
+}
+
 /* ── the feedback button ────────────────────────────────────────────────── */
 /* Fixed to the corner on every screen, above the toasts but below the sheet.
    It sits clear of the safe-area inset so it is not under a home indicator. */
@@ -564,7 +582,19 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
   border-radius: 999px; box-shadow: var(--shadow-lift);
   font-family: var(--sans); font-size: 14px; font-weight: 600;
 }
+
+/* Directly above Feedback — one tap-target plus a gap higher, so the pair
+   reads as one stack. Declared after .fab because both set `bottom` at the
+   same specificity, and the later rule is the one that wins. */
+.fab--assist {
+  bottom: calc(26px + var(--tap) + env(safe-area-inset-bottom));
+  background: var(--accent); color: #fff; border-color: transparent;
+  box-shadow: var(--shadow-lift);
+}
 .fab .ico { color: var(--accent); }
+/* After .fab .ico, not before: equal specificity, so the later rule wins —
+   and an accent icon on the accent-filled button is an empty circle. */
+.fab--assist .ico { color: #fff; }
 @media (hover: hover) { .fab:hover { background: var(--accent-soft); border-color: var(--accent); } }
 /* On a phone the label costs more than it earns next to the tab rail. */
 @media (max-width: 560px) {

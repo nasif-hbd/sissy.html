@@ -10,6 +10,7 @@
 import { APP, AI as AICFG, THEMES, PROVIDERS } from './config.js';
 import { Store, refreshStreak, makeSrs, dayKey, snapshot, restore } from './store.js';
 import { schedule, buildQueue, bucket, plannedSession, queueCounts, spokenDelta } from './srs.js';
+import { learningBrief, briefText, headline, prompts, localAdvice } from './brief.js';
 import { makeSessionTimer, reportPayload, weakest, summary, window as windowStats, recentDays,
          dashboard, recentlyLearned, activeDays } from './stats.js';
 import { Notifier, Push } from './notify.js';
@@ -82,6 +83,7 @@ async function boot() {
   wireWords();
   wireInstall();
   wireFeedback();
+  wireAssist();
   wireFeedbackView();
   wireInbox();
   wireTest();
@@ -1464,6 +1466,108 @@ function drawInbox(notes) {
  * can paste it wherever they like.
  */
 let feedbackKind = 'idea';
+
+/* ── assistance ─────────────────────────────────────────────────────────── */
+
+/**
+ * The assistant, in the corner, on every screen.
+ *
+ * It is the same engine as the Ask tab, asked a different way. Ask is where
+ * you bring a question about a word; this is where you bring a question about
+ * *yourself* — what to do now, why a word keeps slipping, whether the week has
+ * gone well. Those questions are unanswerable without the numbers, so every
+ * message carries a derived snapshot of them.
+ *
+ * What is sent is counts, rates and a handful of terms. Never the history log,
+ * never anything typed into feedback, never a word list — a snapshot that fits
+ * in a few hundred characters cannot leak what it does not contain.
+ */
+function wireAssist() {
+  $('#assistBtn').addEventListener('click', openAssist);
+  $('#assistClose').addEventListener('click', closeAssist);
+  $('#assistSheet').addEventListener('click', (e) => {
+    if (e.target.id === 'assistSheet') closeAssist();
+  });
+  $('#assistSend').addEventListener('click', () => askAssist($('#assistInput').value));
+  $('#assistInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') askAssist($('#assistInput').value);
+  });
+}
+
+function openAssist() {
+  const brief = learningBrief(Store.state);
+  const due = readyNow(plannedSession(Store.state));
+
+  // On screen before any request leaves the device: the panel already knows
+  // this, and making someone wait to be told it would be theatre.
+  $('#assistHeadline').textContent = headline(brief, due);
+  $('#assistFacts').textContent = briefText(brief);
+  $('#assistEngine').textContent = AIClient.engine;
+  $('#assistEngine').title = AIClient.engineDetail;
+  $('#assistReply').hidden = true;
+  $('#assistReply').textContent = '';
+  $('#assistNote').textContent = AIClient.isLive
+    ? `${AIClient.engine} sees the summary above — nothing else leaves this device.`
+    : 'Answered on this device. No engine is reachable, so the advice is the app\u2019s own.';
+
+  $('#assistPrompts').replaceChildren(...prompts(brief, due).map((p) =>
+    el('button', { class: 'btn btn--quiet btn--sm', type: 'button', text: p.label,
+                   onclick: () => askAssist(p.ask) })));
+
+  $('#assistSheet').hidden = false;
+  $('#assistInput').focus();
+}
+
+function closeAssist() {
+  $('#assistSheet').hidden = true;
+  $('#assistBtn').focus();
+}
+
+let assisting = false;
+
+async function askAssist(question) {
+  const q = (question || '').trim();
+  if (!q || assisting) return;
+  assisting = true;
+  $('#assistInput').value = '';
+  $('#assistSend').disabled = true;
+
+  const reply = $('#assistReply');
+  reply.hidden = false;
+  reply.textContent = '';
+
+  /* The snapshot rides with the question rather than being a separate call,
+     so the engine cannot answer about a state it was never shown. */
+  const brief = learningBrief(Store.state);
+  const framed = `Here is where I am with my vocabulary learning. ${briefText(brief)}\n\n${q}`;
+
+  const due = readyNow(plannedSession(Store.state));
+
+  /* AIClient.ask falls back to its own offline tutor rather than throwing, and
+     that tutor knows about words, not about you — it answers "how am I doing"
+     with "that needs a live engine". So the no-engine case is decided here,
+     before the call, and answered from the snapshot the app already holds. */
+  if (!AIClient.isLive) {
+    reply.textContent = localAdvice(brief, due);
+    assisting = false;
+    $('#assistSend').disabled = false;
+    return;
+  }
+
+  try {
+    await AIClient.ask({ question: framed, level: Store.state.settings.level },
+      (token) => { reply.textContent += token; reply.scrollTop = reply.scrollHeight; });
+  } catch (err) {
+    /* Never a dead panel. The generic offline tutor knows about words, not
+       about you, so a question about progress is answered from the snapshot
+       the app already holds rather than with "that needs a live engine". */
+    reply.textContent = localAdvice(brief, due);
+    $('#assistNote').textContent = `${AIClient.engine} was unreachable (${err.message}).`;
+  } finally {
+    assisting = false;
+    $('#assistSend').disabled = false;
+  }
+}
 
 function wireFeedback() {
   $('#feedbackBtn').addEventListener('click', openFeedback);

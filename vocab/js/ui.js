@@ -559,6 +559,12 @@ export function renderInstall(state, { dismissed = false, download = null } = {}
     ...(file.note ? [el('p', { class: 'hint', text: file.note })] : []),
   ] : []));
 
+  /* The catch-all download is for taking the app to a *different* computer.
+     Where this device is already being offered the same file above, a second
+     identical button is just noise. */
+  const anyDownload = $('#installAnyDownload');
+  if (anyDownload) anyDownload.hidden = Boolean(file);
+
   /* Where the download is on screen, the platform note only says a download
      exists — which the button said better. */
   const note = file ? '' : state.note || '';
