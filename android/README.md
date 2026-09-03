@@ -1,123 +1,115 @@
 # VocabX for Android
 
-This folder builds `VocabX.apk` — a real Android app you can install, or upload
-to the Play Store.
+Builds `VocabX.apk` — the real app, with everything inside it.
 
-Everything is already written. You need to install the build tools, make a
-signing key, and run one command. It takes about an hour the first time and
-about a minute every time after.
+Every word, all fourteen packs, the grammar bank and the fonts are packed into
+the APK. It works on a plane, on a dead SIM, and on the very first launch after
+install. The only thing that ever touches the network is the AI assistant, and
+the app is complete without it.
 
 ---
 
-## What this actually is
+## How it works
 
-There is no app code in here, and that is deliberate.
+One activity holding one WebView, which serves the bundled app from inside the
+APK. There is no rewrite of VocabX in Java, because a second implementation
+would be a second thing to keep correct.
 
-The app is a **Trusted Web Activity**: Android opens your website in Chrome
-with all the browser interface removed. What lands on the phone is the same
-app the website serves — the same offline dictionary, the same service worker,
-the same everything. When you deploy an update to the site, the app updates
-too, with no new APK.
+The one subtlety worth knowing: it does **not** load the files as `file://`
+URLs. A `file://` page has no origin, and a page with no origin cannot run ES
+modules, cannot use `localStorage`, and cannot register a service worker —
+which is to say the app would not run at all. `WebViewAssetLoader` serves the
+same files over `https://appassets.androidplatform.net/`, a real secure origin
+that never touches the network, and everything behaves as it does in a browser.
 
-The alternative — rewriting VocabX in Java — would be a second copy of the app
-to keep in step with the first. This way there is one app.
+`bundleWebApp` copies `../vocab` into the APK on every build, so there is no
+step to forget. It is a `Sync`, not a `Copy`: a file deleted from the site is
+deleted from the app too, rather than lingering as a page nobody can reach.
 
-**One consequence worth knowing up front:** the app loads from
-`vocabx.ylarena.online`. It works offline *after* the first launch, because the
-service worker caches everything, but the very first launch needs internet.
+**The trade:** the app carries its own copy, so a website deploy is not an app
+update. Ship a new APK when you want people on a new version.
 
 ### What has and has not been checked
 
-Written and verified here: every Gradle file parses, every XML file is valid,
-the Gradle wrapper runs, and the icons are cut from the same source as the
+Verified here: the Gradle files parse, the XML is valid, the Java has no syntax
+errors, the wrapper runs, and the icons are cut from the same source as the
 website's.
 
 **Not built here, and it cannot be.** The Android build tools are published
-only on `dl.google.com`, which the machine this was written on cannot reach —
-it gets a 403 from the proxy. So the first real compile happens on your
-machine, and if something needs a small correction, it will be in step 3. Send
-me the error and I will fix it.
+only on `dl.google.com`, which the machine this was written on gets a 403 from.
+Your machine does the first real compile.
 
 ---
 
 ## Step 1 — Install the tools
 
-You need two things: a Java JDK and the Android SDK.
+**Android Studio** brings the SDK: <https://developer.android.com/studio>
+Open it once, let it finish downloading, then close it. You never need the
+interface.
 
-**The easy way** is Android Studio, which brings both:
-<https://developer.android.com/studio>
+In the SDK Manager (**More Actions → SDK Manager**), make sure you have:
 
-Install it, open it once, and let it finish downloading its components. Then
-close it. You will not need the interface again.
+- **SDK Platforms:** Android 15.0 (API 35)
+- **SDK Tools:** Android SDK Build-Tools, Platform-Tools, Command-line Tools
 
-**Check it worked.** Open a terminal and run:
+Copy the **Android SDK Location** path from the top of that window.
+
+**Java 21** — and it must be 21, not the newest. Android Studio ships Java 25
+inside it, and Gradle 8.9 cannot read Java 25 class files; the error is
+`Unsupported class file major version 69`, which names nothing helpful.
+
+<https://adoptium.net/temurin/releases/> — set **Version: 21 - LTS**, Windows,
+x64, JDK, and download the `.msi`. During install, enable **Set JAVA_HOME
+variable**.
+
+## Step 2 — Point the build at the SDK
+
+Open a terminal in this folder and run (Windows):
+
+```bat
+(echo sdk.dir=%LOCALAPPDATA:\=/%/Android/Sdk)>local.properties
+```
+
+macOS or Linux:
 
 ```bash
-java -version
+echo "sdk.dir=$HOME/Android/Sdk" > local.properties
 ```
 
-You should see version 17 or higher. If you see "command not found", Android
-Studio installed a JDK inside itself — use that one:
-
-- **Windows:** `C:\Program Files\Android\Android Studio\jbr\bin`
-- **macOS:** `/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin`
-- **Linux:** `~/android-studio/jbr/bin`
-
-Add that folder to your PATH, or use the full path in the commands below.
-
----
-
-## Step 2 — Tell the build where the SDK is
-
-Create a file called `local.properties` in **this folder** with one line:
-
-```properties
-sdk.dir=/home/you/Android/Sdk
-```
-
-Use your real path:
-
-- **Windows:** `sdk.dir=C:\\Users\\YourName\\AppData\\Local\\Android\\Sdk`
-  (double backslashes — a single one is an escape character and the build will
-  say the SDK is missing when it is sitting right there)
-- **macOS:** `sdk.dir=/Users/YourName/Library/Android/sdk`
-- **Linux:** `sdk.dir=/home/YourName/Android/Sdk`
-
-This file is gitignored, because the path is yours and not anyone else's.
-
----
+Check it with `type local.properties` (or `cat`). Forward slashes, no trailing
+space. `local.properties` is a Java properties file, where `\` escapes the next
+character — `C:\Users` is read as `C:Users`, and the build then reports the SDK
+missing while it sits right there. Forward slashes have no such meaning and
+work fine on Windows.
 
 ## Step 3 — Build a test APK
 
-From this folder:
+```bash
+./gradlew assembleDebug          # Windows: gradlew.bat assembleDebug
+```
+
+First run downloads Gradle and the Android plugin — a few hundred megabytes.
+After that it takes seconds.
+
+Your APK: `app/build/outputs/apk/debug/app-debug.apk`, around 10 MB — most of
+it dictionary.
+
+Install it with the phone plugged in and USB debugging on:
 
 ```bash
-./gradlew assembleDebug
+adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Windows: `gradlew.bat assembleDebug`
-
-The first run downloads Gradle and the Android plugin — a few hundred
-megabytes, five to ten minutes. After that it takes seconds.
-
-Your APK:
-
-```
-app/build/outputs/apk/debug/app-debug.apk
-```
-
-Copy it to your phone and open it. Android will warn about installing from an
-unknown source; allow it. **The app will have a URL bar across the top** — that
-is expected until step 5.
-
----
+`adb` lives in `<SDK>/platform-tools/`. Prefer it over copying the file to the
+phone: Android reports a failed sideload as "App wasn't installed" with no
+reason, while `adb` prints the actual cause.
 
 ## Step 4 — Make your signing key
 
-Every Android app is signed. The same key must sign every future update, so:
+The same key must sign every future update.
 
 > **If you lose this key, you can never update the app again.** Not "it is
-> difficult" — Google will not let you. Back it up somewhere you will still
+> difficult" — Google will not allow it. Back it up somewhere you will still
 > have in five years.
 
 ```bash
@@ -125,10 +117,7 @@ keytool -genkey -v -keystore vocabx.jks -alias vocabx \
   -keyalg RSA -keysize 2048 -validity 10000
 ```
 
-It asks for a password and some details. The details do not matter much; the
-password does. Write it down.
-
-Now create `keystore.properties` in this folder:
+Then `keystore.properties` beside this file:
 
 ```properties
 storeFile=vocabx.jks
@@ -137,100 +126,38 @@ keyAlias=vocabx
 keyPassword=whatever-you-chose
 ```
 
-Both this file and `vocabx.jks` are gitignored. Never commit either. Anyone who
-has them can publish updates as you.
+Both that file and `vocabx.jks` are gitignored. Never commit either — anyone
+holding them can publish updates as you.
 
----
-
-## Step 5 — Remove the URL bar
-
-The URL bar disappears when your **website** publicly vouches for your **app**.
-That is one file on the site.
-
-From this folder:
-
-```bash
-./make-assetlinks.sh
-```
-
-It reads the fingerprint out of your key and writes
-`../.well-known/assetlinks.json`.
-
-Then rebuild and redeploy the site — `scripts/package-web.sh` picks that file
-up automatically and will tell you it did:
-
-```bash
-cd .. && ./scripts/package-web.sh
-```
-
-Upload the new `download/vocabx-web.zip` to Cloudflare as usual, then check the
-file is really live:
-
-```bash
-curl -s https://vocabx.ylarena.online/.well-known/assetlinks.json
-```
-
-If that returns your JSON, reinstall the app. The URL bar will be gone.
-
-> **If you use Play App Signing** (Google re-signs your app when you upload it),
-> the fingerprint that matters is *Google's*, not yours. Find it in the Play
-> Console under **Release → Setup → App integrity → App signing key
-> certificate**, then run:
->
-> ```bash
-> ./make-assetlinks.sh <that SHA-256 fingerprint>
-> ```
->
-> Getting this wrong is the number one reason the URL bar stays.
->
-> The **debug** build always shows the URL bar, and cannot be fixed this way:
-> it installs under a different package name (`…vocabx.debug`, so it can sit
-> alongside the real one) and the asset-link names the real package. Test the
-> URL bar with a release build.
-
----
-
-## Step 6 — Build the real thing
+## Step 5 — Build the real thing
 
 ```bash
 ./gradlew assembleRelease
 ```
 
-Your signed APK:
+Signed APK: `app/build/outputs/apk/release/app-release.apk`. That is the file
+to put on your website or hand to people directly.
 
-```
-app/build/outputs/apk/release/app-release.apk
-```
-
-That is the file to put on your website, or hand to people directly.
-
-**For the Play Store**, Google wants a bundle rather than an APK:
+For the Play Store, Google wants a bundle instead:
 
 ```bash
-./gradlew bundleRelease
+./gradlew bundleRelease        # → app/build/outputs/bundle/release/app-release.aab
 ```
 
-which gives you `app/build/outputs/bundle/release/app-release.aab`.
-
----
-
 ## Putting it on your own site
-
-Copy the APK into `download/` and it is served like the desktop app:
 
 ```bash
 cp app/build/outputs/apk/release/app-release.apk ../download/vocabx-android.apk
 ```
 
-Then add it to the download table in `vocab/js/install.js` — there is an
-`android:` entry commented out at the bottom of `DOWNLOADS` with the exact
-shape, so it is three lines uncommented rather than new code.
+Then uncomment the `android` entry at the bottom of `DOWNLOADS` in
+`vocab/js/install.js`, and every Android visitor is offered the file. Leave it
+commented until the APK is actually there — a button pointing at a missing file
+is worse than no button.
 
-People installing an APK directly get a "install unknown apps" prompt from
-Android. That is normal for anything not from the Play Store, and worth saying
-plainly in the note rather than letting them hit it cold.
-
----
+Installing an APK directly makes Android ask permission to install from an
+unknown source. That is normal for anything outside the Play Store, and the
+note in `DOWNLOADS` says so rather than letting people hit it cold.
 
 ## Every time you release
 
@@ -239,32 +166,33 @@ plainly in the note rather than letting them hit it cold.
 2. `./gradlew bundleRelease`
 3. Upload.
 
-You do **not** need to rebuild the app when you change the website. The app
-loads the live site, so a site deploy is an app update.
+Unlike the desktop downloads, this one carries its own copy of the app — so a
+website deploy does not update it. Rebuild when you want people on a new
+version.
 
 ---
 
 ## When it goes wrong
 
-**"SDK location not found"** — `local.properties` is missing, or the path is
-wrong. On Windows, check you used double backslashes.
+**`Unsupported class file major version 69`** — you are building with Java 25.
+Install Java 21 and point `JAVA_HOME` at it. 69 means Java 25; 65 means 21.
 
-**"Failed to resolve: com.google.androidbrowserhelper"** — no internet, or a
-proxy blocking Google's Maven. The Android build tools are only published on
-`dl.google.com`; an offline machine cannot build an Android app at all.
+**`SDK location not found`** — `local.properties` is missing or its path is
+wrong. On Windows, check you used forward slashes.
 
-**The URL bar will not go away** — in order of likelihood: the assetlinks file
-is not deployed yet; you used your own fingerprint when Play re-signed the app
-with theirs; the file is served as HTML instead of JSON; you did not reinstall
-the app after deploying. Android caches the check, so uninstall and reinstall
-rather than just reopening.
+**`Failed to resolve: androidx.webkit`** — no internet, or a proxy blocking
+Google's Maven. The Android build tools are published only on `dl.google.com`;
+an offline machine cannot build an Android app at all.
 
-**"App not installed"** on the phone — you already have a build signed with a
-different key. Uninstall the old one first. (The debug build has a `.debug`
-package suffix precisely so it can sit alongside the real one.)
+**"App wasn't installed" on the phone** — Android's catch-all. Use
+`adb install -r …` to get the real reason. Common ones: an older build signed
+with a different key is already installed (uninstall it first), or Play Protect
+is blocking it (Play Store → profile → Play Protect → settings → turn off
+scanning, install, turn it back on).
 
-**Blank screen on launch** — the site was unreachable on first run. A TWA needs
-internet the first time; after that the service worker has it.
+**Blank screen on launch** — the assets did not make it into the APK. Run
+`./gradlew clean assembleDebug` and check `app/src/main/assets/index.html`
+exists after the build.
 
 ---
 
@@ -274,17 +202,16 @@ internet the first time; after that the service worker has it.
 build.gradle              the Android plugin version, nothing else
 settings.gradle           where Gradle looks for dependencies
 gradle.properties         AndroidX on, memory limit
-app/build.gradle          the whole app: package, version, signing, one library
+app/build.gradle          the whole build: package, version, signing, and the
+                          task that copies the web app into the APK
 app/src/main/
-  AndroidManifest.xml     the launcher, the URL it opens, the permissions
-  res/values/colors.xml   the ground colour, so the splash does not flash white
-  res/values/styles.xml   no title bar
-  res/drawable/splash.xml the launch screen
-  res/xml/filepaths.xml   the only folder the app may hand files out from
-  res/mipmap-*/           the launcher icon, cut from brand/vocabx.png
-make-assetlinks.sh        writes the file that removes the URL bar
+  java/…/MainActivity.java  one activity, one WebView, the asset loader
+  AndroidManifest.xml       the launcher and one permission
+  res/values/               name, colours, theme
+  res/mipmap-*/             the launcher icon, cut from brand/vocabx.png
+  assets/                   the web app — generated on every build, gitignored
 ```
 
-The icons are generated, not hand-made — `node scripts/build-icons.mjs --android`
+The icons are generated, not hand-made: `node scripts/build-icons.mjs --android`
 from `vocab/` recuts them from the same source as the favicon, so the launcher
 icon can never drift from the one on the website.

@@ -5,6 +5,11 @@ local.properties
 *.apk
 *.aab
 
+# The web app, copied in from ../vocab by the bundleWebApp task on every
+# build. Committing it would put a second, drifting copy of the whole
+# dictionary in the repo.
+app/src/main/assets/
+
 # The signing key and its password. Losing this key means never being able to
 # update the app again; committing it means anyone can publish as you.
 *.jks

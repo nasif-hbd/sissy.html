@@ -517,13 +517,21 @@ shipping an app with no icon.
 There is no iOS download, and that is not an oversight: Apple allows no route
 to an app outside the App Store, for anyone.
 
-Android *can* have one, and `android/` holds the project that builds it — a
-Trusted Web Activity, so the installed app is the site itself with the browser
-interface removed rather than a second implementation to keep in step. It is
-not built here because the Android build tools are published only on
-`dl.google.com`, which this machine cannot reach; `android/README.md` is the
-walkthrough for a machine that can. The `android` entry in `DOWNLOADS` is
-written and commented out, to be uncommented once an APK is actually in
+Android *can* have one, and `android/` holds the project that builds it: one
+activity holding one WebView, serving the whole app from inside the APK. Not a
+rewrite in Java — that would be a second implementation to keep in step — and
+not a shortcut to the website either, so it works on a plane and on the first
+launch after install.
+
+The detail that makes it work is that the assets are not loaded as `file://`.
+A `file://` page has no origin, so no ES modules, no `localStorage`, no service
+worker — no app. `WebViewAssetLoader` serves them over a real `https` origin
+that never touches the network.
+
+It is not built here: the Android build tools are published only on
+`dl.google.com`, which this machine gets a 403 from. `android/README.md` is the
+walkthrough for a machine that can reach it. The `android` entry in `DOWNLOADS`
+is written and commented out, to be uncommented once an APK is actually in
 `download/` — a button pointing at a missing file is worse than no button.
 Both install from the browser instead, and on both that install is a real app:
 its own icon in the drawer or on the Home Screen, its own window, and the same

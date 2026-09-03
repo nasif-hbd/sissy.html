@@ -1,15 +1,13 @@
 /*
- * VocabX for Android — a Trusted Web Activity.
+ * VocabX for Android — the app, not a shortcut to it.
  *
- * There is no app code here, and that is the point. A TWA runs the site in
- * Chrome with the browser interface removed, so what installs on the phone is
- * the same app the website serves: the same service worker, the same offline
- * dictionary, the same update the moment the site updates. A second
- * implementation in Java would be a second thing to keep correct.
+ * Everything the app needs is packed into the APK: 117,000 words, fourteen
+ * packs, the grammar bank, the fonts. It works on a plane, on a dead SIM, and
+ * on the very first launch after install. The only thing that ever reaches the
+ * network is the AI assistant, and the app is complete without it.
  *
- * The whole app is this file plus a manifest. `androidbrowserhelper` is
- * Google's own library for it, and it supplies the activity that opens the
- * site full-screen.
+ * The web files are copied in by the task at the bottom of this file, so there
+ * is no step anybody has to remember: build, and the current app is inside.
  */
 plugins {
     id 'com.android.application'
@@ -21,39 +19,23 @@ android {
 
     defaultConfig {
         applicationId 'online.ylarena.vocabx'
-        // 21 is Android 5.0. Below that there is no Chrome new enough to host
-        // a TWA, so claiming support would install an app that cannot run.
+        // 21 is Android 5.0. Below that WebView is too old to run ES modules.
         minSdk 21
         targetSdk 35
 
-        // Bump both for every release you upload. Play rejects a versionCode
-        // it has seen before, and the name is what people read.
+        // Bump both for every release. Play rejects a versionCode it has seen
+        // before, and the name is what people read.
         versionCode 1
         versionName '1.0'
-
-        // These flow into AndroidManifest.xml and strings.xml. Change the host
-        // here and nowhere else.
-        manifestPlaceholders = [
-            hostName            : 'vocabx.ylarena.online',
-            defaultUrl          : 'https://vocabx.ylarena.online/vocab/',
-            launcherName        : 'VocabX',
-            // The colour behind the status bar and the launch screen. It is
-            // the app's own ground, so the splash does not flash white.
-            statusBarColorRes   : '@color/colorPrimary',
-            navigationColorRes  : '@color/colorPrimary',
-            splashScreenColorRes: '@color/backgroundColor',
-        ]
     }
 
     /*
-     * Signing. Play needs a signed release build, and the same key must sign
-     * every future update — losing it means never being able to update this
-     * app again.
+     * Signing. The same key must sign every future update — losing it means
+     * never being able to update this app again.
      *
      * The key lives outside the repo. Put its details in keystore.properties
      * beside this file (it is gitignored) and this picks them up; without it,
-     * the release build still assembles unsigned and `assembleDebug` works
-     * regardless, so a fresh checkout is never blocked by a missing key.
+     * debug builds still work, so a fresh checkout is never blocked.
      */
     signingConfigs {
         release {
@@ -71,8 +53,8 @@ android {
 
     buildTypes {
         release {
-            // Nothing to shrink: there is no app code, and R8 on an empty
-            // module only adds a step that can fail.
+            // There is one small class to shrink and a lot of assets R8 cannot
+            // touch, so shrinking only adds a step that can fail.
             minifyEnabled false
             // Written as an if rather than a ternary argument: `signingConfig a
             // ? b : c` without parentheses is ambiguous to the Groovy parser,
@@ -82,9 +64,16 @@ android {
             }
         }
         debug {
-            // So a debug build can sit on the phone next to a Play install.
+            // So a debug build can sit on the phone beside a real one.
             applicationIdSuffix '.debug'
         }
+    }
+
+    androidResources {
+        // The dictionary is JSON and compresses to about a third. Leaving these
+        // uncompressed would triple the download for no gain — WebView reads
+        // them through the asset loader either way.
+        noCompress 'woff2'
     }
 
     compileOptions {
@@ -94,7 +83,41 @@ android {
 }
 
 dependencies {
-    // Google's TWA support library. It brings the LauncherActivity that opens
-    // the site full-screen, and the splash-screen handling with it.
-    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+    // WebViewAssetLoader, which serves the bundled app from a real https origin
+    // rather than file://. Without a real origin there are no ES modules and no
+    // localStorage, which is to say no app at all.
+    implementation 'androidx.webkit:webkit:1.11.0'
 }
+
+/*
+ * Put the web app inside the APK.
+ *
+ * A Sync rather than a Copy: the destination is made to match the source
+ * exactly, so a file deleted from the site is deleted from the app too. A Copy
+ * would leave it behind, and the APK would ship a page nobody can reach and
+ * nobody remembers writing.
+ *
+ * Wired into preBuild so it cannot be forgotten — the alternative is a build
+ * that silently ships whatever was in assets last time.
+ */
+tasks.register('bundleWebApp', Sync) {
+    description = 'Copies the VocabX web app into the APK assets'
+    from(rootProject.file('../vocab')) {
+        include 'index.html', 'styles.css', 'sw.js', 'manifest.webmanifest'
+        include 'js/**', 'data/**', 'fonts/**', 'icons/**'
+    }
+    into file('src/main/assets')
+
+    doLast {
+        // A silent empty copy would build an APK that opens to a blank screen,
+        // which is a confusing hour to spend on a phone.
+        def entry = file('src/main/assets/index.html')
+        if (!entry.exists()) {
+            throw new GradleException(
+                "The web app was not found. Expected it at ${rootProject.file('../vocab')} — " +
+                "keep the android folder inside the project it came from.")
+        }
+    }
+}
+
+tasks.named('preBuild') { dependsOn 'bundleWebApp' }

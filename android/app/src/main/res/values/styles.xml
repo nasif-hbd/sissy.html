@@ -1,17 +1,12 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!--
-      No app interface exists, so the theme only has to keep the window from
-      drawing a title bar over the site.
-
-      DeviceDefault rather than Theme.AppCompat: AppCompat is a library, and
-      the only dependency here is androidbrowserhelper, which does not promise
-      to bring it. A theme whose parent cannot be resolved fails the build with
-      a message about a missing style rather than a missing library, which is a
-      confusing hour. DeviceDefault is in the framework and always there.
+      A framework theme, not Theme.AppCompat: the only dependency here is
+      androidx.webkit, which does not promise to bring AppCompat with it, and a
+      theme whose parent cannot be resolved fails the build with a message
+      about a missing style rather than a missing library.
     -->
     <style name="Theme.VocabX" parent="@android:style/Theme.DeviceDefault.NoActionBar">
-        <item name="android:windowNoTitle">true</item>
         <item name="android:windowBackground">@color/backgroundColor</item>
     </style>
 </resources>

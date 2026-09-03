@@ -23,19 +23,6 @@ mkdir -p "$STAGE/vocab" "$STAGE/download"
 # marker that stops GitHub Pages running the whole thing through Jekyll.
 cp index.html _headers .nojekyll "$STAGE/"
 
-# The file that lets the Android app hide the browser's URL bar. Only present
-# once android/make-assetlinks.sh has been run with a real signing key — say so
-# rather than shipping silently without it, because the symptom is a URL bar in
-# the app and nothing at all on the website.
-if [ -f .well-known/assetlinks.json ]; then
-  mkdir -p "$STAGE/.well-known"
-  cp .well-known/assetlinks.json "$STAGE/.well-known/"
-  echo "including .well-known/assetlinks.json (the Android app's URL bar stays hidden)"
-else
-  echo "no .well-known/assetlinks.json — fine unless you ship the Android app;"
-  echo "  make it with android/make-assetlinks.sh once you have a signing key"
-fi
-
 # The app. Named part by part rather than copied wholesale, so nothing new
 # under vocab/ reaches a public host without someone deciding it should.
 for part in index.html styles.css sw.js manifest.webmanifest js data fonts icons; do
