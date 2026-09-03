@@ -441,15 +441,40 @@ const routes = {
 // ── the Worker ─────────────────────────────────────────────────────────────
 
 /**
+ * The origin the Android app runs on.
+ *
+ * The installed app serves itself from inside the APK over this origin — it is
+ * fixed by Android, identical on every phone, and unreachable from the
+ * internet. Allowed by default, because otherwise pinning ALLOWED_ORIGIN to
+ * your website silently turns the AI off in the app and the only symptom is a
+ * CORS error nobody sees.
+ */
+export const APP_ORIGIN = 'https://appassets.androidplatform.net';
+
+/**
  * CORS.
  *
  * ALLOWED_ORIGIN unset means `*`, which is right for a scratch deployment and
  * wrong for a real one: it lets any page on the internet spend your API
  * credit. The health route says which you have.
+ *
+ * It takes a comma-separated list, and the reply echoes whichever entry the
+ * request actually came from — a browser rejects a list in that header, so a
+ * site with two origins (the www and the bare domain, say) needs the echo
+ * rather than a longer string.
  */
-function cors(env) {
+export function cors(env, request) {
+  const allowed = String(env.ALLOWED_ORIGIN || '').split(',')
+    .map((o) => o.trim()).filter(Boolean);
+  const from = request?.headers?.get('origin') || '';
+
+  let origin;
+  if (!allowed.length) origin = '*';
+  else if (allowed.includes(from) || from === APP_ORIGIN) origin = from;
+  else origin = allowed[0];
+
   return {
-    'access-control-allow-origin': env.ALLOWED_ORIGIN || '*',
+    'access-control-allow-origin': origin,
     'access-control-allow-headers': 'content-type',
     'access-control-allow-methods': 'GET, POST, OPTIONS',
     'access-control-max-age': '86400',
@@ -459,7 +484,7 @@ function cors(env) {
 
 export default {
   async fetch(request, env) {
-    const headers = cors(env);
+    const headers = cors(env, request);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
 
     // The Gemini client reads its key from here rather than from process.env,

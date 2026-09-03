@@ -29,6 +29,33 @@ deleted from the app too, rather than lingering as a page nobody can reach.
 **The trade:** the app carries its own copy, so a website deploy is not an app
 update. Ship a new APK when you want people on a new version.
 
+### The two things WebView does not have
+
+Android's WebView is not quite a browser, and two gaps would have shown up as
+features that silently do nothing rather than as errors.
+
+**Notifications.** WebView implements no part of the Web Notifications API, so
+the whole reminder feature — the thing people most expect from an app on a
+phone — would have been dead inside the app. `AndroidHost` is the other side of
+that bridge: the page calls it and a real system notification appears, with the
+same `granted`/`denied`/`default` answers the web API gives, so `notify.js`
+needs no special case beyond asking which one it is talking to. The bridge is
+deliberately three methods wide. It reads nothing, writes no files and takes no
+URL, because a bridge is the one place where a bug in the page becomes a bug on
+the phone.
+
+**Downloads.** A download link in a WebView does nothing at all unless
+something is listening, so Settings' offer of the desktop app would have looked
+broken rather than unsupported. `setDownloadListener` hands it to Android's own
+download manager.
+
+There is a third, on the server rather than here: the app's origin is
+`https://appassets.androidplatform.net`, fixed by Android. If your Worker pins
+`ALLOWED_ORIGIN` to your website — and it should — that origin has to be
+allowed too, or the AI assistant is off inside the app with a CORS error nobody
+sees. The Worker allows it by default; `tests/worker.test.mjs` pins that it
+still refuses everyone else.
+
 ### What has and has not been checked
 
 Verified here: the Gradle files parse, the XML is valid, the Java has no syntax

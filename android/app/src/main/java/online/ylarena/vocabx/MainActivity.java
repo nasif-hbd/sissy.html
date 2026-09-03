@@ -4,8 +4,13 @@ import android.annotation.SuppressLint;
 import android.app.Activity;
 import android.content.Intent;
 import android.net.Uri;
+import android.app.DownloadManager;
 import android.os.Bundle;
+import android.os.Environment;
 import android.view.ViewGroup;
+import android.webkit.CookieManager;
+import android.webkit.URLUtil;
+import android.widget.Toast;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
 import android.webkit.WebSettings;
@@ -62,6 +67,35 @@ public class MainActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
         s.setSupportZoom(false);
+
+        /* The parts of the web platform WebView lacks. Reachable from any page
+           in this WebView — which is only ever our own, since every other link
+           is handed to the browser below. */
+        web.addJavascriptInterface(new AndroidHost(this), "AndroidHost");
+
+        /* Settings offers the desktop app as a file. In a WebView a download
+           link does nothing at all unless something is listening, so the tap
+           would look broken rather than unsupported. */
+        web.setDownloadListener((url, agent, disposition, mime, size) -> {
+            try {
+                String name = URLUtil.guessFileName(url, disposition, mime);
+                DownloadManager.Request req = new DownloadManager.Request(Uri.parse(url));
+                req.setMimeType(mime);
+                req.addRequestHeader("cookie", CookieManager.getInstance().getCookie(url));
+                req.setDescription("Downloading " + name);
+                req.setTitle(name);
+                req.setNotificationVisibility(
+                        DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+                req.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, name);
+                DownloadManager dm = (DownloadManager) getSystemService(DOWNLOAD_SERVICE);
+                if (dm != null) {
+                    dm.enqueue(req);
+                    Toast.makeText(this, "Downloading " + name, Toast.LENGTH_SHORT).show();
+                }
+            } catch (Exception e) {
+                Toast.makeText(this, "Could not start the download", Toast.LENGTH_SHORT).show();
+            }
+        });
 
         web.setWebViewClient(new WebViewClient() {
             @Override

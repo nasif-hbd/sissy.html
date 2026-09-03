@@ -19,9 +19,30 @@ import { dueStep, cardFor, quoteFor } from './routine.js';
 let swReg = null;
 let ticker = null;
 
+/**
+ * The Android app's way of raising a notification.
+ *
+ * Android's WebView implements no part of the Web Notifications API — the
+ * whole reminder feature would silently do nothing inside the installed app,
+ * which is the one place people most expect it to work. The app injects
+ * `AndroidHost`, and everything below routes through it when it is there.
+ *
+ * Read through a getter rather than captured at load: the bridge is attached
+ * to the window by the host and may not exist when this module is evaluated.
+ */
+const host = () => (typeof window !== 'undefined' && window.AndroidHost) || null;
+
 export const Notifier = {
-  get supported() { return 'Notification' in window && 'serviceWorker' in navigator; },
-  get permission() { return this.supported ? Notification.permission : 'unsupported'; },
+  get supported() {
+    if (host()) return true;
+    return 'Notification' in window && 'serviceWorker' in navigator;
+  },
+  get permission() {
+    // Android decides this, and on 13+ it can be revoked from system settings
+    // at any time, so it is asked every time rather than remembered.
+    if (host()) return host().permission();
+    return this.supported ? Notification.permission : 'unsupported';
+  },
 
   async registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return null;
@@ -37,6 +58,15 @@ export const Notifier = {
   /** Ask for permission. Must be called from a user gesture on iOS/Safari. */
   async request() {
     if (!this.supported) return 'unsupported';
+    if (host()) {
+      // Android shows its own system dialog; the answer comes back through
+      // the same permission getter once the person has tapped it.
+      host().requestPermission();
+      const result = host().permission();
+      Store.set('settings.reminders.enabled', result === 'granted');
+      if (result === 'granted') this.start();
+      return result;
+    }
     const result = await Notification.requestPermission();
     Store.set('settings.reminders.enabled', result === 'granted');
     if (result === 'granted') this.start();
@@ -62,6 +92,14 @@ export const Notifier = {
         { action: 'snooze', title: 'In 1 hour' },
       ] : [],
     };
+    if (host()) {
+      // No action buttons: Android's notification is built on the other side
+      // of the bridge, and a tap opens the app, which is what both buttons
+      // did anyway.
+      host().notify(String(title), String(body || ''), String(tag));
+      return true;
+    }
+
     const reg = swReg || (await navigator.serviceWorker?.getRegistration());
     if (reg) { await reg.showNotification(title, options); return true; }
     new Notification(title, options);

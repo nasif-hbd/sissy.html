@@ -25,6 +25,42 @@ const call = (method, pathname, body, env = KEYED) => worker.fetch(
 
 /* ── what a Worker can and cannot have ──────────────────────────────────── */
 
+test('the Android app is allowed even when the origin is pinned to the website', async () => {
+  // Pinning ALLOWED_ORIGIN is the right thing to do, and it used to turn the
+  // AI off inside the installed app — whose origin is fixed by Android and
+  // cannot be guessed — with a CORS error nobody ever sees.
+  const { cors, APP_ORIGIN } = await import('../server/worker.mjs');
+  const req = (origin) => ({ headers: { get: (k) => (k === 'origin' ? origin : null) } });
+  const env = { ALLOWED_ORIGIN: 'https://vocabx.ylarena.online' };
+
+  assert.equal(cors(env, req(APP_ORIGIN))['access-control-allow-origin'], APP_ORIGIN);
+  assert.equal(cors(env, req('https://vocabx.ylarena.online'))['access-control-allow-origin'],
+    'https://vocabx.ylarena.online');
+
+  // And still refuses everyone else, which is the whole point of pinning it.
+  assert.equal(cors(env, req('https://not-yours.example'))['access-control-allow-origin'],
+    'https://vocabx.ylarena.online');
+});
+
+test('a list of origins echoes the one that asked, never the list', async () => {
+  // A browser rejects a comma-separated value in this header outright, so a
+  // deployment with two origins has to be answered one at a time.
+  const { cors } = await import('../server/worker.mjs');
+  const req = (origin) => ({ headers: { get: () => origin } });
+  const env = { ALLOWED_ORIGIN: 'https://a.example, https://b.example' };
+
+  assert.equal(cors(env, req('https://b.example'))['access-control-allow-origin'], 'https://b.example');
+  assert.doesNotMatch(cors(env, req('https://a.example'))['access-control-allow-origin'], /,/);
+});
+
+test('no pinned origin still means open, for a scratch deployment', async () => {
+  const { cors } = await import('../server/worker.mjs');
+  const req = { headers: { get: () => 'https://anything.example' } };
+  assert.equal(cors({}, req)['access-control-allow-origin'], '*');
+  // And a request with no Origin header at all does not throw.
+  assert.equal(cors({}, undefined)['access-control-allow-origin'], '*');
+});
+
 test('the Worker reaches for no Node builtin', () => {
   // Its imports are shared with the Node proxy, where node: is the norm; one
   // of them creeping in here is a deploy failure, not a test failure.

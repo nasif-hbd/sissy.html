@@ -87,6 +87,9 @@ dependencies {
     // rather than file://. Without a real origin there are no ES modules and no
     // localStorage, which is to say no app at all.
     implementation 'androidx.webkit:webkit:1.11.0'
+    // NotificationManagerCompat, for the one question the framework answers
+    // differently on every Android version: are notifications allowed at all.
+    implementation 'androidx.core:core:1.13.1'
 }
 
 /*
