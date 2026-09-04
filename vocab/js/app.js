@@ -12,6 +12,7 @@ import { Store, refreshStreak, makeSrs, dayKey, snapshot, restore } from './stor
 import { schedule, buildQueue, bucket, plannedSession, queueCounts, spokenDelta } from './srs.js';
 import { learningBrief, briefText, headline, prompts, localAdvice } from './brief.js';
 import { Sync, pushSoon } from './sync.js';
+import { declarations, runAction } from './actions.js';
 import { makeSessionTimer, reportPayload, weakest, summary, window as windowStats, recentDays,
          dashboard, recentlyLearned, activeDays } from './stats.js';
 import { Notifier, Push } from './notify.js';
@@ -1556,6 +1557,35 @@ function wireSync() {
   drawSync();
 }
 
+/**
+ * What the assistant just did, and how to put it back.
+ *
+ * Shown even when the reply already mentions it. A model saying "I've moved
+ * your reminder" is a claim; this is the app's own account of what changed,
+ * and it carries the undo, so agreeing after the fact is a real option rather
+ * than a form of words.
+ */
+function showChanges(changes = []) {
+  const box = $('#assistChanges');
+  box.replaceChildren(...changes.map((c) => {
+    const row = el('div', { class: 'assist__change' },
+      el('span', { text: c.refused ? `Not done: ${c.refused}` : c.say }));
+    if (c.undo) {
+      row.append(el('button', {
+        class: 'btn btn--quiet btn--sm', type: 'button', text: c.undoLabel || 'Undo',
+        onclick: (e) => {
+          c.undo();
+          e.currentTarget.remove();
+          row.append(el('span', { class: 'hint', text: ' — put back.' }));
+          toast('Put back.');
+        },
+      }));
+    }
+    return row;
+  }));
+  box.hidden = !changes.length;
+}
+
 function drawSync(message) {
   const on = Boolean(Store.state.settings.sync?.enabled);
   const last = Store.state.settings.sync?.lastAt;
@@ -1605,6 +1635,8 @@ function openAssist() {
   $('#assistEngine').title = AIClient.engineDetail;
   $('#assistReply').hidden = true;
   $('#assistReply').textContent = '';
+  $('#assistChanges').hidden = true;
+  $('#assistChanges').replaceChildren();
   $('#assistNote').textContent = AIClient.isLive
     ? `${AIClient.engine} sees the summary above — nothing else leaves this device.`
     : 'Answered on this device. No engine is reachable, so the advice is the app\u2019s own.';
@@ -1623,6 +1655,77 @@ function closeAssist() {
 }
 
 let assisting = false;
+
+/**
+ * What the assistant is told about its own job.
+ *
+ * Written as constraints rather than encouragement. A model given actions and
+ * no boundary will use them to be helpful in ways nobody asked for — moving a
+ * reminder because the conversation drifted near it, sending a notification to
+ * be friendly. The rule that matters is the last one.
+ */
+const ASSIST_SYSTEM = [
+  'You are the study assistant inside VocabX, an English vocabulary app.',
+  'You can read the learner\u2019s progress and change their settings by calling the',
+  'functions you have been given. Look before you act: call get_progress or',
+  'get_reminders first when the answer depends on where they actually are.',
+  'Change something only when the learner has asked for that change in this',
+  'conversation. Never send a notification unless they asked to be reminded or',
+  'pushed. If you are unsure whether they want a change, say what you would do',
+  'and let them ask. Be brief; two or three sentences is usually enough.',
+].join(' ');
+
+/**
+ * How the actions reach the learner's own state, and nothing else.
+ *
+ * Async because the module list is: handing an action a pending Promise where
+ * it expects an array turns into a refusal the learner cannot act on.
+ */
+async function actionContext() {
+  const modules = await Catalog.modules().catch(() => []);
+  return {
+    state: Store.state,
+    modules: Array.isArray(modules) ? modules : Object.values(modules || {}),
+    commit: (path, value) => { Store.set(path, value); render(); },
+    /* Notifications go through the same Notifier the reminders use, so the
+       Android bridge and the browser path are both already handled. */
+    notify: async (title, body) => {
+      if (Notifier.permission !== 'granted') return false;
+      return Notifier.show(title, body, { actions: false });
+    },
+  };
+}
+
+/**
+ * One exchange: ask, run whatever comes back, ask again with the results.
+ *
+ * Two rounds and no more. A loop that lets a model call functions until it is
+ * satisfied is a loop that can spend somebody's afternoon and somebody's
+ * credit, and nothing in this catalogue needs a third.
+ */
+async function assistTurn(question, onText) {
+  const tools = declarations();
+  let out = await AIClient.act({ question, system: ASSIST_SYSTEM, tools });
+  if (out.offline) return { text: '', offline: true, changes: [] };
+
+  const changes = [];
+  if (out.calls?.length) {
+    const ctx = await actionContext();
+    const results = [];
+    // At most four in a turn: enough to read then write, short of a runaway.
+    for (const call of out.calls.slice(0, 4)) {
+      const result = await runAction(call.name, call.args, ctx);
+      results.push({ name: call.name, result: result.data || result.say || result.refused });
+      if (result.say || result.refused) changes.push({ ...result, name: call.name });
+    }
+    onText?.('');
+    out = await AIClient.act({
+      system: ASSIST_SYSTEM, tools, results,
+      history: out.turn ? [{ role: 'user', parts: [{ text: question }] }, out.turn] : [],
+    });
+  }
+  return { text: out.text || '', changes };
+}
 
 async function askAssist(question) {
   const q = (question || '').trim();
@@ -1654,6 +1757,17 @@ async function askAssist(question) {
   }
 
   try {
+    /* Gemini can act, not only answer: it reads the progress and changes the
+       settings the learner asked it to change. Everything else falls back to
+       the streaming answer, which is all the other engines can do. */
+    if (AIClient.provider === 'gemini') {
+      const out = await assistTurn(framed);
+      reply.textContent = out.text || 'Done.';
+      showChanges(out.changes);
+      Sync.saveChat(q, reply.textContent, AIClient.engine);
+      return;
+    }
+
     await AIClient.ask({ question: framed, level: Store.state.settings.level },
       (token) => { reply.textContent += token; reply.scrollTop = reply.scrollHeight; });
   } catch (err) {

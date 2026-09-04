@@ -178,3 +178,51 @@ export async function geminiStream(prompt, onToken, model) {
   if (buffer.trim()) take(buffer);
   return full;
 }
+
+/**
+ * One turn with tools available.
+ *
+ * Gemini either answers in words or asks for one of the declared functions to
+ * be run. It never runs anything itself — this returns the request, and the
+ * caller decides whether to honour it. That split is deliberate: the model
+ * lives on Google's servers and the learner's data lives on their phone, and
+ * the only thing that crosses between them is the name of an action and its
+ * arguments.
+ *
+ * `tools` is the list of function declarations; `history` carries earlier
+ * turns, including the results of any calls already made, so a second round
+ * can answer using what the first one found.
+ */
+export async function geminiAct({ system, user, history = [], tools = [] }, model) {
+  const contents = history.length ? [...history] : [];
+  if (user) contents.push({ role: 'user', parts: [{ text: user }] });
+
+  const payload = {
+    contents,
+    ...(system ? { systemInstruction: { parts: [{ text: system }] } } : {}),
+    ...(tools.length ? { tools: [{ functionDeclarations: tools }] } : {}),
+    generationConfig: { temperature: 0.4, maxOutputTokens: 1200 },
+  };
+
+  const res = await call('generateContent?', payload, geminiModel(model));
+  const json = await res.json();
+  const parts = json?.candidates?.[0]?.content?.parts || [];
+
+  /* A turn can hold several parts: some prose and a call, or two calls. The
+     calls are what the caller must act on, so they come back as a list rather
+     than as whichever one happened to be first. */
+  const calls = parts.filter((p) => p.functionCall)
+    .map((p) => ({ name: p.functionCall.name, args: p.functionCall.args || {} }));
+  const text = parts.filter((p) => typeof p.text === 'string')
+    .map((p) => p.text).join('').trim();
+
+  return { text, calls, raw: json?.candidates?.[0]?.content || null };
+}
+
+/** A function's result, in the shape Gemini expects back in the next turn. */
+export function toolResult(name, result) {
+  return {
+    role: 'user',
+    parts: [{ functionResponse: { name, response: { result } } }],
+  };
+}

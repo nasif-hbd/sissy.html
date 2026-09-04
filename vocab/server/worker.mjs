@@ -24,7 +24,7 @@ import {
   suggestPrompt, suggestSchema, coachPrompt, reportPrompt, assessPrompt, askPrompt,
 } from './prompts.mjs';
 import { geminiJson, geminiStream, configure as configureGemini,
-         geminiDefaultModel, hasGeminiKey } from './gemini.mjs';
+         geminiDefaultModel, hasGeminiKey, geminiAct, toolResult } from './gemini.mjs';
 import { storeOf, withinRate, ID, LIMITS } from './store.mjs';
 
 const CLAUDE_MODEL = 'claude-haiku-4-5';
@@ -286,6 +286,53 @@ const routes = {
     sees: bindingNames(env),
     next: 'Full status at /api/health. Put this Worker\'s address into the app: Settings → AI help → Your server.',
   }),
+
+  /**
+   * A turn of the assistant, with the app's own actions available to it.
+   *
+   * The model runs nothing. It answers in words, or it names one of the
+   * actions the app declared and the arguments it wants — and the app, on the
+   * learner's device, decides whether to honour that. Keeping the decision on
+   * the device is the point: the state never leaves it, and an action the
+   * catalogue does not contain cannot be invented into existence here.
+   *
+   * Called twice per exchange in the usual case. First with the question, and
+   * again with the results, so the reply can talk about what actually
+   * happened rather than what was requested.
+   */
+  'POST /api/act': async (body, env) => {
+    if (!geminiKeyOf(env)) {
+      return { ok: false, error: 'No GEMINI_API_KEY on this Worker.' };
+    }
+    const tools = Array.isArray(body?.tools) ? body.tools.slice(0, 24) : [];
+    const history = Array.isArray(body?.history) ? body.history.slice(-12) : [];
+
+    const out = await geminiAct({
+      system: body?.system || '',
+      user: String(body?.question || '').slice(0, 4000),
+      history,
+      tools,
+    }, body?.model);
+
+    return { ok: true, text: out.text, calls: out.calls, turn: out.raw };
+  },
+
+  /** The second half: hand back what the actions returned, get the reply. */
+  'POST /api/act/result': async (body, env) => {
+    if (!geminiKeyOf(env)) {
+      return { ok: false, error: 'No GEMINI_API_KEY on this Worker.' };
+    }
+    const history = Array.isArray(body?.history) ? body.history.slice(-12) : [];
+    const results = Array.isArray(body?.results) ? body.results.slice(0, 8) : [];
+
+    const out = await geminiAct({
+      system: body?.system || '',
+      history: [...history, ...results.map((r) => toolResult(r.name, r.result))],
+      tools: Array.isArray(body?.tools) ? body.tools.slice(0, 24) : [],
+    }, body?.model);
+
+    return { ok: true, text: out.text, calls: out.calls, turn: out.raw };
+  },
 
   /* ── sync ────────────────────────────────────────────────────────────
    *

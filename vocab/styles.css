@@ -569,6 +569,17 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
   white-space: pre-wrap;
 }
 
+/* The assistant's own account of what it changed. Tinted, because a thing
+   that happened to your settings should not look like more chat. */
+.assist__changes { display: flex; flex-direction: column; gap: 7px; }
+.assist__change {
+  display: flex; align-items: center; gap: 9px; flex-wrap: wrap;
+  padding: 9px 11px; border-radius: var(--radius-sm);
+  background: var(--accent-soft); color: var(--ink-2);
+  font-size: 13px; line-height: 1.5;
+}
+.assist__change > span { flex: 1; min-width: 0; }
+
 /* ── the feedback button ────────────────────────────────────────────────── */
 /* Fixed to the corner on every screen, above the toasts but below the sheet.
    It sits clear of the safe-area inset so it is not under a home indicator. */

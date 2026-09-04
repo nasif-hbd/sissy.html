@@ -219,6 +219,30 @@ export const AIClient = {
     return stream(this.url(AI.routes.assess), { ...payload, model: this.model, provider: this.provider }, onToken);
   },
 
+  /**
+   * A turn of the assistant with the app's actions available.
+   *
+   * Gemini only: this is function calling, and the built-in tutor has no
+   * concept of it. The caller runs whatever comes back, or does not — nothing
+   * here touches the learner's state.
+   */
+  async act({ question, system, history = [], tools = [], results = [] }) {
+    if (!this.isLive) return { text: '', calls: [], offline: true };
+    const route = results.length ? '/api/act/result' : '/api/act';
+    const res = await fetch(this.url(route), {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        question, system, history, tools, results,
+        model: this.model, provider: this.provider,
+      }),
+      signal: timeout(),
+    });
+    const out = await res.json();
+    if (!out?.ok) throw new Error(out?.error || 'The assistant could not be reached.');
+    return out;
+  },
+
   /** Weekly progress write-up from the tracking snapshot. */
   async report(payload, onToken) {
     if (!this.isLive) return replay(localReport(payload), onToken);

@@ -587,6 +587,46 @@ The offered questions change with the state they are offered in. A learner with
 a backlog and one with an empty queue need different first moves, and a fixed
 list would ask someone who has never got a word wrong why they keep failing.
 
+## What the assistant can do, as opposed to say
+
+`js/actions.js` is a closed catalogue of things Gemini can call: read the
+learner's progress, list the packs, read the reminders, move a reminder, switch
+reminders on or off, change the daily goal or the new-words-per-day, and put a
+line on the lock screen. Each is something the learner could have done
+themselves through the interface. That is the boundary, and it is the point —
+an assistant that can reach anything will eventually reach something nobody
+asked for, and the person it happens to has no way to see what it touched.
+
+Three rules hold across all of them, and `tests/actions.test.mjs` pins each:
+
+- **Narrow.** Every argument has a stated range and anything outside it is
+  refused rather than clamped. A model that confidently asks for a daily goal
+  of 90,000 gets a sentence back, not a ruined schedule.
+- **Visible.** Each returns a plain sentence, and the app shows it in the
+  assistant panel in its own words rather than the model's. A model saying "I
+  moved your reminder" is a claim; that panel is the app's account.
+- **Reversible.** Anything that writes returns an `undo`, and the panel offers
+  it. Consent after the fact is worth little without a way out.
+
+The model never receives the state to modify. It names an action and its
+arguments; `runAction` refuses any name not in the catalogue, and the action
+itself runs on the device against the learner's own store. So the split is:
+the model is on Google's servers, the data is on the phone, and the only thing
+crossing between them is a function name.
+
+Two rounds per exchange, never more. A loop that lets a model call functions
+until it is satisfied is a loop that can spend somebody's afternoon and
+somebody's credit, and nothing in this catalogue needs a third.
+
+The system prompt is written as constraints rather than encouragement, because
+a model given actions and no boundary uses them to be helpful in ways nobody
+asked for — moving a reminder because the conversation drifted near it, sending
+a notification to be friendly. The rule that carries the weight is: change
+something only when the learner asked for that change in this conversation.
+
+Only Gemini gets this. Function calling is a Gemini feature; the other engines
+fall back to the streaming answer, which is all they can do.
+
 ## Saving work on a server
 
 Off by default, and the app is complete without it: everything has always
