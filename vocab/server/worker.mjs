@@ -191,6 +191,58 @@ async function claude({ system, user, messages }, env, model, stream = false) {
   return res;
 }
 
+/**
+ * One turn with the app's actions available, Claude's way.
+ *
+ * Three things differ from Gemini and each is a silent failure if missed. The
+ * schema field is `input_schema`, not `parameters`. A call comes back as a
+ * `tool_use` content block rather than a `functionCall` part. And results go
+ * back as `tool_result` blocks in a single user message — splitting them
+ * across several messages quietly teaches the model to stop asking for more
+ * than one thing at a time.
+ *
+ * `strict: true` is worth the two lines: it guarantees the arguments validate
+ * against the schema, so a hallucinated shape is caught by Anthropic before it
+ * reaches an action rather than by the action's own bounds check afterwards.
+ */
+async function claudeAct({ system, tools = [], messages = [] }, env, model) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': claudeKeyOf(env),
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: claudeModel(model),
+      max_tokens: 2000,
+      ...(system ? { system } : {}),
+      tools: tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        input_schema: { additionalProperties: false, required: [], ...t.parameters },
+        strict: true,
+      })),
+      messages,
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new HttpError(res.status === 401 ? 401 : 502,
+      `Claude responded ${res.status}. ${detail.slice(0, 200)}`);
+  }
+
+  const json = await res.json();
+  const blocks = json?.content || [];
+  return {
+    text: blocks.filter((b) => b.type === 'text').map((b) => b.text).join('').trim(),
+    // The id travels with the call: a result must name the call it answers.
+    calls: blocks.filter((b) => b.type === 'tool_use')
+      .map((b) => ({ id: b.id, name: b.name, args: b.input || {} })),
+    turn: { role: 'assistant', content: blocks },
+  };
+}
+
 /** Structured output from whichever engine was named. */
 async function askJson(who, prompt, schema, body, env) {
   if (who === 'gemini') return geminiJson(prompt, schema, body?.model);
@@ -301,37 +353,62 @@ const routes = {
    * happened rather than what was requested.
    */
   'POST /api/act': async (body, env) => {
-    if (!geminiKeyOf(env)) {
-      return { ok: false, error: 'No GEMINI_API_KEY on this Worker.' };
-    }
+    const who = body?.provider === 'gemini' ? 'gemini' : 'anthropic';
     const tools = Array.isArray(body?.tools) ? body.tools.slice(0, 24) : [];
     const history = Array.isArray(body?.history) ? body.history.slice(-12) : [];
+    const question = String(body?.question || '').slice(0, 4000);
 
-    const out = await geminiAct({
+    if (who === 'gemini') {
+      if (!geminiKeyOf(env)) return { ok: false, error: 'No GEMINI_API_KEY on this Worker.' };
+      const out = await geminiAct({ system: body?.system || '', user: question, history, tools },
+        body?.model);
+      return { ok: true, text: out.text, calls: out.calls, turn: out.raw };
+    }
+
+    if (!claudeKeyOf(env)) return { ok: false, error: 'No ANTHROPIC_API_KEY on this Worker.' };
+    const out = await claudeAct({
       system: body?.system || '',
-      user: String(body?.question || '').slice(0, 4000),
-      history,
       tools,
-    }, body?.model);
-
-    return { ok: true, text: out.text, calls: out.calls, turn: out.raw };
+      messages: [...history, { role: 'user', content: question }],
+    }, env, body?.model);
+    return { ok: true, text: out.text, calls: out.calls, turn: out.turn };
   },
 
   /** The second half: hand back what the actions returned, get the reply. */
   'POST /api/act/result': async (body, env) => {
-    if (!geminiKeyOf(env)) {
-      return { ok: false, error: 'No GEMINI_API_KEY on this Worker.' };
-    }
+    const who = body?.provider === 'gemini' ? 'gemini' : 'anthropic';
     const history = Array.isArray(body?.history) ? body.history.slice(-12) : [];
     const results = Array.isArray(body?.results) ? body.results.slice(0, 8) : [];
+    const tools = Array.isArray(body?.tools) ? body.tools.slice(0, 24) : [];
 
-    const out = await geminiAct({
+    if (who === 'gemini') {
+      if (!geminiKeyOf(env)) return { ok: false, error: 'No GEMINI_API_KEY on this Worker.' };
+      const out = await geminiAct({
+        system: body?.system || '',
+        history: [...history, ...results.map((r) => toolResult(r.name, r.result))],
+        tools,
+      }, body?.model);
+      return { ok: true, text: out.text, calls: out.calls, turn: out.raw };
+    }
+
+    if (!claudeKeyOf(env)) return { ok: false, error: 'No ANTHROPIC_API_KEY on this Worker.' };
+    /* Every result in one user message. Splitting them across several is
+       accepted and then quietly trains the model out of asking for more than
+       one thing at a time. */
+    const out = await claudeAct({
       system: body?.system || '',
-      history: [...history, ...results.map((r) => toolResult(r.name, r.result))],
-      tools: Array.isArray(body?.tools) ? body.tools.slice(0, 24) : [],
-    }, body?.model);
-
-    return { ok: true, text: out.text, calls: out.calls, turn: out.raw };
+      tools,
+      messages: [...history, {
+        role: 'user',
+        content: results.map((r) => ({
+          type: 'tool_result',
+          tool_use_id: r.id,
+          content: typeof r.result === 'string' ? r.result : JSON.stringify(r.result ?? null),
+          ...(r.failed ? { is_error: true } : {}),
+        })),
+      }],
+    }, env, body?.model);
+    return { ok: true, text: out.text, calls: out.calls, turn: out.turn };
   },
 
   /* ── sync ────────────────────────────────────────────────────────────

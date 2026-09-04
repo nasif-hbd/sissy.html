@@ -624,8 +624,20 @@ asked for — moving a reminder because the conversation drifted near it, sendin
 a notification to be friendly. The rule that carries the weight is: change
 something only when the learner asked for that change in this conversation.
 
-Only Gemini gets this. Function calling is a Gemini feature; the other engines
-fall back to the streaming answer, which is all they can do.
+Both live engines get this — the built-in tutor cannot, and falls back to the
+streaming answer. Gemini and Claude both do function calling and agree on
+almost nothing about how it looks, and every difference is a silent failure if
+missed: the request succeeds, the model answers, and the action never runs.
+Claude calls the schema `input_schema` where Gemini calls it `parameters`;
+Claude returns a `tool_use` content block where Gemini returns a `functionCall`
+part; Claude pairs a result to its call by id where Gemini pairs by name; and
+Claude's results must all go back in one user message, because splitting them
+is accepted and then quietly trains the model out of asking for more than one
+thing at a time. `tests/act.test.mjs` pins each of those.
+
+Claude's tools are declared `strict: true`, so arguments are validated against
+the schema before they arrive — a hallucinated shape is caught by Anthropic
+rather than by the action's own bounds check afterwards.
 
 ## Saving work on a server
 

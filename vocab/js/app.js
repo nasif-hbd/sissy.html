@@ -1715,13 +1715,26 @@ async function assistTurn(question, onText) {
     // At most four in a turn: enough to read then write, short of a runaway.
     for (const call of out.calls.slice(0, 4)) {
       const result = await runAction(call.name, call.args, ctx);
-      results.push({ name: call.name, result: result.data || result.say || result.refused });
+      results.push({
+        // Claude matches a result to its call by id; Gemini matches by name.
+        // Carrying both means neither engine needs a special case here.
+        id: call.id,
+        name: call.name,
+        result: result.data || result.say || result.refused,
+        failed: Boolean(result.refused),
+      });
       if (result.say || result.refused) changes.push({ ...result, name: call.name });
     }
     onText?.('');
+    /* The history shape is the engine's own — Gemini wants `parts`, Claude
+       wants `content` — so the question is echoed back in whichever one the
+       first call returned, and the turn is passed through untouched. */
+    const asked = AIClient.provider === 'gemini'
+      ? { role: 'user', parts: [{ text: question }] }
+      : { role: 'user', content: question };
     out = await AIClient.act({
       system: ASSIST_SYSTEM, tools, results,
-      history: out.turn ? [{ role: 'user', parts: [{ text: question }] }, out.turn] : [],
+      history: out.turn ? [asked, out.turn] : [],
     });
   }
   return { text: out.text || '', changes };
@@ -1757,10 +1770,10 @@ async function askAssist(question) {
   }
 
   try {
-    /* Gemini can act, not only answer: it reads the progress and changes the
-       settings the learner asked it to change. Everything else falls back to
-       the streaming answer, which is all the other engines can do. */
-    if (AIClient.provider === 'gemini') {
+    /* Both live engines can act, not only answer: they read the progress and
+       change the settings the learner asked them to change. The built-in
+       tutor cannot, and falls through to the streaming answer below. */
+    if (AIClient.isLive) {
       const out = await assistTurn(framed);
       reply.textContent = out.text || 'Done.';
       showChanges(out.changes);
