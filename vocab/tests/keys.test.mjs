@@ -10,7 +10,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { configure, geminiKeys, geminiKeyCount, hasGeminiKey } from '../server/gemini.mjs';
+import { configure, geminiKeys, geminiKeyCount, hasGeminiKey, geminiJson } from '../server/gemini.mjs';
 
 test('keys can be given as one variable, in any sane separator', () => {
   configure({ apiKeys: 'AAA,BBB' });
@@ -88,4 +88,134 @@ test('the count is reportable, the keys are not', () => {
   const health = { ready: hasGeminiKey(), keys: geminiKeyCount() };
   assert.deepEqual(health, { ready: true, keys: 3 });
   assert.doesNotMatch(JSON.stringify(health), /AAA|BBB|CCC/);
+});
+
+/* ── the walk itself ──────────────────────────────────────────────────────
+ *
+ * The rule above decides when to move on; these decide how much the walk is
+ * allowed to cost. Ten keys means ten possible round trips per question, and
+ * a walk that takes longer than the browser waits reaches the learner as an
+ * aborted stream — an error naming neither cause nor fix — even though every
+ * part of the deployment is working exactly as designed.
+ */
+
+/** A Gemini that answers from a script, recording which key each request used. */
+function stubFetch(plan) {
+  const seen = [];
+  globalThis.fetch = async (url) => {
+    seen.push(new URL(url).searchParams.get('key'));
+    const step = plan.shift() || { status: 500 };
+    if (step.status === 200) {
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ candidates: [{ content: { parts: [{ text: '{"said":"hello"}' }] } }] }),
+      };
+    }
+    return { ok: false, status: step.status, text: async () => step.body || '' };
+  };
+  return seen;
+}
+
+const ASK = { system: 's', user: 'u' };
+const SCHEMA = { type: 'object', properties: { said: { type: 'string' } } };
+
+/** Leaves the shared cursor at 0, so a test can name the key it expects. */
+async function reset() {
+  configure({ apiKey: 'RESET' });
+  stubFetch([{ status: 200 }]);
+  await geminiJson(ASK, SCHEMA);
+}
+
+test('a busy answer is retried on the same key, not from the top of the list', async (t) => {
+  const real = globalThis.fetch;
+  t.after(() => { globalThis.fetch = real; });
+  await reset();
+
+  configure({ apiKeys: 'AAA,BBB,CCC' });
+  // AAA is out of quota; BBB is merely overloaded and answers on the retry.
+  const seen = stubFetch([{ status: 429 }, { status: 503 }, { status: 200 }]);
+  assert.deepEqual(await geminiJson(ASK, SCHEMA), { said: 'hello' });
+
+  /* The retry used to restart the whole walk, so this was AAA, BBB, AAA,
+     BBB, CCC — and with ten keys, twenty round trips for one question, which
+     is comfortably longer than the browser is willing to wait. */
+  assert.deepEqual(seen, ['AAA', 'BBB', 'BBB']);
+});
+
+test('a request that is wrong stops the walk instead of burning every key', async (t) => {
+  const real = globalThis.fetch;
+  t.after(() => { globalThis.fetch = real; });
+  await reset();
+
+  configure({ apiKeys: 'AAA,BBB,CCC' });
+  const seen = stubFetch([{ status: 400, body: 'Invalid JSON payload' }]);
+  await assert.rejects(geminiJson(ASK, SCHEMA), /rejected the request/);
+  assert.equal(seen.length, 1, 'a malformed request fails identically on all three');
+});
+
+test('every key spent is one sentence, and it names no key', async (t) => {
+  const real = globalThis.fetch;
+  t.after(() => { globalThis.fetch = real; });
+  await reset();
+
+  /* Key-shaped on purpose. The last key's failure is the one reported, and
+     the point of the test is that it can quote Google without quoting the
+     key — so the keys have to be long enough to be real ones. */
+  const pool = [
+    'AIzaSyTEST-aaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    'AIzaSyTEST-bbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    'AIzaSyTEST-ccccccccccccccccccccccccccc',
+  ];
+  configure({ apiKeys: pool.join(',') });
+  const seen = stubFetch([
+    { status: 429 }, { status: 429 },
+    { status: 429, body: `Quota exceeded for key ${pool[2]}` },
+  ]);
+  await assert.rejects(geminiJson(ASK, SCHEMA), (err) => {
+    assert.match(err.message, /All 3 Gemini keys are exhausted or rejected\./);
+    for (const key of pool) {
+      assert.ok(!err.message.includes(key), `the message repeated a key back: ${err.message}`);
+    }
+    return true;
+  });
+  assert.deepEqual(seen, pool, 'each key is tried exactly once');
+});
+
+test('the key that worked is where the next question starts', async (t) => {
+  const real = globalThis.fetch;
+  t.after(() => { globalThis.fetch = real; });
+  await reset();
+
+  configure({ apiKeys: 'AAA,BBB,CCC' });
+  stubFetch([{ status: 429 }, { status: 429 }, { status: 200 }]);
+  await geminiJson(ASK, SCHEMA);
+
+  // Not round-robin: spreading requests evenly across ten keys would exhaust
+  // all ten on the same day rather than one.
+  const seen = stubFetch([{ status: 200 }]);
+  await geminiJson(ASK, SCHEMA);
+  assert.deepEqual(seen, ['CCC'], 'it went back to a key it had already emptied');
+});
+
+test('a key that never answers is stepped over, not waited on forever', async (t) => {
+  const real = globalThis.fetch;
+  t.after(() => { globalThis.fetch = real; });
+  await reset();
+
+  configure({ apiKeys: 'AAA,BBB' });
+  const seen = [];
+  globalThis.fetch = async (url) => {
+    const key = new URL(url).searchParams.get('key');
+    seen.push(key);
+    // What a hung connection looks like once the attempt timer fires.
+    if (key === 'AAA') throw new Error('no answer within 12s');
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ candidates: [{ content: { parts: [{ text: '{"said":"hello"}' }] } }] }),
+    };
+  };
+  assert.deepEqual(await geminiJson(ASK, SCHEMA), { said: 'hello' });
+  assert.deepEqual(seen, ['AAA', 'BBB']);
 });

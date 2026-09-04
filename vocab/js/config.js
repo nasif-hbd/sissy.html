@@ -177,6 +177,11 @@ export const AI = {
     health: '/api/health',
   },
   timeoutMs: 45_000,
+  /* Streams are held to silence rather than to total time — see stall() in
+     ai.js. Comfortably above the proxy's own 25-second budget for working
+     through its Gemini keys, so a deployment that is merely slow gets to
+     explain itself instead of being cut off mid-sentence. */
+  stallMs: 40_000,
 };
 
 /** Push endpoints on the same proxy. */

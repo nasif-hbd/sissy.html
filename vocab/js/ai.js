@@ -256,6 +256,45 @@ function timeout(ms = AI.timeoutMs) {
   return AbortSignal.timeout ? AbortSignal.timeout(ms) : undefined;
 }
 
+/**
+ * A stream is given up on for going quiet, not for taking a while.
+ *
+ * `AbortSignal.timeout` covers the whole response, body included, so an answer
+ * that was streaming perfectly well was cut off the moment it passed the
+ * limit — and a browser reports that as "BodyStreamBuffer was aborted", which
+ * names neither the cause nor a fix and was shown to the learner verbatim.
+ * What is actually worth giving up on is silence: no bytes at all for this
+ * long means nothing more is coming. So the clock is reset by every chunk,
+ * and a long answer can take as long as it needs.
+ */
+function stall(ms = AI.stallMs) {
+  const ctrl = new AbortController();
+  let timer = null;
+  const clock = {
+    signal: ctrl.signal,
+    stalled: false,
+    /* Not `abort(reason)`: the reason surfaces differently across browsers,
+       and this flag is read by the one place that cares. */
+    bump() {
+      clearTimeout(timer);
+      timer = setTimeout(() => { clock.stalled = true; ctrl.abort(); }, ms);
+    },
+    stop() { clearTimeout(timer); },
+  };
+  clock.bump();
+  return clock;
+}
+
+const sec = (ms) => {
+  const n = Math.max(1, Math.round(ms / 1000));
+  return `${n} second${n === 1 ? '' : 's'}`;
+};
+
+/* Only ever said when nothing at all arrived: a stall that interrupts an
+   answer already in progress keeps what it has rather than reporting. */
+const silence = () =>
+  `it took the question and then sent nothing for ${sec(AI.stallMs)}.`;
+
 const LOCAL_HOST = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0)$/i;
 
 /**
@@ -270,7 +309,7 @@ const LOCAL_HOST = /^(localhost|127\.\d+\.\d+\.\d+|\[::1\]|0\.0\.0\.0)$/i;
  */
 export function diagnose(err, endpoint = proxyBase()) {
   if (err?.name === 'TimeoutError' || err?.name === 'AbortError') {
-    return `the server did not answer within ${Math.round(AI.timeoutMs / 1000)} seconds.`;
+    return `the server did not answer within ${sec(AI.timeoutMs)}.`;
   }
   // A real HTTP answer — the server was reached, so it speaks for itself.
   if (!/Failed to fetch|NetworkError|Load failed/i.test(err?.message || '')) return err?.message || String(err);
@@ -323,16 +362,21 @@ async function post(url, body) {
 
 /** Reads an SSE body, calling `onToken` per delta; resolves with the full text. */
 async function stream(url, body, onToken) {
+  const clock = stall();
   let res;
   try {
     res = await fetch(url, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify(body),
-      signal: timeout(),
+      signal: clock.signal,
     });
-  } catch (err) { throw new Error(diagnose(err)); }
+  } catch (err) {
+    clock.stop();
+    throw new Error(clock.stalled ? silence() : diagnose(err));
+  }
   if (!res.ok || !res.body) {
+    clock.stop();
     const err = await res.json().catch(() => ({}));
     throw new Error(err.error || `AI request failed (${res.status})`);
   }
@@ -342,20 +386,34 @@ async function stream(url, body, onToken) {
   let buffer = '';
   let full = '';
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const frames = buffer.split('\n\n');
-    buffer = frames.pop() || '';
-    for (const frame of frames) {
-      const line = frame.split('\n').find((l) => l.startsWith('data:'));
-      if (!line) continue;
-      let evt;
-      try { evt = JSON.parse(line.slice(5).trim()); } catch { continue; }
-      if (evt.type === 'text_delta' && evt.text) { full += evt.text; onToken?.(evt.text); }
-      else if (evt.type === 'error') throw new Error(evt.error || 'AI stream failed');
+  /* The read loop was not guarded before. An abort here is a rejection like
+     any other, and it escaped as whatever the browser called it — which is
+     how "BodyStreamBuffer was aborted" reached the screen with the app's own
+     diagnosis sitting unused a few lines above. */
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      clock.bump();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const frames = buffer.split('\n\n');
+      buffer = frames.pop() || '';
+      for (const frame of frames) {
+        const line = frame.split('\n').find((l) => l.startsWith('data:'));
+        if (!line) continue;
+        let evt;
+        try { evt = JSON.parse(line.slice(5).trim()); } catch { continue; }
+        if (evt.type === 'text_delta' && evt.text) { full += evt.text; onToken?.(evt.text); }
+        else if (evt.type === 'error') throw new Error(evt.error || 'AI stream failed');
+      }
     }
+  } catch (err) {
+    /* Whatever arrived before the break is still an answer, and throwing it
+       away to show an error is a worse trade than showing both. */
+    if (clock.stalled && full) return full;
+    throw new Error(clock.stalled ? silence() : diagnose(err));
+  } finally {
+    clock.stop();
   }
   return full;
 }

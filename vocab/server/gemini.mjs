@@ -138,53 +138,118 @@ function keyIsSpent(status, detail) {
    to whichever key last worked so a healthy one is tried first. */
 let cursor = 0;
 
+/*
+ * How long one key gets, and how long the whole walk gets.
+ *
+ * Both are needed, and the second is why this exists at all. A key whose
+ * request hangs would otherwise hold the walk open with nothing to show for
+ * it; and ten keys that each fail slowly add up past what the browser is
+ * willing to wait, which reaches the learner as an aborted stream — a browser
+ * sentence naming neither a cause nor a fix — instead of an error anyone can
+ * read. The walk budget is deliberately under the client's own limit, so on a
+ * bad day the last word is ours.
+ */
+const ATTEMPT_MS = 12_000;
+const WALK_MS = 25_000;
+const RETRY_MS = 1_200;
+
+const pause = (ms) => new Promise((done) => setTimeout(done, ms));
+
+/**
+ * One request on one key, given its own time limit.
+ *
+ * The timer is cleared the moment the headers land, not when the body ends.
+ * `fetch`'s signal covers the body too, so leaving it armed would cut a long
+ * streamed answer off part-way — which is the exact failure this timeout is
+ * here to prevent, moved one layer down.
+ */
+async function attempt(path, payload, model, key) {
+  const ctrl = new AbortController();
+  const timer = setTimeout(
+    () => ctrl.abort(new Error(`no answer within ${ATTEMPT_MS / 1000}s`)), ATTEMPT_MS);
+  try {
+    return await fetch(`${BASE}/${model}:${path}&key=${encodeURIComponent(key)}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: ctrl.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * One key, plus the single retry a busy answer earns it.
+ *
+ * The retry stays on this key. It used to restart the whole walk, so one 503
+ * partway down a list of ten keys turned a single question into twenty round
+ * trips — comfortably longer than the browser waits, which is how a working
+ * deployment ended up reporting a network error.
+ *
+ * Only 503 is retried. 429 is not: on the free tier it is usually the daily
+ * cap, and waiting 1.2 seconds per key before moving on would spend twelve
+ * seconds proving what the next key answers immediately.
+ */
+async function useKey(path, payload, model, key, deadline) {
+  for (let go = 0; go < 2; go += 1) {
+    let res;
+    try {
+      res = await attempt(path, payload, model, key);
+    } catch (err) {
+      /* Never answered. That is Google being unreachable rather than this key
+         being finished, but the next key is worth one try — and the walk
+         deadline stops this from becoming ten hangs in a row. */
+      return { failed: { status: 0, detail: err?.message || 'no response' }, spent: true };
+    }
+
+    if (res.ok) return { res };
+
+    // The key is in the URL, so nothing from this response is safe to keep
+    // verbatim — and the key itself is never named in what is kept.
+    const detail = await res.text().catch(() => '');
+
+    if (go === 0 && res.status === 503 && Date.now() + RETRY_MS < deadline) {
+      await pause(RETRY_MS);
+      continue;
+    }
+    return { failed: { status: res.status, detail }, spent: keyIsSpent(res.status, detail) };
+  }
+}
+
 /**
  * One request, across however many keys this deployment has.
  *
- * Each key gets a single retry on 503 and 429 — Gemini's model-overloaded and
- * rate-limit statuses, which clear on a retry more often than not — and a
- * learner waiting on a hint should not see an error for either. When a key is
- * spent the next one is tried immediately; when all of them are, the last
- * failure is what gets reported, because that is the one that will keep
- * happening.
+ * A spent key is stepped over immediately; anything that is not the key's
+ * fault stops the walk, because every other key would answer it identically.
  */
-async function call(path, payload, model, attempt = 0) {
+async function call(path, payload, model) {
   const keys = geminiKeys();
   if (!keys.length) throw new Error('No Gemini key is configured on this deployment.');
 
   const start = cursor % keys.length;
+  const deadline = Date.now() + WALK_MS;
   let last = null;
 
   for (let i = 0; i < keys.length; i += 1) {
     const at = (start + i) % keys.length;
-    const res = await fetch(
-      `${BASE}/${model}:${path}&key=${encodeURIComponent(keys[at])}`, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
+    const out = await useKey(path, payload, model, keys[at], deadline);
 
-    if (res.ok) {
+    if (out.res) {
       // Stay on the key that worked rather than moving on every request.
       cursor = at;
-      return res;
+      return out.res;
     }
 
-    const detail = await res.text().catch(() => '');
+    last = { ...out.failed, index: at };
+    if (!out.spent) throw new Error(`${reason(last.status)} ${scrub(last.detail).slice(0, 200)}`);
 
-    if (keyIsSpent(res.status, detail)) {
-      // The key is in the URL, so nothing from this response is safe to keep
-      // verbatim — and the key itself is never named in what is kept.
-      last = { status: res.status, detail, index: at };
-      continue;
+    /* Out of time rather than out of keys, and worth separating: the answer to
+       one is another key, the answer to the other is to wait. */
+    if (Date.now() >= deadline && i + 1 < keys.length) {
+      throw new Error(`Gemini did not answer within ${Math.round(WALK_MS / 1000)} seconds — `
+        + `${i + 1} of ${keys.length} keys tried.`);
     }
-
-    if (res.status === 503 && attempt === 0) {
-      await new Promise((done) => setTimeout(done, 1200));
-      return call(path, payload, model, attempt + 1);
-    }
-
-    throw new Error(`${reason(res.status)} ${scrub(detail).slice(0, 200)}`);
   }
 
   /* Every key refused. On a free tier this is normal once a day and the
@@ -198,6 +263,7 @@ async function call(path, payload, model, attempt = 0) {
 }
 
 function reason(status) {
+  if (!status) return 'Gemini did not answer in time.';
   if (status === 404) return 'Gemini has no such model (404) — the id may have been retired.';
   if (status === 400) return 'Gemini rejected the request (400).';
   if (status === 401 || status === 403) return 'Gemini rejected the key (' + status + ').';
@@ -206,7 +272,25 @@ function reason(status) {
   return `Gemini responded ${status}.`;
 }
 
-const scrub = (text) => String(text).replace(/key=[\w-]+/gi, 'key=…');
+/**
+ * An error body, with anything key-shaped taken out of it.
+ *
+ * Stripping `key=` from the URL was the whole of this, which covered the one
+ * place a key was known to appear and rested on Google never echoing it
+ * anywhere else. That is an assumption, not a guarantee, and the string it
+ * guards reaches the browser and is written into the chat log — where a
+ * leaked key is spent by whoever reads it. So the configured keys are
+ * redacted by value too. Short ones are left alone: a twelve-character
+ * minimum keeps this from mangling ordinary prose, and a real Gemini key is
+ * thirty-nine.
+ */
+function scrub(text) {
+  let out = String(text).replace(/key=[\w-]+/gi, 'key=…');
+  for (const key of geminiKeys()) {
+    if (key.length >= 12) out = out.split(key).join('…');
+  }
+  return out;
+}
 
 /**
  * One structured-output request.

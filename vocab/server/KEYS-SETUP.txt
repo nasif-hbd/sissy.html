@@ -67,6 +67,11 @@ HOW IT CHOOSES
   When every key is spent you get one clear message saying so, rather than a
   rate-limit error that reads like a bug.
 
+  The whole search is capped at 25 seconds, and any one key at 12. Without
+  that, ten keys that each fail slowly add up to longer than the browser is
+  willing to wait, and the app reports a broken connection for a deployment
+  that is merely working through its list.
+
 ORDER
 
   The key in GEMINI_API_KEY is tried first, then GEMINI_API_KEYS, then the
