@@ -25,6 +25,7 @@ import {
 } from './prompts.mjs';
 import { geminiJson, geminiStream, configure as configureGemini,
          geminiDefaultModel, hasGeminiKey } from './gemini.mjs';
+import { storeOf, withinRate, ID, LIMITS } from './store.mjs';
 
 const CLAUDE_MODEL = 'claude-haiku-4-5';
 const CLAUDE_MODELS = new Set([CLAUDE_MODEL, 'claude-sonnet-5', 'claude-opus-5']);
@@ -286,6 +287,81 @@ const routes = {
     next: 'Full status at /api/health. Put this Worker\'s address into the app: Settings → AI help → Your server.',
   }),
 
+  /* ── sync ────────────────────────────────────────────────────────────
+   *
+   * Optional. The app is complete without any of this; these routes exist so
+   * progress and Ask history survive a cleared browser and follow someone to a
+   * second device.
+   *
+   * The key is a random id the device made for itself, never the caller's IP.
+   * An IP is shared by everyone behind a carrier's NAT — it would merge
+   * strangers' data — and it changes under the same person, which would lose
+   * theirs. store.mjs says more about why.
+   */
+  'POST /api/sync/progress': async (body, env, request) => {
+    const store = storeOf(env);
+    if (!store) return { ok: false, error: 'No database is bound to this Worker.' };
+    if (!ID.test(body?.uid || '')) return { ok: false, error: 'Bad device id.' };
+
+    const snapshot = body?.snapshot;
+    if (!snapshot || typeof snapshot !== 'object') {
+      return { ok: false, error: 'No snapshot.' };
+    }
+    // A snapshot is counts and schedules; anything this large is not one.
+    if (JSON.stringify(snapshot).length > LIMITS.snapshotBytes) {
+      return { ok: false, error: 'Snapshot too large.' };
+    }
+    if (!(await withinRate(env, request?.headers?.get('cf-connecting-ip')))) {
+      return { ok: false, error: 'Too many writes from this network this hour.' };
+    }
+
+    await store.saveProgress(body.uid, snapshot, new Date().toISOString());
+    return { ok: true, at: new Date().toISOString() };
+  },
+
+  'POST /api/sync/progress/get': async (body, env) => {
+    const store = storeOf(env);
+    if (!store) return { ok: false, error: 'No database is bound to this Worker.' };
+    if (!ID.test(body?.uid || '')) return { ok: false, error: 'Bad device id.' };
+    const found = await store.loadProgress(body.uid);
+    return { ok: true, found: Boolean(found), ...(found || {}) };
+  },
+
+  'POST /api/sync/chat': async (body, env, request) => {
+    const store = storeOf(env);
+    if (!store) return { ok: false, error: 'No database is bound to this Worker.' };
+    if (!ID.test(body?.uid || '')) return { ok: false, error: 'Bad device id.' };
+    const question = String(body?.question || '').slice(0, 4000);
+    const answer = String(body?.answer || '').slice(0, 20000);
+    if (!question || !answer) return { ok: false, error: 'Nothing to save.' };
+    if (!(await withinRate(env, request?.headers?.get('cf-connecting-ip')))) {
+      return { ok: false, error: 'Too many writes from this network this hour.' };
+    }
+
+    await store.addChat(body.uid, {
+      at: new Date().toISOString(), question, answer, engine: body?.engine || null,
+    });
+    return { ok: true };
+  },
+
+  'POST /api/sync/chat/list': async (body, env) => {
+    const store = storeOf(env);
+    if (!store) return { ok: false, error: 'No database is bound to this Worker.' };
+    if (!ID.test(body?.uid || '')) return { ok: false, error: 'Bad device id.' };
+    return { ok: true, chats: await store.listChats(body.uid, Math.min(body?.limit || 50, 200)) };
+  },
+
+  /* Deleting has to be as easy as saving, or "your data is yours" is a slogan
+     rather than a fact. No token: the id is the only thing that names the
+     data, and whoever holds it can already read it. */
+  'POST /api/sync/forget': async (body, env) => {
+    const store = storeOf(env);
+    if (!store) return { ok: false, error: 'No database is bound to this Worker.' };
+    if (!ID.test(body?.uid || '')) return { ok: false, error: 'Bad device id.' };
+    await store.forget(body.uid);
+    return { ok: true, forgotten: true };
+  },
+
   'GET /api/health': (body, env) => ({
     ok: true,
     hasKey: Boolean(claudeKeyOf(env)),
@@ -499,7 +575,9 @@ export default {
 
     try {
       const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
-      const out = await handler(body, env);
+      // The request is passed too: the sync routes read the caller's address
+      // to rate-limit writes, which is the one thing an IP is good for here.
+      const out = await handler(body, env, request);
       // A stream is an answer being written; anything else is one JSON reply.
       if (out instanceof ReadableStream) {
         return new Response(out, {

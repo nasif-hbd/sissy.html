@@ -587,6 +587,40 @@ The offered questions change with the state they are offered in. A learner with
 a backlog and one with an empty queue need different first moves, and a fixed
 list would ask someone who has never got a word wrong why they keep failing.
 
+## Saving work on a server
+
+Off by default, and the app is complete without it: everything has always
+lived in `localStorage` and still does. What `js/sync.js` and
+`server/store.mjs` add is that clearing a browser, or picking up a second
+device, no longer means starting from zero.
+
+**The key is a random per-device id, deliberately not the caller's IP.** The IP
+is the obvious choice and it fails in both directions at once. Mobile carriers
+put thousands of subscribers behind a single public address, so everyone on one
+network would read and overwrite each other's progress and each other's
+questions. And that address changes when someone moves cell or rejoins wifi, so
+their own work would vanish for reasons invisible from inside the app. Merged
+strangers and lost history, from the same choice. `tests/sync.test.mjs` pins
+the separation that the id gives and the IP could not.
+
+The id is not a login and does not pretend to be: whoever holds it holds the
+data, which is the same promise `localStorage` already makes. Copying it to a
+second device joins them; pressing forget deletes everything filed under it.
+
+An IP *is* read, once, for a write budget per network per hour — and only as a
+hash with an expiry, so what is kept is "someone wrote forty times this hour"
+rather than "this person was here".
+
+`storeOf(env)` prefers D1 and accepts KV, because the binding menu makes them
+look interchangeable and someone will pick the wrong one; working slightly
+worse beats failing with a message about the wrong noun. Both tables are made
+on demand — nobody should run a migration by hand before the app can save.
+
+What is sent is the schedule, the words met, the day ledger and the last 400
+gradings. Settings stay on the device that chose them: a phone and a laptop
+want different reminder times, and syncing those would be a bug wearing a
+feature's clothes.
+
 ## Feedback
 
 A floating button on every screen. Each report carries the screen, the engine,

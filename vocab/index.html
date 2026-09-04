@@ -951,6 +951,40 @@
         </div>
 
         <div class="card">
+          <h3 class="card__title">Save my work online</h3>
+          <p class="hint">Off by default. Everything already works on this device alone —
+             this is for surviving a cleared browser, and picking up where you left off on
+             another phone or laptop.</p>
+          <label class="check">
+            <input type="checkbox" id="syncToggle">
+            <span>Keep my progress and my Ask history on the server</span>
+          </label>
+          <p class="status" id="syncStatus"><i class="status__dot"></i><span id="syncHow"></span></p>
+
+          <details class="advanced">
+            <summary>Use it on another device</summary>
+            <div class="other-devices">
+              <p>Your work is filed under a random code this device made for itself. It is
+                 not an account and there is no password — whoever has the code can read
+                 the work, which is the same promise your browser already makes.</p>
+              <p><b>This device's code</b></p>
+              <div class="row">
+                <input class="input grow" id="syncCode" type="text" readonly aria-label="Your device code">
+                <button class="btn btn--quiet" id="syncCopy" type="button">Copy</button>
+              </div>
+              <p>On the other device, paste it here and press Join. That device will then
+                 read and write the same work as this one.</p>
+              <div class="row">
+                <input class="input grow" id="syncJoin" type="text" placeholder="Paste a code" aria-label="Code to join">
+                <button class="btn btn--quiet" id="syncJoinGo" type="button">Join</button>
+              </div>
+              <p><button class="btn btn--quiet btn--wide" id="syncForget" type="button">
+                Delete everything stored for this code</button></p>
+            </div>
+          </details>
+        </div>
+
+        <div class="card">
           <h3 class="card__title" id="installTitle">Install VocabX</h3>
           <p class="status" id="installStatus"><i class="status__dot"></i><span id="installHow"></span></p>
           <!-- The file first where there is one, since the heading names it;

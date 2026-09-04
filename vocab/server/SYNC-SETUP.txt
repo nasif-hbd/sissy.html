@@ -1,0 +1,75 @@
+TURNING ON "SAVE MY WORK ONLINE"
+
+Five minutes in the Cloudflare dashboard. Skip it and the app still works
+exactly as it does now — this only adds the server copy.
+
+1  MAKE THE DATABASE
+
+   dash.cloudflare.com  →  Storage & Databases  →  D1 SQL Database
+   →  Create database
+   Name it:  vocabx
+   →  Create
+
+   There are no tables to make. The Worker creates them the first time
+   somebody saves.
+
+2  BIND IT TO THE WORKER
+
+   Workers & Pages  →  vocabx-proxy  →  Settings  →  Bindings
+   →  Add  →  D1 database
+
+   Variable name:  DB          <- exactly this, capitals included
+   D1 database:    vocabx
+   →  Deploy
+
+   The variable name is what the code looks for. "db" or "Database" will
+   bind successfully and do nothing.
+
+3  UPDATE THE WORKER CODE
+
+   Workers & Pages  →  vocabx-proxy  →  Edit code
+   Select all (Ctrl+A), delete, paste the whole of worker.js, then Deploy.
+
+4  CHECK IT
+
+   Open this in any browser:
+
+       https://vocabx-proxy.mdmukul666343.workers.dev/api/health
+
+   Look at "sees" in the JSON. It lists the binding names the Worker can
+   see. "DB" should be in that list.
+
+5  TURN IT ON IN THE APP
+
+   Settings  →  "Save my work online"  →  tick the box.
+
+   It saves once immediately, then about a minute after you stop studying.
+
+USING IT ON A SECOND DEVICE
+
+   Settings  →  Save my work online  →  "Use it on another device"
+   Copy the code from the first device, paste it on the second, press Join.
+   Both then read and write the same work.
+
+   The code is not a password and there is nothing to reset. Whoever has it
+   can read the work, which is the same as anyone holding your unlocked
+   phone. Do not post it anywhere public.
+
+WHAT IS STORED
+
+   Your schedule, which words you have met, your daily counts, your streak,
+   your XP, your last 400 answers, and your Ask history.
+
+   Not stored: your settings, and nothing that identifies you. There is no
+   name, no email and no account. Your IP is counted once an hour to stop
+   one script filling the database, as a hash that expires — never beside
+   your work.
+
+   "Delete everything stored for this code" removes all of it. What is on
+   the device stays.
+
+COST
+
+   Free. D1's free tier is 5 GB and 5 million reads a day. A learner's
+   snapshot is a few kilobytes; you would need tens of thousands of people
+   before this costs anything.

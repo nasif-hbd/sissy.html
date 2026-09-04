@@ -11,6 +11,7 @@ import { APP, AI as AICFG, THEMES, PROVIDERS } from './config.js';
 import { Store, refreshStreak, makeSrs, dayKey, snapshot, restore } from './store.js';
 import { schedule, buildQueue, bucket, plannedSession, queueCounts, spokenDelta } from './srs.js';
 import { learningBrief, briefText, headline, prompts, localAdvice } from './brief.js';
+import { Sync, pushSoon } from './sync.js';
 import { makeSessionTimer, reportPayload, weakest, summary, window as windowStats, recentDays,
          dashboard, recentlyLearned, activeDays } from './stats.js';
 import { Notifier, Push } from './notify.js';
@@ -84,6 +85,7 @@ async function boot() {
   wireInstall();
   wireFeedback();
   wireAssist();
+  wireSync();
   wireFeedbackView();
   wireInbox();
   wireTest();
@@ -408,6 +410,11 @@ function gradeCard(grade) {
     wordId: word.id, grade, correct: grade > 0, mode: 'flashcard',
     ms: Date.now() - session.shownAt,
   });
+
+  /* A session is a hundred gradings, so this coalesces them into one write a
+     minute after the last card rather than a hundred as they happen. Does
+     nothing at all unless the learner turned syncing on. */
+  pushSoon(Store.state);
 
   if (grade === 0) {
     // Failed cards go to the back of this session rather than disappearing.
@@ -1482,6 +1489,98 @@ let feedbackKind = 'idea';
  * never anything typed into feedback, never a word list — a snapshot that fits
  * in a few hundred characters cannot leak what it does not contain.
  */
+/* ── keeping the work somewhere else ────────────────────────────────────── */
+
+/**
+ * The optional server copy.
+ *
+ * Off unless someone turns it on, and every path through it degrades to doing
+ * nothing rather than to an error — the app has always worked with only this
+ * device, and turning this on must not make that less true.
+ */
+function wireSync() {
+  const toggle = $('#syncToggle');
+  toggle.checked = Boolean(Store.state.settings.sync?.enabled);
+  $('#syncCode').value = Sync.deviceId() || 'unavailable in this browser';
+
+  toggle.addEventListener('change', async () => {
+    Store.set('settings.sync.enabled', toggle.checked);
+    drawSync('Saving…');
+    if (!toggle.checked) { drawSync(); return; }
+
+    /* Turning it on for the first time on a second device should find the
+       work already there rather than overwrite it with an empty start. */
+    const found = await Sync.pull();
+    if (found && (found.snapshot?.words) && !Object.keys(Store.state.words).length) {
+      applySnapshot(found.snapshot);
+      toast('Found your saved work and restored it.');
+    } else {
+      const at = await Sync.push(Store.state);
+      if (at) Store.set('settings.sync.lastAt', at);
+    }
+    drawSync();
+  });
+
+  $('#syncCopy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(Sync.deviceId() || '');
+      toast('Code copied.');
+    } catch { $('#syncCode').select(); toast('Press Ctrl+C to copy.', 'bad'); }
+  });
+
+  $('#syncJoinGo').addEventListener('click', async () => {
+    const code = $('#syncJoin').value.trim();
+    if (!Sync.adoptId(code)) { toast('That does not look like a code.', 'bad'); return; }
+    $('#syncCode').value = Sync.deviceId();
+    $('#syncJoin').value = '';
+    drawSync('Looking…');
+
+    const found = await Sync.pull();
+    if (!found) { drawSync('Nothing is stored under that code yet.'); return; }
+    applySnapshot(found.snapshot);
+    toast('Joined. Your work from the other device is here.');
+    drawSync();
+  });
+
+  $('#syncForget').addEventListener('click', async () => {
+    if (!confirm('Delete everything stored on the server for this code?\n\n'
+      + 'What is on this device stays. This cannot be undone.')) return;
+    // Once, not twice: awaiting it inside both arms of the ternary sent the
+    // delete a second time.
+    const gone = await Sync.forget();
+    toast(gone ? 'Deleted from the server.' : 'Could not reach the server.',
+      gone ? 'ok' : 'bad');
+    drawSync();
+  });
+
+  drawSync();
+}
+
+function drawSync(message) {
+  const on = Boolean(Store.state.settings.sync?.enabled);
+  const last = Store.state.settings.sync?.lastAt;
+  $('#syncStatus').dataset.state = message ? 'wait' : on ? 'ok' : 'wait';
+  $('#syncHow').textContent = message || (on
+    ? (last ? `Saved. Last sent ${new Date(last).toLocaleString()}.`
+            : 'On. Your work is sent as you study.')
+    : 'Off. Everything stays on this device.');
+}
+
+/**
+ * Put a downloaded snapshot back into the app.
+ *
+ * Replaces the schedule and the ledger, and leaves settings alone: a phone and
+ * a laptop want different reminder times, and syncing those would be a bug
+ * wearing a feature's clothes.
+ */
+function applySnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return;
+  for (const key of ['words', 'srs', 'days', 'streak', 'xp', 'history']) {
+    if (snapshot[key] !== undefined) Store.set(key, snapshot[key]);
+  }
+  render();
+}
+
 function wireAssist() {
   $('#assistBtn').addEventListener('click', openAssist);
   $('#assistClose').addEventListener('click', closeAssist);
@@ -1563,6 +1662,10 @@ async function askAssist(question) {
        the app already holds rather than with "that needs a live engine". */
     reply.textContent = localAdvice(brief, due);
     $('#assistNote').textContent = `${AIClient.engine} was unreachable (${err.message}).`;
+    // Worth keeping: this is the half of the history that is not reproducible
+    // from the schedule. Fire and forget — a failed save must not surface as
+    // an error over an answer that arrived fine.
+    Sync.saveChat(q, reply.textContent, AIClient.engine);
   } finally {
     assisting = false;
     $('#assistSend').disabled = false;

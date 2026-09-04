@@ -41,6 +41,9 @@ function freshState() {
       railOpen: null,
       reminders: { enabled: false, routine: DEFAULT_ROUTINE.map((s, i) => ({ ...s, id: `default-${i}` })), lastFired: {} },
       push: { enabled: false, endpoint: null },
+      /* Off until asked for. The app is complete without it, and sending a
+         learner's work to a server nobody agreed to is not a default. */
+      sync: { enabled: false, lastAt: null },
       ai: {
         provider: 'built-in',
         mode: AI.defaultMode,
@@ -178,6 +181,8 @@ function migrate(s) {
   const ai = s.settings?.ai;
   if (ai && !ai.provider) ai.provider = ai.mode === 'proxy' ? 'anthropic' : 'built-in';
   if (ai && !ai.geminiModel) ai.geminiModel = AI.geminiModels[0].id;
+  // Added after the first releases; an install from before it has no key.
+  if (s.settings && !s.settings.sync) s.settings.sync = { enabled: false, lastAt: null };
   /* The address is the build's, not the reader's — a published app must not
      let a visitor point it at another server. Any saved one is dropped rather
      than left sitting in storage looking like it still means something. */
