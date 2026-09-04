@@ -639,6 +639,34 @@ Claude's tools are declared `strict: true`, so arguments are validated against
 the schema before they arrive — a hallucinated shape is caught by Anthropic
 rather than by the action's own bounds check afterwards.
 
+## Several Gemini keys
+
+Gemini's free tier is metered per key, so a deployment with ten keys has ten
+times the daily quota. `geminiKeys()` reads them from one variable holding
+several (comma or newline separated) or from `GEMINI_API_KEY_2` … `_10`, since
+the Cloudflare dashboard makes the numbered form easy and a config file makes
+the list form easy, and someone will reasonably do either. Duplicates are
+dropped: the same key twice is not redundancy, it is a wasted round trip on
+every request once it is exhausted.
+
+The whole feature is one decision — which failures mean *this key is done*
+rather than *ask again* — and it is expensive in both directions. Rotate on too
+much and a single malformed request burns all ten keys, leaving nothing for the
+rest of the day. Rotate on too little and nine keys sit idle while the first
+sits at its quota. So it moves on for 429 (quota, the usual one), 403 (disabled
+or restricted), and 400 *only* when the body says `API_KEY_INVALID` — and never
+for a plain 400, a 404, or a 503, all of which fail identically on every key.
+`tests/keys.test.mjs` pins both halves of that.
+
+It stays on the key that last worked rather than rotating per request: spreading
+evenly would exhaust all of them on the same day instead of one. When every key
+is spent it says exactly that, because "Gemini is rate-limiting this key" reads
+like a bug when the real answer is "come back tomorrow, or add another key".
+
+`/api/health` reports the *count*, never a key. A key typed into a misspelled
+variable and no key at all look identical from outside, and the count is what
+tells them apart.
+
 ## Saving work on a server
 
 Off by default, and the app is complete without it: everything has always

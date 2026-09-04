@@ -7,7 +7,13 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { forGemini, geminiModel, geminiStream, GEMINI_MODEL } from '../server/gemini.mjs';
+import { forGemini, geminiModel, geminiStream, GEMINI_MODEL, configure }
+  from '../server/gemini.mjs';
+
+/* The streaming tests stub fetch, so the key is never used — but it is checked
+   before the request is built, because "no key configured" is a better error
+   than whatever Google returns for a request with an empty one. */
+configure({ apiKey: 'test-key-not-used-by-the-stub' });
 
 /* ── the schema Gemini will accept ──────────────────────────────────────── */
 

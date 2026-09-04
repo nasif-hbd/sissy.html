@@ -24,7 +24,8 @@ import {
   suggestPrompt, suggestSchema, coachPrompt, reportPrompt, assessPrompt, askPrompt,
 } from './prompts.mjs';
 import { geminiJson, geminiStream, configure as configureGemini,
-         geminiDefaultModel, hasGeminiKey, geminiAct, toolResult } from './gemini.mjs';
+         geminiDefaultModel, hasGeminiKey, geminiAct, toolResult,
+         geminiKeyCount } from './gemini.mjs';
 import { storeOf, withinRate, ID, LIMITS } from './store.mjs';
 
 const CLAUDE_MODEL = 'claude-haiku-4-5';
@@ -56,6 +57,21 @@ function binding(env, ...names) {
 }
 
 const geminiKeyOf = (env) => binding(env, 'GEMINI_API_KEY', 'GOOGLE_API_KEY');
+
+/**
+ * Every Gemini key this Worker was given, as one string for the client.
+ *
+ * The free tier is metered per key, so several keys is several times the daily
+ * quota. Cloudflare has no list type, so they arrive either as one variable
+ * holding many or as GEMINI_API_KEY_2 … _10 — both are read, because the
+ * dashboard makes numbered variables easy and a wrangler file makes a list
+ * easy, and someone will reasonably do either.
+ */
+const geminiKeysOf = (env) => [
+  binding(env, 'GEMINI_API_KEYS'),
+  binding(env, 'GEMINI_API_KEY', 'GOOGLE_API_KEY'),
+  ...Array.from({ length: 9 }, (_, i) => binding(env, `GEMINI_API_KEY_${i + 2}`)),
+].filter(Boolean).join(',');
 const claudeKeyOf = (env) => binding(env, 'ANTHROPIC_API_KEY', 'CLAUDE_API_KEY');
 
 /**
@@ -329,7 +345,9 @@ const routes = {
     service: 'VocabX AI proxy',
     ready: Boolean(geminiKeyOf(env) || claudeKeyOf(env)),
     engines: {
-      gemini: geminiKeyOf(env) ? 'key set' : 'no GEMINI_API_KEY',
+      gemini: geminiKeyOf(env)
+        ? `${geminiKeyCount()} key${geminiKeyCount() === 1 ? '' : 's'} set`
+        : 'no GEMINI_API_KEY',
       claude: claudeKeyOf(env) ? 'key set' : 'no ANTHROPIC_API_KEY',
     },
     // Unset means this Worker answers any site that finds it, and they spend
@@ -494,7 +512,9 @@ const routes = {
     runtime: 'cloudflare-worker',
     providers: {
       anthropic: { ready: Boolean(claudeKeyOf(env)), model: CLAUDE_MODEL },
-      gemini: { ready: hasGeminiKey(), model: geminiDefaultModel() },
+      /* The count, never a key. A key in the wrong variable and no key at all
+         look identical from outside, and this is what tells them apart. */
+      gemini: { ready: hasGeminiKey(), model: geminiDefaultModel(), keys: geminiKeyCount() },
     },
     /* Names only, never values. A key in the wrong field, the wrong
        environment or the wrong Worker all look identical from outside —
@@ -689,7 +709,11 @@ export default {
 
     // The Gemini client reads its key from here rather than from process.env,
     // which a Worker does not have.
-    configureGemini({ apiKey: geminiKeyOf(env), model: binding(env, 'GEMINI_MODEL') });
+    configureGemini({
+      apiKey: geminiKeyOf(env),
+      apiKeys: geminiKeysOf(env),
+      model: binding(env, 'GEMINI_MODEL'),
+    });
 
     const url = new URL(request.url);
     const handler = routes[`${request.method} ${url.pathname}`];
