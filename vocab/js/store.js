@@ -46,6 +46,10 @@ function freshState() {
       /* Off until asked for. The app is complete without it, and sending a
          learner's work to a server nobody agreed to is not a default. */
       sync: { enabled: false, lastAt: null },
+      /* The assistant speaking without being asked. On by default, because a
+         feature nobody discovers is a feature nobody has — and it is rare,
+         signed, and one switch away from silence. */
+      notices: { enabled: true },
       ai: {
         provider: 'built-in',
         mode: AI.defaultMode,
@@ -58,6 +62,9 @@ function freshState() {
     history: [], // recent reviews, newest last, capped at 2000
     streak: { current: 0, longest: 0, lastActive: null },
     placement: null,  // the last level check, or null if never sat
+    /* What the assistant has said unprompted, newest last. Capped in
+       notice.js — this is a short log, not a history. */
+    notices: [],
   };
 }
 
@@ -176,6 +183,9 @@ function migrate(s) {
   if (!s.settings?.ai) s.settings = { ...freshState().settings, ...(s.settings || {}) };
   // The level check arrived after the first release; older saves have no field.
   if (s.placement === undefined) s.placement = null;
+  // The watching assistant arrived after the first release.
+  if (!Array.isArray(s.notices)) s.notices = [];
+  if (!s.settings.notices) s.settings.notices = { enabled: true };
   // The default model moved to the cheapest tier. Anyone still carrying the old
   // default never chose it, so move them; a deliberate pick is left alone.
   if (s.settings?.ai?.model === 'claude-opus-5') s.settings.ai.model = AI.defaultModel;

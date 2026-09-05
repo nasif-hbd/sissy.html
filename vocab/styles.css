@@ -1919,3 +1919,48 @@ body.is-gated { overflow: hidden; }
    back to the browser's button default. */
 .avatar { border: 0; padding: 0; cursor: pointer; }
 .avatar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ═══ The unprompted note ══════════════════════════════════════════════════
+   Deliberately not styled like the app's own cards. Nobody asked for this
+   one, so it reads as something placed on the page rather than part of it:
+   its own tint, a left edge, and a signature line that never scrolls away
+   from the words it belongs to.
+========================================================================== */
+.notice {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 15px 16px;
+  border: 1px solid var(--rule);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius-sm);
+  background: var(--accent-soft);
+}
+.notice__body { display: flex; flex-direction: column; gap: 11px; }
+.notice__text { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--ink); }
+.notice__acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+
+/* The signature. Small, but never hidden and never optional. */
+.notice__sign {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+  margin: 0;
+  padding-top: 9px;
+  border-top: 1px solid color-mix(in srgb, var(--accent) 18%, transparent);
+  font-size: 11.5px; line-height: 1.5;
+  color: var(--ink-2);
+}
+.notice__sign .ico { width: 15px; height: 15px; flex: none; opacity: .75; }
+.notice__off {
+  margin-left: auto;
+  padding: 0;
+  background: none; border: 0;
+  color: var(--ink-2); font: inherit; font-size: 11.5px;
+  text-decoration: underline; text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* On a phone the two halves of the signature stack rather than squeeze, and
+   the switch-off stops being pushed to an edge it cannot reach. */
+@media (max-width: 420px) {
+  .notice__off { margin-left: 0; }
+}

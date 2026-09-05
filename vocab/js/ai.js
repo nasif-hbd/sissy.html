@@ -169,6 +169,24 @@ export const AIClient = {
     });
   },
 
+  /**
+   * One unprompted note about how the learner is doing.
+   *
+   * Returns null rather than throwing when there is no engine: the caller is
+   * not a person waiting for an answer, it is a background check, and a
+   * failure here must be indistinguishable from "nothing worth saying".
+   */
+  async notice({ digest, actions, level }) {
+    if (!this.isLive) return null;
+    try {
+      return await post(this.url(AI.routes.notice), {
+        digest, actions, level, model: this.model, provider: this.provider,
+      });
+    } catch {
+      return null;
+    }
+  },
+
   /** Words worth learning next, given what the learner already knows. */
   async suggest(opts = {}) {
     if (!this.isLive) return localSuggest(opts);

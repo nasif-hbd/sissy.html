@@ -9,7 +9,7 @@
  * Bump CACHE when you change any shell file — the old cache is dropped on
  * activate.
  */
-const CACHE = 'vocabx-v40';
+const CACHE = 'vocabx-v41';
 /**
  * Every file the app needs to start with no network.
  *
@@ -36,6 +36,7 @@ const SHELL = [
   './js/gate.js',
   './js/lesson.js',
   './js/local.js',
+  './js/notice.js',
   './js/notify.js',
   './js/placement.js',
   './js/routine.js',

@@ -762,6 +762,47 @@ Accounts need D1 specifically — KV has no unique index, so it cannot promise o
 address is one account. The health route says whether this deployment has one,
 and the app hides the buttons rather than offering a form whose last step fails.
 
+## The assistant speaking first
+
+Everything else the engine does here is a reply. This is the other half: it
+watches how the study is going and says one thing on its own — a remark, a
+question, or a setting worth changing.
+
+Three rules hold it up, and the first is the whole design.
+
+**It proposes, it does not act.** A suggestion names an action from the same
+catalogue in `actions.js` and stops. Nothing runs until the learner presses
+Accept, and what runs then goes through the same `runAction` and the same undo
+as everything the assistant does when asked. This is also why a notice is one
+structured-output request rather than a tool loop: the shape it can answer in
+has no room for an action being taken, only for one being named.
+
+**It is signed.** Every note carries the engine, the model and the time, and
+says a machine wrote it. The app already refuses to let one engine's words be
+labelled as another's; unprompted words need that more, not less, because
+nobody invited them. The signature line also carries the way to switch it off.
+
+**It is rare.** `shouldLook()` says no nearly always: never mid-session, at most
+twice a day, never within five hours of the last note, never stacked on one
+still on screen, and only when something material has actually moved — a broken
+streak, accuracy shifting by more than noise, a week's work since it last
+looked. An assistant that remarks on every session is noise inside a week, and
+noise gets switched off, taking the one useful note with it.
+
+What it sees is a digest of counts, rates and at most six terms — never the
+review log, the word list, or anything typed into Ask or feedback. What comes
+back is checked twice: against the catalogue (an invented action, or a
+read-only one, becomes a plain remark) and against each argument's range,
+because the Accept button's label is built from those numbers and "Set the goal
+to 90,000" must not be rendered even attached to something that would refuse
+it. With no engine reachable the note is the app's own reading of the numbers,
+signed as the built-in tutor.
+
+`tests/notice.test.mjs` covers the restraint rather than the wording, including
+that every argument a suggestion may carry is one the action actually declares
+— which is the test that was missing when a button reading "Set the goal to 30"
+passed `undefined` to the action the moment it was pressed.
+
 ## Feedback
 
 A floating button on every screen. Each report carries the screen, the engine,

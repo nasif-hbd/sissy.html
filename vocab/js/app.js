@@ -42,6 +42,8 @@ import { SUBJECTS, modesFor, buildRound, markOne, markRound } from './testlab.js
 import { createInstaller, downloadFor } from './install.js';
 import { Auth, serverAccounts } from './auth.js';
 import { openGate, initialOf } from './gate.js';
+import { shouldLook, digest, suggestable, validate, localNotice, remember, settle,
+         open as openNotice } from './notice.js';
 
 // ── session state ──────────────────────────────────────────────────────────
 const session = {
@@ -90,6 +92,7 @@ async function boot() {
   wireAssist();
   wireSync();
   wireAccount();
+  wireNotice();
   wireFeedbackView();
   wireInbox();
   wireTest();
@@ -145,6 +148,11 @@ async function boot() {
     drawXp(Store.state);
     drawHome(Store.state);
   }).catch(() => {});
+
+  /* Two moments, both of them after something happened rather than on a
+     clock: the app being opened, and a session ending. shouldLook() says no
+     to nearly all of them. */
+  lookAround();
 
   timer.resume();
   document.addEventListener('visibilitychange', () => {
@@ -214,6 +222,7 @@ function render() {
   renderProgress(state);
   drawXp(state);
   drawHome(state);
+  drawNotice();
   /* Profile reads the same ledger every other screen does, so it redraws with
      them. It used to redraw only when the account changed, which meant a
      streak earned since sign-in was not on it. */
@@ -1518,6 +1527,192 @@ let feedbackKind = 'idea';
  * in a few hundred characters cannot leak what it does not contain.
  */
 /* ── keeping the work somewhere else ────────────────────────────────────── */
+
+/* ── the assistant, unprompted ──────────────────────────────────────────── */
+
+/**
+ * Ask whether anything is worth saying, and if so, say it.
+ *
+ * Runs after a session ends and when the app is opened, never during one.
+ * `shouldLook` says no nearly always — the cost of asking is one cheap read of
+ * the ledger, and the cost of getting this wrong is an assistant nobody wants
+ * on. Failure is silent by design: this is not a request anyone is waiting on,
+ * so a dead network is the same as nothing worth remarking.
+ */
+let looking = false;
+async function lookAround() {
+  if (looking) return;
+  const view = $$('.view').find((v) => !v.hidden)?.dataset.view || '';
+  if (!shouldLook(Store.state, { view })) return;
+
+  looking = true;
+  try {
+    const due = readyNow(plannedSession(Store.state));
+    const saw = digest(Store.state, { due });
+
+    /* The engine gets the digest and the names of the settings it may propose
+       — never the ability to change one. What comes back is a note, and a
+       note is words plus at most the name of an action. */
+    const raw = AIClient.isLive
+      ? await AIClient.notice({ digest: saw, actions: suggestable(),
+                                level: Store.state.profile.level })
+      : null;
+
+    const note = raw
+      ? validate(raw, { engine: AIClient.engine, model: AIClient.model, saw })
+      : localNotice(Store.state, { due });
+
+    remember(note);
+    render();
+  } finally {
+    looking = false;
+  }
+}
+
+/** What the switch in Settings says about itself right now. */
+function drawNoticeSetting() {
+  const on = Boolean(Store.state.settings.notices?.enabled);
+  $('#noticeToggle').checked = on;
+  $('#noticeNote').textContent = !on
+    ? 'Off. Nothing will appear on Home.'
+    : AIClient.isLive
+      ? `${AIClient.engine} sees a summary of your counts — never your word list, your `
+        + 'answers, or anything you have typed. At most two notes a day.'
+      : 'No engine is set, so the notes are the app\u2019s own reading of your numbers, '
+        + 'written on this device. At most two a day.';
+}
+
+/** What the Accept button on a suggestion says, in the app's own words. */
+function acceptLabel(note) {
+  // The argument names are the catalogue's, not this function's — a label
+  // built from a name the action does not take reads perfectly and passes
+  // undefined when pressed, which is exactly what it did.
+  if (note.action === 'set_daily_goal') return `Set the goal to ${note.args.reviews}`;
+  if (note.action === 'set_new_per_day') return `Make it ${note.args.words} new a day`;
+  if (note.action === 'set_reminders_enabled') return note.args.on ? 'Turn reminders on' : 'Turn reminders off';
+  if (note.action === 'set_reminder') return `Add a reminder at ${note.args.time}`;
+  return 'Do it';
+}
+
+function drawNotice() {
+  const note = openNotice(Store.state);
+  const card = $('#noticeCard');
+  card.hidden = !note;
+  if (!note) return;
+
+  $('#noticeText').textContent = note.text;
+
+  /* The signature, and the reason this feature is allowed to speak first. It
+     names the engine, the model and the time, and says outright that a
+     machine wrote it — the app never lets one engine's words be labelled as
+     another's, and unprompted words need that more, not less. */
+  const when = new Date(note.at).toLocaleString(undefined,
+    { hour: 'numeric', minute: '2-digit', day: 'numeric', month: 'short' });
+  $('#noticeBy').textContent = `Written by ${note.engine}${note.model ? ` · ${note.model}` : ''} · ${when}`;
+
+  /* Once a suggestion has been accepted the card stops offering it and starts
+     offering the way back. It is the learner who closes the note, not the act
+     of agreeing to it — otherwise "Undo" would flash past with the card. */
+  const done = note.state === 'done';
+  const suggestion = !done && note.kind === 'suggestion' && note.action;
+  $('#noticeSuggest').hidden = !suggestion;
+  $('#noticeAsk').hidden = done || note.kind !== 'question';
+  $('#noticePlain').hidden = suggestion || (!done && note.kind === 'question');
+  if (suggestion) $('#noticeAccept').textContent = acceptLabel(note);
+
+  if (done) {
+    $('#noticeText').textContent = note.result || note.text;
+    // The closure that undoes it lives on this page only. After a reload
+    // there is nothing to offer, so nothing is offered.
+    $('#noticeUndo').hidden = !(undoable && undoable.id === note.id);
+    $('#noticeOk').textContent = 'Close';
+  } else {
+    $('#noticeUndo').hidden = true;
+    $('#noticeOk').textContent = 'Got it';
+  }
+}
+
+/* The way back out of an accepted suggestion. A closure, so it lives on this
+   page only — which is why the button is drawn from it rather than from the
+   note, and why a reload offers nothing it cannot deliver. */
+let undoable = null;
+
+function wireNotice() {
+  $('#noticeOk').addEventListener('click', () => {
+    const note = openNotice(Store.state);
+    settle(note?.id, note?.state === 'done' ? 'accepted' : 'dismissed');
+    undoable = null;
+    render();
+  });
+
+  $('#noticeDecline').addEventListener('click', () => {
+    settle(openNotice(Store.state)?.id, 'declined');
+    render();
+    toast('Left as it was.');
+  });
+
+  /* The only path from a suggestion to a change, and it runs through the same
+     runAction and the same Undo as everything the assistant does when asked.
+     Nothing about a note being unprompted earns it a shortcut. */
+  $('#noticeAccept').addEventListener('click', async () => {
+    const note = openNotice(Store.state);
+    if (!note?.action) return;
+
+    const result = await runAction(note.action, note.args, await actionContext());
+    if (result?.refused) {
+      /* The action refused what the note offered — a range it would not take,
+         or a state that has moved since. The note becomes the refusal rather
+         than a button that does nothing. */
+      settle(note.id, 'done', { result: `Not done: ${result.refused}` });
+      undoable = null;
+      render();
+      return;
+    }
+
+    undoable = result.undo ? { id: note.id, undo: result.undo } : null;
+    settle(note.id, 'done', { result: result.say || 'Done.' });
+    render();
+    toast(result.say || 'Done.');
+  });
+
+  $('#noticeUndo').addEventListener('click', () => {
+    if (!undoable) return;
+    undoable.undo();
+    settle(undoable.id, 'declined');
+    undoable = null;
+    render();
+    toast('Put back.');
+  });
+
+  $('#noticeAsk').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const answer = $('#noticeAnswer').value.trim().slice(0, 200);
+    /* Kept on the note and shown to the engine next time, so an answer is a
+       reply rather than a form submission into nothing. */
+    settle(openNotice(Store.state)?.id, 'answered', { answer });
+    $('#noticeAnswer').value = '';
+    render();
+    toast(answer ? 'Noted.' : 'Skipped.');
+  });
+
+  const toggle = $('#noticeToggle');
+  toggle.checked = Boolean(Store.state.settings.notices?.enabled);
+  toggle.addEventListener('change', () => {
+    Store.set('settings.notices.enabled', toggle.checked);
+    drawNoticeSetting();
+    toast(toggle.checked ? 'It will speak up when it has something.' : 'It will stay quiet.');
+    if (toggle.checked) lookAround();
+  });
+  drawNoticeSetting();
+
+  $('#noticeOff').addEventListener('click', () => {
+    Store.set('settings.notices.enabled', false);
+    settle(openNotice(Store.state)?.id, 'dismissed');
+    render();
+    $('#noticeToggle').checked = false;
+    toast('It will not speak up again. Settings can turn it back on.');
+  });
+}
 
 /**
  * What happens the moment someone stops being a guest.

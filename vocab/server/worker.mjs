@@ -22,6 +22,7 @@
 import {
   wordPrompt, wordSchema, quizPrompt, quizSchema,
   suggestPrompt, suggestSchema, coachPrompt, reportPrompt, assessPrompt, askPrompt,
+  noticePrompt, noticeSchema,
 } from './prompts.mjs';
 import { geminiJson, geminiStream, configure as configureGemini,
          geminiDefaultModel, hasGeminiKey, geminiAct, toolResult,
@@ -702,6 +703,22 @@ const routes = {
     }
     data.answerIndex = Math.max(0, Math.min(data.options.length - 1, data.answerIndex | 0));
     return { ok: true, data };
+  },
+
+  /**
+   * One unprompted note about how the learner is doing.
+   *
+   * Structured output rather than a tool loop, on purpose: the shape it can
+   * answer in has no room for an action being taken, only for one being
+   * named. Nothing this route returns can change anything by itself.
+   */
+  'POST /api/ai/notice': async (body, env) => {
+    const note = await askJson(provider(body, env), noticePrompt({
+      digest: body?.digest || {},
+      actions: Array.isArray(body?.actions) ? body.actions.slice(0, 12) : [],
+      level: body?.level,
+    }), noticeSchema, body, env);
+    return { ok: true, data: note };
   },
 
   'POST /api/ai/suggest': async (body, env) => {

@@ -45,6 +45,7 @@
     <symbol id="i-plane" viewBox="0 0 24 24"><path d="M20 4L3.5 10.5l6.5 2.5 2.5 6.5z"/><path d="M20 4l-10 9"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
     <symbol id="i-trend" viewBox="0 0 24 24"><path d="M4 16.5l5-5 3.5 3.5L20 7.5"/><path d="M15 7.5h5v5"/></symbol>
+    <symbol id="i-bot" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 4.5V8"/><circle cx="12" cy="3.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="9" cy="13" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="13" r="1.2" fill="currentColor" stroke="none"/></symbol>
     <symbol id="i-face" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.75"/><path d="M4.5 20c0-3.6 3.4-5.75 7.5-5.75s7.5 2.15 7.5 5.75"/></symbol>
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
 </svg>
@@ -212,6 +213,41 @@
           </div>
           <p class="hero__aside" id="homeJourney"></p>
         </header>
+
+        <!-- ═══ The unprompted note ═════════════════════════════════════
+             Nobody asked for this one, so it says who wrote it, when, and
+             that a machine did. It appears rarely (notice.js sets the rules),
+             it never acts by itself, and the signature line carries the way
+             to switch it off. Placed under the greeting rather than above it
+             because the app's own headline is more useful more often. -->
+        <article class="notice" id="noticeCard" hidden>
+          <div class="notice__body">
+            <p class="notice__text" id="noticeText"></p>
+
+            <!-- Only one of these three is ever shown. -->
+            <div class="notice__acts" id="noticeSuggest" hidden>
+              <button class="btn btn--primary btn--sm" id="noticeAccept" type="button"></button>
+              <button class="btn btn--quiet btn--sm" id="noticeDecline" type="button">No thanks</button>
+            </div>
+            <form class="notice__acts" id="noticeAsk" hidden>
+              <input class="input grow" id="noticeAnswer" type="text" maxlength="200"
+                     aria-label="Your answer" placeholder="Answer, if you like…">
+              <button class="btn btn--quiet btn--sm" type="submit">Send</button>
+            </form>
+            <div class="notice__acts" id="noticePlain" hidden>
+              <button class="btn btn--quiet btn--sm" id="noticeUndo" type="button" hidden>Undo</button>
+              <button class="btn btn--quiet btn--sm" id="noticeOk" type="button">Got it</button>
+            </div>
+          </div>
+
+          <!-- The signature. Not decoration: nobody invited these words, so
+               they say whose they are before anything else. -->
+          <p class="notice__sign">
+            <svg class="ico ico--sm" aria-hidden="true"><use href="#i-bot"/></svg>
+            <span id="noticeBy"></span>
+            <button class="notice__off" id="noticeOff" type="button">Turn these off</button>
+          </p>
+        </article>
 
         <!-- Four tiles. They read "0" on a fresh install, which is the truth
              on day one and the reason the hero above says what to do next. -->
@@ -1112,6 +1148,19 @@
               <button class="btn btn--quiet btn--sm" id="aiTest" type="button">Check again</button>
             </div>
           </div>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title">The assistant speaking first</h3>
+          <p class="hint">Once in a while it looks at how your week is going and says one
+             thing — a remark, a question, or a setting worth changing. It never changes
+             anything itself: a suggestion is a button you press, and it can be undone.
+             Every note says which engine wrote it.</p>
+          <label class="check">
+            <input type="checkbox" id="noticeToggle">
+            <span>Let it speak up on its own</span>
+          </label>
+          <p class="hint" id="noticeNote"></p>
         </div>
 
         <div class="card">

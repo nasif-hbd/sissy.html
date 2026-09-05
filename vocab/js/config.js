@@ -16,7 +16,7 @@ export const APP = {
    * by hunting for a changed sentence somewhere in the interface is how an
    * afternoon disappears. Bumped with the service worker's cache name.
    */
-  build: 'v40',
+  build: 'v41',
   /**
    * Where feedback goes when there is no proxy to post it to.
    *
@@ -174,6 +174,7 @@ export const AI = {
     report: '/api/ai/report',
     assess: '/api/ai/assess',
     ask: '/api/ai/ask',
+    notice: '/api/ai/notice',
     health: '/api/health',
   },
   timeoutMs: 45_000,

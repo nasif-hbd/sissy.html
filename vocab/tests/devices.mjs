@@ -109,6 +109,27 @@ for (const device of DEVICES) {
   await page.waitForSelector('#app', { state: 'visible' });
   await page.waitForTimeout(200);
 
+  /* One unprompted note, put straight into the store so Home carries it at
+     every size. It appears rarely by design, which is exactly why it would
+     otherwise never be measured — and it is the widest thing on that screen:
+     a long sentence, two buttons and a signature line that has to wrap
+     rather than push the card sideways. */
+  await page.evaluate(() => {
+    const { Store, render } = window.VocabX;
+    Store.commit((s) => {
+      s.notices = [{
+        id: 'sweep', at: Date.now(), day: new Date().toISOString().slice(0, 10),
+        engine: 'Gemini', model: 'gemini-flash-lite-latest', kind: 'suggestion',
+        text: 'You are at 85% correct over the week on a five-day streak, which is '
+          + 'comfortable enough to take on a few more words each day.',
+        action: 'set_daily_goal', args: { reviews: 30 }, state: 'open',
+        saw: { streak: 5, accuracy7: 0.85, reviews7: 140, studied: 40 },
+      }];
+    });
+    render();
+  });
+  await page.waitForTimeout(150);
+
   /* The rail starts closed, and choosing a view closes it again on a narrow
      screen — so the sweep opens it before each move rather than once. */
   const goto = async (tab) => {

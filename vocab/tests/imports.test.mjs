@@ -104,6 +104,12 @@ function declaredIn(code) {
   for (const [, list] of code.matchAll(/\(\s*(\{[^{}]*\})[^)]*\)/g)) {
     for (const name of bindingsIn(list)) names.add(name);
   }
+  /* Method shorthand in an object literal: `settle(id) {` reads exactly like
+     a call to something named settle, and Auth has a method by the same name
+     as one of notice.js's exports. A member is the object's own. */
+  for (const [, name] of code.matchAll(/^\s*(?:async\s+)?\*?\s*([\w$]+)\s*\([^()]*\)\s*\{/gm)) {
+    names.add(name);
+  }
   return names;
 }
 
