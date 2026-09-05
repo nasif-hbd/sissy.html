@@ -740,6 +740,24 @@ to it on the next sync, and adding would inflate every day a little more each
 round), and both answer logs survive. `tests/merge.test.mjs` pins it, including
 that a second merge changes nothing.
 
+## Profile
+
+One screen for who you are, and the same screen whether or not you signed up.
+Standing, streak, days active and time studied are the learner's, not the
+account's — hiding them behind a signup would be a lie about where the work
+lives. What an account adds is an email line, a join date that is true on every
+device, and somewhere to sign out.
+
+The name is the one field either kind of person can set. A guest's lives in
+`profile.name` on the device; an account's goes through `/api/auth/rename` so it
+follows them, and signing up hands the account whatever name the guest was
+already using rather than asking twice. `myName()` is the single place that
+decides which of the two is showing.
+
+The header avatar opens it. That badge was decoration before — a level number
+where a face would go — and it is now the one thing on screen that most looks
+like "you" doing the job it looks like it does.
+
 Accounts need D1 specifically — KV has no unique index, so it cannot promise one
 address is one account. The health route says whether this deployment has one,
 and the app hides the buttons rather than offering a form whose last step fails.

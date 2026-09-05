@@ -45,6 +45,7 @@
     <symbol id="i-plane" viewBox="0 0 24 24"><path d="M20 4L3.5 10.5l6.5 2.5 2.5 6.5z"/><path d="M20 4l-10 9"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
     <symbol id="i-trend" viewBox="0 0 24 24"><path d="M4 16.5l5-5 3.5 3.5L20 7.5"/><path d="M15 7.5h5v5"/></symbol>
+    <symbol id="i-face" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.75"/><path d="M4.5 20c0-3.6 3.4-5.75 7.5-5.75s7.5 2.15 7.5 5.75"/></symbol>
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
 </svg>
 
@@ -85,15 +86,23 @@
          forget, and a tutor that answers with no connection at all.</p>
 
       <div class="gate__acts">
-        <button class="btn btn--primary btn--wide gate__go" id="gateGuest" type="button">
-          Start learning
+        <button class="btn btn--primary btn--wide gate__go" id="gateNew" type="button">
+          Sign up
         </button>
-        <button class="btn btn--quiet btn--wide" id="gateNew" type="button">Create an account</button>
-        <button class="btn btn--wide gate__link" id="gateOld" type="button">I already have one</button>
+        <button class="btn btn--quiet btn--wide" id="gateOld" type="button">Log in</button>
       </div>
 
-      <p class="gate__foot" id="gateFoot">Starting takes nothing — no email, no account.
-         Everything stays on this device. You can add an account later from Settings.</p>
+      <!-- Small on purpose, and still a real way through: a guest gets every
+           feature. If this deployment cannot hold accounts the two buttons
+           above go away and gate.js promotes this one, so the screen is never
+           left with nothing but fine print. -->
+      <p class="gate__aside">
+        <button class="gate__tiny" id="gateGuest" type="button">Continue as a guest</button>
+      </p>
+
+      <p class="gate__foot" id="gateFoot">An account keeps your streak, your schedule and
+         your word list when this browser is cleared, and carries them to another device.
+         A guest gets all of it too — on this device only.</p>
     </section>
 
     <!-- ── sign in / sign up ── -->
@@ -176,7 +185,7 @@
       <!-- The design's avatar. A guest has no face to show, so it stays the
            level badge; signed in it is the initial, which is the one true
            thing the app knows to put there. -->
-      <span class="avatar" id="levelBadge" title="Your level">1</span>
+      <button class="avatar" id="levelBadge" type="button" title="Your level">1</button>
     </div>
   </header>
 
@@ -837,6 +846,67 @@
 
     <!-- ───────────────────────── Settings ───────────────────────── -->
     <!-- ─────────────────────── Feedback ─────────────────────── -->
+    <!-- Who you are, which for a guest is still a real answer: a name they
+         chose, kept on the device, and the same standing and streak an account
+         holder sees. Nothing here is withheld until someone signs up. -->
+    <section class="view" id="view-profile" data-view="profile" hidden>
+      <h2 class="sr-only">Profile</h2>
+      <div class="stack">
+
+        <div class="card profile__head">
+          <span class="profile__face" id="profFace" aria-hidden="true"></span>
+          <div class="profile__who">
+            <b id="profName">Learner</b>
+            <span class="hint" id="profWhere"></span>
+            <span class="profile__rank" id="profTitle"></span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title">Your name</h3>
+          <p class="hint" id="profNameHint">What the app calls you. Kept on this device.</p>
+          <div class="row">
+            <input class="input grow" id="profNameInput" type="text" maxlength="40"
+                   autocomplete="name" aria-label="Your name" placeholder="Your name">
+            <button class="btn btn--quiet" id="profNameSave" type="button">Save</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title">Standing</h3>
+          <p class="hint" id="profLevelNote"></p>
+          <div class="goalbar__track"><div class="goalbar__fill" id="profLevelFill"></div></div>
+          <div class="profile__stats" id="profStats"></div>
+        </div>
+
+        <div class="card" id="profExam" hidden>
+          <h3 class="card__title">Level check</h3>
+          <p class="hint" id="profExamNote"></p>
+          <button class="btn btn--quiet btn--wide" id="profExamGo" type="button">Take it again</button>
+        </div>
+
+        <div class="card" id="profAccount">
+          <h3 class="card__title">Account</h3>
+          <p class="status" id="acctStatus"><i class="status__dot"></i><span id="acctHow"></span></p>
+
+          <div class="row row--even" id="acctOut">
+            <button class="btn btn--primary" id="acctSignup" type="button">Sign up</button>
+            <button class="btn btn--quiet" id="acctSignin" type="button">Log in</button>
+          </div>
+
+          <div class="acct" id="acctIn" hidden>
+            <div class="row row--even">
+              <button class="btn btn--quiet" id="acctSignout" type="button">Sign out</button>
+              <button class="btn btn--quiet" id="acctSignoutAll" type="button">Sign out everywhere</button>
+            </div>
+            <p><button class="btn btn--danger btn--wide" id="acctErase" type="button">
+              Delete my account</button></p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
     <section class="view" id="view-feedback" data-view="feedback" hidden>
       <h2 class="sr-only">Send feedback</h2>
       <div class="stack">
@@ -1043,30 +1113,11 @@
           </div>
         </div>
 
-        <div class="card" id="accountCard">
+        <div class="card">
           <h3 class="card__title">Account</h3>
-          <p class="status" id="acctStatus"><i class="status__dot"></i><span id="acctHow"></span></p>
-
-          <div class="row row--even" id="acctOut">
-            <button class="btn btn--primary" id="acctSignup" type="button">Create an account</button>
-            <button class="btn btn--quiet" id="acctSignin" type="button">Sign in</button>
-          </div>
-
-          <div class="acct" id="acctIn" hidden>
-            <div class="acct__who">
-              <span class="acct__face" id="acctFace" aria-hidden="true"></span>
-              <div class="acct__names">
-                <b id="acctName"></b>
-                <span class="hint" id="acctEmail"></span>
-              </div>
-            </div>
-            <div class="row row--even">
-              <button class="btn btn--quiet" id="acctSignout" type="button">Sign out</button>
-              <button class="btn btn--quiet" id="acctSignoutAll" type="button">Sign out everywhere</button>
-            </div>
-            <p><button class="btn btn--danger btn--wide" id="acctErase" type="button">
-              Delete my account</button></p>
-          </div>
+          <p class="hint" id="settingsAcctHint"></p>
+          <button class="btn btn--quiet btn--wide" id="settingsProfile" type="button">
+            Open Profile</button>
         </div>
 
         <div class="card">
@@ -1187,6 +1238,7 @@
     <button class="tab" data-tab="ask"><svg class="ico" aria-hidden="true"><use href="#i-bulb"/></svg><span class="tab__label">Ask</span></button>
     <button class="tab" data-tab="words"><svg class="ico" aria-hidden="true"><use href="#i-index"/></svg><span class="tab__label">Words</span></button>
     <button class="tab" data-tab="progress"><svg class="ico" aria-hidden="true"><use href="#i-ledger"/></svg><span class="tab__label">Progress</span></button>
+    <button class="tab" data-tab="profile"><svg class="ico" aria-hidden="true"><use href="#i-face"/></svg><span class="tab__label">Profile</span></button>
     <button class="tab" data-tab="settings"><svg class="ico" aria-hidden="true"><use href="#i-setup"/></svg><span class="tab__label">Settings</span></button>
 
     <div class="nav-foot">

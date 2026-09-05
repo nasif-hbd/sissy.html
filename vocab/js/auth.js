@@ -160,6 +160,15 @@ export const Auth = {
     if (token) { try { await post('/api/auth/logout', { token, everywhere }); } catch { /* it lapses */ } }
   },
 
+  /** Change the display name on the account. Guests keep theirs in the store. */
+  async rename(name) {
+    const token = this.token;
+    if (!token) return { ok: false, error: 'Not signed in.' };
+    const out = await post('/api/auth/rename', { token, name });
+    if (out?.ok) this.hold(token, out.user);
+    return out;
+  },
+
   /** Delete the account and everything kept with it, server-side. */
   async erase() {
     const token = this.token;

@@ -30,7 +30,7 @@ const DEVICES = [
   { name: 'desktop',     w: 1680, h: 1050, dsf: 1 },
 ];
 
-const VIEWS = ['home', 'learn', 'modules', 'test', 'ask', 'words', 'progress', 'settings'];
+const VIEWS = ['home', 'learn', 'modules', 'test', 'ask', 'words', 'progress', 'profile', 'settings'];
 /**
  * Views with no tab of their own. Each names the button that opens it, and the
  * element that proves it arrived — the level check in particular renders a

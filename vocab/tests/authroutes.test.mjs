@@ -46,7 +46,7 @@ test('signing up returns a session and never the password material', async () =>
 
   assert.equal(body.ok, true);
   assert.ok(body.token);
-  assert.deepEqual(Object.keys(body.user).sort(), ['email', 'id', 'name']);
+  assert.deepEqual(Object.keys(body.user).sort(), ['email', 'id', 'made', 'name']);
 
   const text = JSON.stringify(body);
   assert.ok(!text.includes(V1), 'the verifier came back in the response');
@@ -190,4 +190,47 @@ test('a limiter that cannot work lets the app work', async () => {
   const e = { DB: { prepare: () => { throw new Error('no such table'); } } };
   const { withinRate } = await import('../server/store.mjs');
   assert.equal(await withinRate(e, '203.0.113.9'), true);
+});
+
+test('a name can be changed, and only by its owner', async () => {
+  const e = env();
+  const { body: mine } = await call('/api/auth/signup', { email: 'me@b.com', name: 'Me', verifier: V1 }, e);
+  const { body: yours } = await call('/api/auth/signup', { email: 'you@b.com', name: 'You', verifier: V2 }, e);
+
+  const renamed = await call('/api/auth/rename', { token: mine.token, name: '  Nasif   Ahmed ' }, e);
+  assert.equal(renamed.body.user.name, 'Nasif Ahmed', 'whitespace reached the database');
+
+  // It comes back on the next resume, not just in this reply.
+  assert.equal((await call('/api/auth/session', { token: mine.token }, e)).body.user.name, 'Nasif Ahmed');
+  // And it went nowhere near the other account.
+  assert.equal((await call('/api/auth/session', { token: yours.token }, e)).body.user.name, 'You');
+});
+
+test('renaming needs a session, not a uid', async () => {
+  const e = env();
+  const { body: mine } = await call('/api/auth/signup', { email: 'me@b.com', name: 'Me', verifier: V1 }, e);
+  const out = await call('/api/auth/rename', { uid: mine.user.id, name: 'Someone Else' }, e);
+  assert.equal(out.body.ok, false);
+  // A device id names data, never an account — it must not be able to rename one.
+  assert.equal((await call('/api/auth/session', { token: mine.token }, e)).body.user.name, 'Me');
+});
+
+test('an emptied name becomes something, not nothing', async () => {
+  const e = env();
+  const { body: mine } = await call('/api/auth/signup', { email: 'jane.doe@b.com', verifier: V1 }, e);
+  const out = await call('/api/auth/rename', { token: mine.token, name: '   ' }, e);
+  // A blank header is worse than a guess, and the address is a decent guess.
+  assert.equal(out.body.user.name, 'Jane doe');
+});
+
+test('the join date travels with the account', async () => {
+  const e = env();
+  const { body } = await call('/api/auth/signup', { email: 'a@b.com', verifier: V1 }, e);
+  /* Profile says "member since". The local install date cannot answer that —
+     signing in on a new phone would date the membership to this morning. */
+  assert.match(body.user.made, /^\d{4}-\d{2}-\d{2}T/);
+  assert.equal((await call('/api/auth/login', { email: 'a@b.com', verifier: V1 }, e)).body.user.made,
+    body.user.made);
+  assert.equal((await call('/api/auth/session', { token: body.token }, e)).body.user.made,
+    body.user.made);
 });

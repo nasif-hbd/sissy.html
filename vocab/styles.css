@@ -1724,6 +1724,37 @@ body { transition: padding-left .22s ease; }
   box-shadow: 0 10px 30px rgb(92 76 255 / .38), inset 0 1px 0 rgb(255 255 255 / .22);
 }
 
+/* Guest, deliberately quiet — a text link under two buttons, not a third
+   button competing with them. Still a full-size tap target: small type is a
+   matter of emphasis and must not become a matter of whether a thumb can
+   hit it. */
+.gate__aside { margin: 14px 0 0; text-align: center; }
+.gate__tiny {
+  min-height: var(--tap);
+  padding: 0 14px;
+  background: none;
+  border: 0;
+  color: var(--ink-3);
+  font: inherit;
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+/* Promoted when it is the only way in — see gate.js. */
+.gate__tiny--only {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  border-radius: 15px;
+  background: linear-gradient(135deg, #7c6cff, #5b8cff);
+  color: #fff;
+  font-size: 15px;
+  text-decoration: none;
+  box-shadow: 0 10px 30px rgb(92 76 255 / .38), inset 0 1px 0 rgb(255 255 255 / .22);
+}
+
 .gate__link {
   background: none;
   border-color: transparent;
@@ -1792,21 +1823,10 @@ body { transition: padding-left .22s ease; }
   .gate__bloom, .gate__panel, .gate__go.is-busy::after { animation: none; }
 }
 
-/* ── the account card, in Settings ──────────────────────────────────────── */
+/* ── the account block, on Profile ──────────────────────────────────────── */
+/* The face and the name moved to the profile header above it, so all this
+   needs to be is a column of buttons. */
 .acct { display: flex; flex-direction: column; gap: 13px; }
-.acct__who { display: flex; align-items: center; gap: 12px; }
-.acct__face {
-  display: grid; place-items: center;
-  flex: none;
-  width: 42px; height: 42px;
-  border-radius: 50%;
-  background: var(--accent);
-  color: var(--accent-ink);
-  font-family: var(--sans); font-size: 17px; font-weight: 600;
-}
-.acct__names { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.acct__names b { font-size: 15px; }
-.acct__names .hint { margin: 0; overflow-wrap: anywhere; }
 
 /* Signed in, the header avatar carries an initial rather than a level, so it
    takes the accent instead of the level badge's quieter fill. */
@@ -1842,3 +1862,60 @@ body.is-gated { overflow: hidden; }
   ::view-transition-old(view),
   ::view-transition-new(view) { animation-duration: 1ms; }
 }
+
+/* ── Profile ────────────────────────────────────────────────────────────── */
+/* `.card` is not flex — a bare flex-direction here did nothing at all and the
+   avatar sat on its own line above the name. */
+.profile__head { display: flex; align-items: center; gap: 15px; }
+.profile__face {
+  display: grid; place-items: center;
+  flex: none;
+  width: 62px; height: 62px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--accent),
+              color-mix(in srgb, var(--accent) 60%, var(--info)));
+  color: var(--accent-ink);
+  font-family: var(--sans); font-size: 25px; font-weight: 700;
+}
+.profile__who { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.profile__who b { font-family: var(--sans); font-size: 19px; letter-spacing: var(--tracking-md); }
+/* An email is one long unbreakable token on a 320px screen. */
+.profile__who .hint { margin: 0; overflow-wrap: anywhere; }
+.profile__rank {
+  align-self: flex-start;
+  margin-top: 3px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-family: var(--sans); font-size: 11.5px; font-weight: 600;
+}
+
+/* Six numbers, two or three across. auto-fit rather than a fixed count, so
+   the same rule serves a 320px phone and a desktop without a breakpoint. */
+.profile__stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+.profile__stat {
+  display: flex; flex-direction: column; gap: 2px;
+  padding: 12px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius-sm);
+  background: var(--paper-sunk);
+}
+.profile__stat b {
+  font-family: var(--sans); font-size: 20px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.profile__stat span { font-size: 11.5px; color: var(--ink-2); }
+
+/* The header avatar is a button now, so it needs a button's manners and none
+   of a button's default chrome. */
+/* No `font: inherit` here, tempting as it is: this rule comes after the one
+   that gives the avatar its face and size, and the shorthand would reset both
+   back to the browser's button default. */
+.avatar { border: 0; padding: 0; cursor: pointer; }
+.avatar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

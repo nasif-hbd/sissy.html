@@ -28,7 +28,9 @@ function freshState() {
   return {
     version: APP.schemaVersion,
     createdAt: Date.now(),
-    profile: { level: DEFAULTS.level },
+    /* `name` is what the app calls you. A guest picks one and it stays here;
+       signing in replaces it with the account's, so the two never disagree. */
+    profile: { level: DEFAULTS.level, name: '' },
     settings: {
       theme: DEFAULTS.theme,
       language: 'off',

@@ -158,34 +158,41 @@ function table(db) {
       + 'email TEXT PRIMARY KEY, n INTEGER NOT NULL, until TEXT NOT NULL)'),
   ]);
 
-  const account = (row) => (row ? { id: row.id, email: row.email, name: row.name } : null);
+  /* `made` travels with the account so a profile can say "member since"
+     truthfully. The local install date cannot: signing in on a new phone
+     would date the membership to this morning. */
+  const account = (row) =>
+    (row ? { id: row.id, email: row.email, name: row.name, made: row.made } : null);
 
   return {
     /** The id is what sync keys on, so it is opaque and never the email. */
     async create({ email, name, verifier }) {
       await ready;
       const id = `u${randomHex(16)}`;
+      const made = now();
       const pass = await lockUp(verifier);
       try {
         await db.prepare('INSERT INTO users (id, email, name, pass, made, seen) VALUES (?, ?, ?, ?, ?, ?)')
-          .bind(id, email, name, pass, now(), now()).run();
+          .bind(id, email, name, pass, made, made).run();
       } catch (err) {
         // The unique index is the only thing that can reject this, and it is
         // also the only thing that makes the check race-free.
         if (/UNIQUE|constraint/i.test(err?.message || '')) return null;
         throw err;
       }
-      return { id, email, name };
+      return { id, email, name, made };
     },
 
     async byEmail(email) {
       await ready;
-      return db.prepare('SELECT id, email, name, pass FROM users WHERE email = ?').bind(email).first();
+      return db.prepare('SELECT id, email, name, pass, made FROM users WHERE email = ?')
+        .bind(email).first();
     },
 
     async byId(id) {
       await ready;
-      return account(await db.prepare('SELECT id, email, name FROM users WHERE id = ?').bind(id).first());
+      return account(await db.prepare('SELECT id, email, name, made FROM users WHERE id = ?')
+        .bind(id).first());
     },
 
     /** Mint a session and hand back the only copy of the token. */
@@ -207,7 +214,7 @@ function table(db) {
       await ready;
       const hash = await sha256(token);
       const row = await db.prepare(
-        'SELECT s.until AS until, u.id AS id, u.email AS email, u.name AS name '
+        'SELECT s.until AS until, u.id AS id, u.email AS email, u.name AS name, u.made AS made '
         + 'FROM sessions s JOIN users u ON u.id = s.uid WHERE s.token = ?').bind(hash).first();
       if (!row) return null;
       if (row.until <= now()) {
@@ -255,6 +262,12 @@ function table(db) {
     async clearFailures(email) {
       await ready;
       await db.prepare('DELETE FROM tries WHERE email = ?').bind(email).run();
+    },
+
+    /** The one thing about an account its owner can change. */
+    async rename(uid, name) {
+      await ready;
+      await db.prepare('UPDATE users SET name = ? WHERE id = ?').bind(name, uid).run();
     },
 
     /**

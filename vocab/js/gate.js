@@ -151,6 +151,14 @@ export function openGate({ mode = 'choose', dismissible = false } = {}) {
 
   // ── open ─────────────────────────────────────────────────────────────────
 
+  /* Reset what a previous opening may have done. The no-accounts branch below
+     hides two buttons and promotes a third, and none of that was ever undone —
+     so a gate opened offline once stayed in its fallback shape for the rest of
+     the session, even after the network came back. */
+  $('#gateNew').hidden = false;
+  $('#gateOld').hidden = false;
+  $('#gateGuest').classList.remove('gate__tiny--only');
+
   gate.hidden = false;
   document.body.classList.add('is-gated');
   if (mode === 'choose') showChoose(); else showForm(kind);
@@ -168,6 +176,10 @@ export function openGate({ mode = 'choose', dismissible = false } = {}) {
     if (can || !live) return;
     $('#gateNew').hidden = true;
     $('#gateOld').hidden = true;
+    /* Guest is normally the small print under two buttons. With the buttons
+       gone it is the only way in, so it stops being small print — a screen
+       whose single control is a text link reads as a screen that failed. */
+    $('#gateGuest').classList.add('gate__tiny--only');
     $('#gateFoot').textContent = 'Accounts are not set up on this deployment yet, '
       + 'so everything is kept on this device. Nothing else is missing.';
     if (!panes.form.hidden) showChoose();

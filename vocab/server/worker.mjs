@@ -529,7 +529,7 @@ const routes = {
     }
 
     await users.clearFailures(email);
-    const user = { id: row.id, email: row.email, name: row.name };
+    const user = { id: row.id, email: row.email, name: row.name, made: row.made };
     return { ok: true, token: await users.open(user.id), user };
   },
 
@@ -555,6 +555,18 @@ const routes = {
       await users.close(body.token);
     }
     return { ok: true };
+  },
+
+  /** The display name, which is the only field an account holder can change. */
+  'POST /api/auth/rename': async (body, env) => {
+    const users = accountsOf(env);
+    if (!users) return { ok: false, error: NO_ACCOUNTS };
+    const who = await whoIs(body, env);
+    if (!who?.account) return { ok: false, error: 'Signed out.' };
+
+    const name = cleanName(body?.name, who.account.email);
+    await users.rename(who.account.id, name);
+    return { ok: true, user: { ...who.account, name } };
   },
 
   /** Deleting has to be as easy as signing up, or "your data is yours" is a slogan. */

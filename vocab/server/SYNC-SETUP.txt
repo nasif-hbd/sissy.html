@@ -50,12 +50,14 @@ server copy.
 
 ACCOUNTS
 
-   The app asks once, on a first run: start learning, create an account, or
-   sign in. Later it is Settings → Account.
+   The app asks once, on a first run: sign up, log in, or continue as a
+   guest. Later it is the Profile screen — the header avatar opens it.
 
-   Guest is a real answer, not a trial. Everything works; nothing is
-   nagged; nothing is withheld. An account buys exactly one thing — the work
-   survives a cleared browser and follows you to another device.
+   Guest is a real answer, not a trial, even though it is the small print
+   under the two buttons. Everything works; nothing is nagged; nothing is
+   withheld — a guest gets the same Profile screen, the same standing and the
+   same streak. An account buys exactly one thing: the work survives a
+   cleared browser and follows you to another device.
 
    THE PASSWORD NEVER REACHES THE SERVER
 

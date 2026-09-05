@@ -214,6 +214,10 @@ function render() {
   renderProgress(state);
   drawXp(state);
   drawHome(state);
+  /* Profile reads the same ledger every other screen does, so it redraws with
+     them. It used to redraw only when the account changed, which meant a
+     streak earned since sign-in was not on it. */
+  drawProfile();
   renderLevelSummary(state.placement || null);
 }
 
@@ -1587,7 +1591,85 @@ function drawBadge(state = Store.state) {
   badge.classList.toggle('avatar--who', Boolean(user));
 }
 
-/** The account card in Settings, and the initial in the header. */
+/**
+ * The name to put on screen.
+ *
+ * An account's name wins, because it is the one that followed you here. A
+ * guest's is theirs alone and lives on the device — which is the only place a
+ * guest has, and is not a lesser answer.
+ */
+function myName() {
+  return (Auth.isIn ? Auth.user?.name : Store.state.profile?.name) || '';
+}
+
+/**
+ * The Profile screen.
+ *
+ * The same screen for a guest and for someone signed in — the standing, the
+ * streak and the ledger are the learner's, not the account's, and hiding them
+ * behind a signup would be a lie about where the work lives. What the account
+ * adds is an email line and somewhere to sign out.
+ */
+function drawProfile() {
+  const state = Store.state;
+  const user = Auth.isIn ? Auth.user : null;
+  const name = myName();
+  const s = summary(state);
+  const rank = standing(state.xp?.total || 0);
+
+  $('#profFace').textContent = (name || '?').trim()[0]?.toUpperCase() || '?';
+  $('#profName').textContent = name || 'Learner';
+  $('#profTitle').textContent = `Level ${rank.level} · ${rank.title}`;
+  $('#profWhere').textContent = user
+    ? `${user.email} · member since ${monthOf(user.made)}`
+    : `Guest · on this device since ${monthOf(state.createdAt)}`;
+
+  /* An account's name is on the server, a guest's is on the device, and the
+     hint says which so nobody is surprised by where it did or did not follow
+     them. */
+  $('#profNameHint').textContent = user
+    ? 'What the app calls you, saved to your account and shown on every device you sign in on.'
+    : 'What the app calls you. Kept on this device — an account would carry it with you.';
+  // Not clobbered mid-edit: this redraws on every store change.
+  if (document.activeElement !== $('#profNameInput')) $('#profNameInput').value = name;
+
+  $('#profLevelNote').textContent = rank.need
+    ? `${rank.into} of ${rank.need} XP towards level ${rank.level + 1}.`
+    : `Level ${rank.level}.`;
+  $('#profLevelFill').style.width = `${Math.round(rank.pct * 100)}%`;
+
+  const minutes = Math.round(
+    Object.values(state.days || {}).reduce((n, d) => n + (d.seconds || 0), 0) / 60);
+  $('#profStats').replaceChildren(...[
+    ['Words learned', s.studied],
+    ['Now in review', s.known],
+    ['Day streak', s.streak],
+    ['Longest streak', s.longest],
+    ['Days active', activeDays(state)],
+    ['Time studied', minutes >= 60 ? `${Math.round(minutes / 60)} h` : `${minutes} min`],
+  ].map(([label, value]) => el('div', { class: 'profile__stat' },
+    el('b', { text: String(value) }), el('span', { text: label }))));
+
+  /* Only once they have sat it. An empty "your level: —" on a first run is a
+     reproach rather than information; Home already invites them to take it. */
+  const exam = state.placement;
+  $('#profExam').hidden = !exam;
+  if (exam) {
+    const when = new Date(exam.at || Date.now()).toLocaleDateString(
+      undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    $('#profExamNote').textContent = `${exam.level} — ${exam.correct} of ${exam.answered} `
+      + `right, taken ${when}.`;
+  }
+}
+
+/** "March 2026", or nothing at all rather than "Invalid Date". */
+function monthOf(when) {
+  const at = when ? new Date(when) : null;
+  if (!at || Number.isNaN(at.getTime())) return 'today';
+  return at.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+}
+
+/** The Profile screen, and the initial in the header. */
 function drawAccount() {
   const user = Auth.isIn ? Auth.user : null;
 
@@ -1599,12 +1681,14 @@ function drawAccount() {
     : 'Not signed in. Everything is on this device — which is fine, and is how '
       + 'most people use it. An account is for surviving a cleared browser.';
 
-  if (user) {
-    $('#acctFace').textContent = initialOf(user);
-    $('#acctName').textContent = user.name || 'Learner';
-    $('#acctEmail').textContent = user.email;
-  }
+  $('#settingsAcctHint').textContent = user
+    ? `Signed in as ${user.email}. Your name, your standing and signing out are on Profile.`
+    : 'Not signed in. Your name and your standing are on Profile, along with signing up.';
 
+  /* Also called from render(). Signing out does not go through render(), and a
+     profile still showing the account someone just left is worse than one
+     extra pass over six tiles. */
+  drawProfile();
   drawBadge();
   /* The sync card's answer depends on this one — signing in turns it on — so
      it is redrawn from here rather than at each of the five places that
@@ -1620,20 +1704,58 @@ function drawAccount() {
       $('#acctSignup').disabled = !can;
       $('#acctSignin').disabled = !can;
       if (!can) {
+        // "The section below" moved to Settings when this card did.
         $('#acctHow').textContent = 'Accounts are not set up on this deployment, so everything '
-          + 'is kept on this device. Nothing else is missing — the section below can still put '
-          + 'your work on another device with a code.';
+          + 'is kept on this device. Nothing else is missing — Settings can still put your '
+          + 'work on another device with a code.';
       }
     });
   }
 }
 
 function wireAccount() {
+  /* The header avatar is the thing on screen that most looks like "you", so
+     it is now the way in — it was decoration before. */
+  $('#levelBadge').addEventListener('click', () => switchView('profile'));
+  $('#settingsProfile').addEventListener('click', () => switchView('profile'));
+
+  // openAssess switches the view itself and draws the last result, so this is
+  // the whole of it — Home and Progress reach the same screen the same way.
+  $('#profExamGo').addEventListener('click', openAssess);
+
+  const saveName = async () => {
+    const name = $('#profNameInput').value.trim().slice(0, 40);
+
+    /* A guest's name goes in the store and nowhere else; an account's has to
+       reach the server or it would come back wrong on the next device. The
+       local copy is written either way, so the screen never argues with the
+       box someone just typed in. */
+    Store.set('profile.name', name);
+    if (!Auth.isIn) { drawAccount(); toast(name ? `Hello, ${name}.` : 'Name cleared.'); return; }
+
+    const out = await Auth.rename(name);
+    drawAccount();
+    toast(out?.ok ? 'Name saved to your account.' : (out?.error || 'Could not reach the server.'),
+      out?.ok ? 'ok' : 'bad');
+  };
+
+  $('#profNameSave').addEventListener('click', saveName);
+  $('#profNameInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); saveName(); }
+  });
+
   const open = async (mode) => {
     const { how } = await openGate({ mode, dismissible: true });
     if (how === 'signup' || how === 'login') await joinAccount(how);
     drawAccount();
   };
+
+  /* Signing up hands the account the name a guest was already using, rather
+     than making them type it a second time into a form that already asked. */
+  $('#acctSignup').addEventListener('click', () => {
+    const mine = Store.state.profile?.name;
+    if (mine) setTimeout(() => { const box = $('#gateName'); if (box && !box.value) box.value = mine; }, 0);
+  });
 
   $('#acctSignup').addEventListener('click', () => open('signup'));
   $('#acctSignin').addEventListener('click', () => open('signin'));
