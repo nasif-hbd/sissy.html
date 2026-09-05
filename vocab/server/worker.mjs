@@ -27,6 +27,44 @@ import { geminiJson, geminiStream, configure as configureGemini,
          geminiDefaultModel, hasGeminiKey, geminiAct, toolResult,
          geminiKeyCount } from './gemini.mjs';
 import { storeOf, withinRate, ID, LIMITS } from './store.mjs';
+import { accountsOf, cleanEmail, cleanName, isVerifier, isToken, matches,
+         CLIENT_ROUNDS, MAX_TRIES } from './accounts.mjs';
+
+/* Said in three places, and it has to be the same sentence each time: the app
+   shows it verbatim and "no database" is a setup step, not a fault. */
+const NO_ACCOUNTS = 'This deployment has no database, so it cannot hold accounts. '
+  + 'Everything still works as a guest.';
+const WRONG = 'That email and password do not match an account.';
+/* A real stored value, for an account that does not exist — see the login
+   route. Its own verifier is not a secret and could not be one: anyone can
+   make an account and hash their own password. */
+const DECOY = '00000000000000000000000000000000$'
+  + '0000000000000000000000000000000000000000000000000000000000000000';
+const NO_DB = 'No database is bound to this Worker.';
+/* One sentence for a guest id that is malformed and for a session that has
+   expired. They are the same thing from here — nothing names data this caller
+   may read — and the app knows which of its two it sent. */
+const NOT_YOU = 'This request does not name an account or a device this Worker can read.';
+const BAD_VERIFIER = 'This app sent a malformed sign-in. Reload the page and try again.';
+
+/**
+ * Whose data a request is about.
+ *
+ * A token wins over anything in the body, always, and an unusable token is
+ * refused rather than quietly demoted to whatever uid came with it. The device
+ * id is a bearer secret by design — whoever holds it can read that device's
+ * work, which is the promise localStorage already makes — but an account is
+ * not, and accepting a uid alongside a token would hand a caller exactly that.
+ */
+export async function whoIs(body, env) {
+  if (body?.token !== undefined && body?.token !== null && body?.token !== '') {
+    if (!isToken(body.token)) return null;
+    const account = await accountsOf(env)?.whose(body.token);
+    return account ? { uid: account.id, account } : null;
+  }
+  if (ID.test(body?.uid || '')) return { uid: body.uid, account: null };
+  return null;
+}
 
 const CLAUDE_MODEL = 'claude-haiku-4-5';
 const CLAUDE_MODELS = new Set([CLAUDE_MODEL, 'claude-sonnet-5', 'claude-opus-5']);
@@ -429,21 +467,123 @@ const routes = {
     return { ok: true, text: out.text, calls: out.calls, turn: out.turn };
   },
 
+  /* ── accounts ────────────────────────────────────────────────────────
+   *
+   * Optional, like everything below it. A guest gets the whole app; an
+   * account only means the work outlives this browser.
+   *
+   * The password never arrives here — the browser stretches it first and
+   * sends the result. accounts.mjs explains why, and what that does and does
+   * not buy. These routes deal only in verifiers and tokens.
+   */
+
+  'POST /api/auth/signup': async (body, env, request) => {
+    const users = accountsOf(env);
+    if (!users) return { ok: false, error: NO_ACCOUNTS };
+
+    const email = cleanEmail(body?.email);
+    if (!email) return { ok: false, error: 'That does not look like an email address.' };
+    if (!isVerifier(body?.verifier)) return { ok: false, error: BAD_VERIFIER };
+    if (!(await withinRate(env, request?.headers?.get('cf-connecting-ip'), { perHour: 20 }))) {
+      return { ok: false, error: 'Too many accounts from this network this hour.' };
+    }
+
+    /* Null means the unique index rejected it, which is also the only
+       race-free way to ask. Saying so names an address that has an account
+       here — unavoidable for a signup form, and the alternative is telling
+       someone their new account works when it does not. */
+    const made = await users.create({ email, name: cleanName(body?.name, email), verifier: body.verifier });
+    if (!made) return { ok: false, error: 'That email already has an account. Sign in instead.' };
+
+    return { ok: true, token: await users.open(made.id), user: made };
+  },
+
+  'POST /api/auth/login': async (body, env) => {
+    const users = accountsOf(env);
+    if (!users) return { ok: false, error: NO_ACCOUNTS };
+
+    const email = cleanEmail(body?.email);
+    if (!email || !isVerifier(body?.verifier)) return { ok: false, error: WRONG };
+
+    /* Per account rather than per address: two students on one campus wifi
+       must not be able to lock each other out, which is exactly what an
+       address-keyed counter would let them do. */
+    const locked = await users.lockedFor(email);
+    if (locked) {
+      return { ok: false, error: `Too many wrong attempts. Try again in ${locked} minute${locked === 1 ? '' : 's'}.` };
+    }
+
+    const row = await users.byEmail(email);
+    /* One sentence for "no such account" and for "wrong password" alike. Two
+       would turn this route into a way to ask whether someone has an account,
+       which is not ours to answer.
+     *
+     * And one shape of work, too: skipping the comparison when there is no
+     * row would answer measurably faster, which says the same thing the
+     * message refuses to. So a miss is compared against a decoy. */
+    const stored = row?.pass || DECOY;
+    const good = await matches(body.verifier, stored);
+    if (!row || !good) {
+      await users.noteFailure(email);
+      return { ok: false, error: WRONG };
+    }
+
+    await users.clearFailures(email);
+    const user = { id: row.id, email: row.email, name: row.name };
+    return { ok: true, token: await users.open(user.id), user };
+  },
+
+  /** Resume: the app asks on every start whether the token it kept still works. */
+  'POST /api/auth/session': async (body, env) => {
+    const users = accountsOf(env);
+    if (!users) return { ok: false, error: NO_ACCOUNTS };
+    if (!isToken(body?.token)) return { ok: false, error: 'Signed out.' };
+    const user = await users.whose(body.token);
+    return user ? { ok: true, user } : { ok: false, error: 'Signed out.' };
+  },
+
+  'POST /api/auth/logout': async (body, env) => {
+    const users = accountsOf(env);
+    if (!users || !isToken(body?.token)) return { ok: true };
+    /* Everywhere is the one that matters after a lost phone, so it does not
+       hide behind a second screen — but it needs a live session to name the
+       account, which is why it resolves the token before ending it. */
+    if (body?.everywhere) {
+      const user = await users.whose(body.token);
+      if (user) await users.closeAll(user.id);
+    } else {
+      await users.close(body.token);
+    }
+    return { ok: true };
+  },
+
+  /** Deleting has to be as easy as signing up, or "your data is yours" is a slogan. */
+  'POST /api/auth/delete': async (body, env) => {
+    const users = accountsOf(env);
+    if (!users) return { ok: false, error: NO_ACCOUNTS };
+    const who = await whoIs(body, env);
+    if (!who?.account) return { ok: false, error: 'Signed out.' };
+    await users.erase(who.account.id);
+    return { ok: true, erased: true };
+  },
+
   /* ── sync ────────────────────────────────────────────────────────────
    *
    * Optional. The app is complete without any of this; these routes exist so
    * progress and Ask history survive a cleared browser and follow someone to a
    * second device.
    *
-   * The key is a random id the device made for itself, never the caller's IP.
-   * An IP is shared by everyone behind a carrier's NAT — it would merge
-   * strangers' data — and it changes under the same person, which would lose
-   * theirs. store.mjs says more about why.
+   * Two ways to say who you are, and they are not equally strong. A signed-in
+   * app sends its session token and the uid is resolved here, from the
+   * session, never from the request. A guest sends the random id their device
+   * made for itself — a bearer secret, exactly as strong as the localStorage
+   * it replaces, and never the caller's IP. store.mjs says why not the IP.
    */
   'POST /api/sync/progress': async (body, env, request) => {
     const store = storeOf(env);
-    if (!store) return { ok: false, error: 'No database is bound to this Worker.' };
-    if (!ID.test(body?.uid || '')) return { ok: false, error: 'Bad device id.' };
+    if (!store) return { ok: false, error: NO_DB };
+    const who = await whoIs(body, env);
+    if (!who) return { ok: false, error: NOT_YOU };
 
     const snapshot = body?.snapshot;
     if (!snapshot || typeof snapshot !== 'object') {
@@ -457,22 +597,24 @@ const routes = {
       return { ok: false, error: 'Too many writes from this network this hour.' };
     }
 
-    await store.saveProgress(body.uid, snapshot, new Date().toISOString());
+    await store.saveProgress(who.uid, snapshot, new Date().toISOString());
     return { ok: true, at: new Date().toISOString() };
   },
 
   'POST /api/sync/progress/get': async (body, env) => {
     const store = storeOf(env);
-    if (!store) return { ok: false, error: 'No database is bound to this Worker.' };
-    if (!ID.test(body?.uid || '')) return { ok: false, error: 'Bad device id.' };
-    const found = await store.loadProgress(body.uid);
+    if (!store) return { ok: false, error: NO_DB };
+    const who = await whoIs(body, env);
+    if (!who) return { ok: false, error: NOT_YOU };
+    const found = await store.loadProgress(who.uid);
     return { ok: true, found: Boolean(found), ...(found || {}) };
   },
 
   'POST /api/sync/chat': async (body, env, request) => {
     const store = storeOf(env);
-    if (!store) return { ok: false, error: 'No database is bound to this Worker.' };
-    if (!ID.test(body?.uid || '')) return { ok: false, error: 'Bad device id.' };
+    if (!store) return { ok: false, error: NO_DB };
+    const who = await whoIs(body, env);
+    if (!who) return { ok: false, error: NOT_YOU };
     const question = String(body?.question || '').slice(0, 4000);
     const answer = String(body?.answer || '').slice(0, 20000);
     if (!question || !answer) return { ok: false, error: 'Nothing to save.' };
@@ -480,7 +622,7 @@ const routes = {
       return { ok: false, error: 'Too many writes from this network this hour.' };
     }
 
-    await store.addChat(body.uid, {
+    await store.addChat(who.uid, {
       at: new Date().toISOString(), question, answer, engine: body?.engine || null,
     });
     return { ok: true };
@@ -488,25 +630,34 @@ const routes = {
 
   'POST /api/sync/chat/list': async (body, env) => {
     const store = storeOf(env);
-    if (!store) return { ok: false, error: 'No database is bound to this Worker.' };
-    if (!ID.test(body?.uid || '')) return { ok: false, error: 'Bad device id.' };
-    return { ok: true, chats: await store.listChats(body.uid, Math.min(body?.limit || 50, 200)) };
+    if (!store) return { ok: false, error: NO_DB };
+    const who = await whoIs(body, env);
+    if (!who) return { ok: false, error: NOT_YOU };
+    return { ok: true, chats: await store.listChats(who.uid, Math.min(body?.limit || 50, 200)) };
   },
 
   /* Deleting has to be as easy as saving, or "your data is yours" is a slogan
-     rather than a fact. No token: the id is the only thing that names the
-     data, and whoever holds it can already read it. */
+     rather than a fact. This clears the work; /api/auth/delete clears the
+     account itself along with it. */
   'POST /api/sync/forget': async (body, env) => {
     const store = storeOf(env);
-    if (!store) return { ok: false, error: 'No database is bound to this Worker.' };
-    if (!ID.test(body?.uid || '')) return { ok: false, error: 'Bad device id.' };
-    await store.forget(body.uid);
+    if (!store) return { ok: false, error: NO_DB };
+    const who = await whoIs(body, env);
+    if (!who) return { ok: false, error: NOT_YOU };
+    await store.forget(who.uid);
     return { ok: true, forgotten: true };
   },
 
   'GET /api/health': (body, env) => ({
     ok: true,
     hasKey: Boolean(claudeKeyOf(env)),
+    /* Accounts need D1 specifically — KV has no unique index, so it cannot
+       promise one address is one account. The app reads this to decide
+       whether to offer signing in at all, rather than offering it and
+       failing at the last step. `rounds` must match what the browser does;
+       publishing it is what makes a mismatch visible instead of looking
+       like every password being wrong. */
+    accounts: accountsOf(env) ? { rounds: CLIENT_ROUNDS, tries: MAX_TRIES } : false,
     model: CLAUDE_MODEL,
     push: false,
     runtime: 'cloudflare-worker',

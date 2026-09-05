@@ -75,7 +75,26 @@ export function announce(message) {
   lastSaid = message;
 }
 
+/**
+ * Move to a screen.
+ *
+ * The swap itself is the same three lines it has always been; what wraps it
+ * is the browser's own view-transition, which cross-fades the old screen out
+ * and the new one in without a single animated property in JS. Where the API
+ * is missing the callback simply runs, so the two paths are the same code and
+ * one of them is prettier.
+ */
 export function switchView(name) {
+  /* Not during boot: the app is still hidden then, and a transition would
+     snapshot an empty page and cross-fade it into the first screen. */
+  if (document.startViewTransition && !$('#app').hidden) {
+    document.startViewTransition(() => paintView(name));
+    return;
+  }
+  paintView(name);
+}
+
+function paintView(name) {
   for (const view of $$('.view')) view.hidden = view.dataset.view !== name;
   for (const tab of $$('.tab')) {
     const on = tab.dataset.tab === name;

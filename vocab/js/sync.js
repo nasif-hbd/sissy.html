@@ -22,6 +22,7 @@
  */
 import { Store } from './store.js';
 import { AI } from './config.js';
+import { Auth } from './auth.js';
 
 const KEY = 'vocabx.device';
 
@@ -58,19 +59,40 @@ export function adoptId(id) {
   try { localStorage.setItem(KEY, clean); return true; } catch { return false; }
 }
 
-/** Whether syncing is even possible: an id, a proxy, and the user's consent. */
+/**
+ * Whether syncing is even possible.
+ *
+ * Signing in is the consent — keeping your work is the whole reason anyone
+ * makes an account, and asking a second time in Settings would be a toggle
+ * that only ever confuses. A guest still has to ask for it.
+ */
 export function enabled() {
-  return Boolean(deviceId() && AI.proxyUrl && Store.state.settings.sync?.enabled);
+  if (!AI.proxyUrl) return false;
+  if (Auth.isIn) return true;
+  return Boolean(deviceId() && Store.state.settings.sync?.enabled);
+}
+
+/**
+ * How this request says who it is.
+ *
+ * A session token when there is one, and then no device id at all: sending
+ * both would ask the server to choose, and the server's answer to that is to
+ * refuse. A guest sends the id their device made for itself.
+ */
+function whoAmI() {
+  if (Auth.isIn) return { token: Auth.token };
+  const uid = deviceId();
+  return uid ? { uid } : null;
 }
 
 async function call(route, payload) {
-  const uid = deviceId();
-  if (!uid) return null;
+  const who = whoAmI();
+  if (!who) return null;
   try {
     const res = await fetch(`${AI.proxyUrl}${route}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ uid, ...payload }),
+      body: JSON.stringify({ ...who, ...payload }),
       signal: AbortSignal.timeout ? AbortSignal.timeout(12_000) : undefined,
     });
     const out = await res.json();
@@ -102,6 +124,96 @@ export function snapshotOf(state) {
     // without sending a log of everything ever answered.
     history: (state.history || []).slice(-400),
   };
+}
+
+/**
+ * Two histories of the same learner, joined so neither is lost.
+ *
+ * This is the case that quietly destroys work if you get it wrong: someone
+ * studies as a guest for a fortnight, then signs in to an account that
+ * already has a snapshot from their old phone. Pick either side and the other
+ * fortnight is gone, with no warning and no undo. So neither is picked.
+ *
+ * Every field has an answer that cannot lose:
+ *
+ *   words    union — a word met on either device was met
+ *   srs      whichever card was reviewed more recently. That is the truer
+ *            schedule; taking the one further ahead instead would promote a
+ *            card the learner has since forgotten and stop showing it
+ *   days     per day, the larger of each counter — never the sum. The same
+ *            day studied on two devices really did contain both sets of
+ *            reviews, but a device's own numbers come back to it on the next
+ *            sync, and adding would inflate that day a little more every
+ *            time. Larger loses at most the smaller side once; adding is
+ *            wrong forever
+ *   history  both, in time order, capped
+ *   streak   the longer run, and the later day active
+ *   xp       the larger total, for the same reason as days
+ */
+export function mergeSnapshots(mine, theirs) {
+  if (!theirs || typeof theirs !== 'object') return mine;
+  if (!mine || typeof mine !== 'object') return theirs;
+
+  const words = { ...theirs.words, ...mine.words };
+
+  const srs = { ...theirs.srs };
+  for (const [id, ours] of Object.entries(mine.srs || {})) {
+    const other = srs[id];
+    srs[id] = !other || newer(ours, other) ? ours : other;
+  }
+
+  const days = { ...theirs.days };
+  for (const [key, ours] of Object.entries(mine.days || {})) {
+    const other = days[key];
+    if (!other) { days[key] = ours; continue; }
+    const out = { ...other };
+    for (const field of Object.keys(ours)) out[field] = Math.max(ours[field] || 0, other[field] || 0);
+    days[key] = out;
+  }
+
+  /* Both logs, in order, deduplicated on the timestamp and word together —
+     the same review synced twice is one review, and two different words
+     graded in the same millisecond are two. */
+  const seen = new Set();
+  const history = [...(theirs.history || []), ...(mine.history || [])]
+    .sort((a, b) => (a.ts || 0) - (b.ts || 0))
+    .filter((h) => {
+      const key = `${h.ts}:${h.id || h.term || ''}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(-400);
+
+  const lastActive = [mine.streak?.lastActive, theirs.streak?.lastActive]
+    .filter(Boolean).sort().pop() || null;
+
+  return {
+    v: 1,
+    words,
+    srs,
+    days,
+    history,
+    streak: {
+      current: Math.max(mine.streak?.current || 0, theirs.streak?.current || 0),
+      longest: Math.max(mine.streak?.longest || 0, theirs.streak?.longest || 0),
+      lastActive,
+    },
+    xp: (mine.xp?.total || 0) >= (theirs.xp?.total || 0) ? mine.xp : theirs.xp,
+  };
+}
+
+/** Which of two cards was studied last. A card never seen loses to one seen. */
+function newer(a, b) {
+  const at = a?.lastReviewed || 0;
+  const bt = b?.lastReviewed || 0;
+  if (at !== bt) return at > bt;
+  return (a?.reps || 0) >= (b?.reps || 0);
+}
+
+/** Whether this device has anything a merge would be protecting. */
+export function hasWork(state) {
+  return Boolean(state?.history?.length) || Object.keys(state?.srs || {}).length > 0;
 }
 
 export const Sync = {
@@ -136,9 +248,9 @@ export const Sync = {
     return out?.chats || [];
   },
 
-  /** Delete everything held for this id. */
+  /** Delete everything held for whoever this is. */
   async forget() {
-    if (!deviceId()) return false;
+    if (!whoAmI()) return false;
     return Boolean(await call('/api/sync/forget', {}));
   },
 };

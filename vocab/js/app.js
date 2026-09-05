@@ -11,7 +11,7 @@ import { APP, AI as AICFG, THEMES, PROVIDERS } from './config.js';
 import { Store, refreshStreak, makeSrs, dayKey, snapshot, restore } from './store.js';
 import { schedule, buildQueue, bucket, plannedSession, queueCounts, spokenDelta } from './srs.js';
 import { learningBrief, briefText, headline, prompts, localAdvice } from './brief.js';
-import { Sync, pushSoon } from './sync.js';
+import { Sync, pushSoon, snapshotOf, mergeSnapshots, hasWork } from './sync.js';
 import { declarations, runAction } from './actions.js';
 import { makeSessionTimer, reportPayload, weakest, summary, window as windowStats, recentDays,
          dashboard, recentlyLearned, activeDays } from './stats.js';
@@ -40,6 +40,8 @@ import { feedbackAsText, feedbackSubject, feedbackMailto, anonymise,
          manifestOf } from './feedback.js';
 import { SUBJECTS, modesFor, buildRound, markOne, markRound } from './testlab.js';
 import { createInstaller, downloadFor } from './install.js';
+import { Auth, serverAccounts } from './auth.js';
+import { openGate, initialOf } from './gate.js';
 
 // ── session state ──────────────────────────────────────────────────────────
 const session = {
@@ -87,6 +89,7 @@ async function boot() {
   wireFeedback();
   wireAssist();
   wireSync();
+  wireAccount();
   wireFeedbackView();
   wireInbox();
   wireTest();
@@ -99,6 +102,15 @@ async function boot() {
   Store.on(() => renderHeader(Store.state));
   render();
 
+  /* The welcome, on a first run only. It goes up before the app is revealed
+     so nobody sees the app flash behind it, and the app is fully wired by
+     now, so whatever they choose lands on a screen that is already ready. */
+  if (!Auth.chose) {
+    const { how } = await openGate();
+    if (how === 'signup' || how === 'login') await joinAccount(how);
+  }
+  drawAccount();
+
   $('#app').hidden = false;
 
   const startView = location.hash.replace('#', '');
@@ -109,6 +121,17 @@ async function boot() {
   window.addEventListener('hashchange', () => {
     if (location.hash === '#inbox' && $('#view-inbox').hidden) openInbox();
   });
+
+  /* A kept session is re-checked in the background rather than before the
+     first paint: the app is entirely usable while the answer is in flight,
+     and blocking on it would put a spinner in front of someone who is
+     already signed in. */
+  if (Auth.token) {
+    Auth.resume().then((out) => {
+      drawAccount();
+      if (out.out) toast('Signed out — your work is still on this device.');
+    });
+  }
 
   await Notifier.registerServiceWorker();
   if (Store.state.settings.reminders.enabled) Notifier.start();
@@ -754,7 +777,7 @@ function drawHome(state) {
   const plan = plannedSession(state, { newAllowance: newLeftToday(state) });
 
   const days = state.streak.current || 0;
-  $('#levelBadge').textContent = standing(state.xp?.total || 0).level;
+  drawBadge(state);
   $('#navStreakTitle').textContent = days
     ? `${days} day${days === 1 ? '' : 's'} in a row`
     : 'Nothing learned yet';
@@ -1493,6 +1516,155 @@ let feedbackKind = 'idea';
 /* ── keeping the work somewhere else ────────────────────────────────────── */
 
 /**
+ * What happens the moment someone stops being a guest.
+ *
+ * Signing up is easy — the account is new, so this device's work is simply
+ * pushed up. Signing in is the one that can destroy a fortnight of study: the
+ * account has a snapshot and this device has its own, and choosing either one
+ * loses the other. So they are merged, and only then written back. sync.js
+ * sets out the rule for every field.
+ */
+async function joinAccount(how) {
+  if (!Auth.isIn) return;
+
+  try {
+    if (how === 'signup') {
+      const at = await Sync.push(Store.state);
+      if (at) Store.set('settings.sync.lastAt', at);
+      toast(`Account made. Your work is saved as ${Auth.user?.name || Auth.user?.email}.`);
+      return;
+    }
+
+    const found = await Sync.pull();
+    if (!found?.snapshot) {
+      // Nothing up there yet — this device becomes the record.
+      const at = await Sync.push(Store.state);
+      if (at) Store.set('settings.sync.lastAt', at);
+      toast(`Signed in as ${Auth.user?.name || Auth.user?.email}.`);
+      return;
+    }
+
+    /* Read before anything is applied. Afterwards the answer is always yes —
+       the merged state is in the store by then — and the message would tell
+       someone their fresh phone had been merged with something. */
+    const hadWork = hasWork(Store.state);
+
+    const merged = hadWork
+      ? mergeSnapshots(snapshotOf(Store.state), found.snapshot)
+      : found.snapshot;
+    applySnapshot(merged);
+
+    // Written straight back, so the other device sees the join too rather
+    // than pushing its own half over it on its next sync.
+    const at = await Sync.push(Store.state);
+    if (at) Store.set('settings.sync.lastAt', at);
+
+    toast(hadWork
+      ? 'Signed in. Your saved work and this device\'s have been merged.'
+      : 'Signed in. Your saved work is back.');
+  } catch {
+    /* The account is real and the session is good; only the first sync
+       failed. Saying nothing would look like the work was lost. */
+    toast('Signed in, but could not reach your saved work yet. It will sync later.', 'bad');
+  }
+}
+
+/**
+ * The one thing in the header that has two possible truths.
+ *
+ * Signed in it is the account's initial; a guest has no face to show, so it
+ * stays the level badge it has always been. Both callers go through here
+ * rather than writing to the element: they used to, and the later of the two
+ * won — which meant signing up showed a level for as long as it took the
+ * module manifest to land, and then still did.
+ */
+function drawBadge(state = Store.state) {
+  const badge = $('#levelBadge');
+  const user = Auth.isIn ? Auth.user : null;
+
+  badge.textContent = user ? initialOf(user) : standing(state.xp?.total || 0).level;
+  badge.title = user ? `Signed in as ${user.name || user.email}` : 'Your level';
+  badge.classList.toggle('avatar--who', Boolean(user));
+}
+
+/** The account card in Settings, and the initial in the header. */
+function drawAccount() {
+  const user = Auth.isIn ? Auth.user : null;
+
+  $('#acctIn').hidden = !user;
+  $('#acctOut').hidden = Boolean(user);
+  $('#acctStatus').dataset.state = user ? 'ok' : 'wait';
+  $('#acctHow').textContent = user
+    ? 'Signed in. Your work is saved as you study, on every device you sign in on.'
+    : 'Not signed in. Everything is on this device — which is fine, and is how '
+      + 'most people use it. An account is for surviving a cleared browser.';
+
+  if (user) {
+    $('#acctFace').textContent = initialOf(user);
+    $('#acctName').textContent = user.name || 'Learner';
+    $('#acctEmail').textContent = user.email;
+  }
+
+  drawBadge();
+  /* The sync card's answer depends on this one — signing in turns it on — so
+     it is redrawn from here rather than at each of the five places that
+     change an account. It was not, and signing up left "Off. Everything stays
+     on this device." on screen underneath a card saying the opposite. */
+  drawSync();
+
+  /* Asked after the card is drawn, never before: the card must not wait on
+     the network to appear. If this deployment has no database the two buttons
+     go quiet here rather than opening a form that cannot finish. */
+  if (!user) {
+    serverAccounts().then((can) => {
+      $('#acctSignup').disabled = !can;
+      $('#acctSignin').disabled = !can;
+      if (!can) {
+        $('#acctHow').textContent = 'Accounts are not set up on this deployment, so everything '
+          + 'is kept on this device. Nothing else is missing — the section below can still put '
+          + 'your work on another device with a code.';
+      }
+    });
+  }
+}
+
+function wireAccount() {
+  const open = async (mode) => {
+    const { how } = await openGate({ mode, dismissible: true });
+    if (how === 'signup' || how === 'login') await joinAccount(how);
+    drawAccount();
+  };
+
+  $('#acctSignup').addEventListener('click', () => open('signup'));
+  $('#acctSignin').addEventListener('click', () => open('signin'));
+
+  $('#acctSignout').addEventListener('click', async () => {
+    await Auth.logout();
+    drawAccount();
+    toast('Signed out. Your work is still on this device.');
+  });
+
+  $('#acctSignoutAll').addEventListener('click', async () => {
+    if (!confirm('Sign out on every device you have used?\n\n'
+      + 'Your work stays saved — you just have to sign in again.')) return;
+    await Auth.logout({ everywhere: true });
+    drawAccount();
+    toast('Signed out everywhere.');
+  });
+
+  $('#acctErase').addEventListener('click', async () => {
+    const who = Auth.user?.email || 'this account';
+    if (!confirm(`Delete ${who} and everything saved with it?\n\n`
+      + 'Your progress and your Ask history go with it. What is on this device '
+      + 'stays, and the app keeps working as a guest. This cannot be undone.')) return;
+    const out = await Auth.erase();
+    drawAccount();
+    toast(out?.ok ? 'Account deleted.' : (out?.error || 'Could not reach the server.'),
+      out?.ok ? 'ok' : 'bad');
+  });
+}
+
+/**
  * The optional server copy.
  *
  * Off unless someone turns it on, and every path through it degrades to doing
@@ -1587,8 +1759,33 @@ function showChanges(changes = []) {
 }
 
 function drawSync(message) {
-  const on = Boolean(Store.state.settings.sync?.enabled);
   const last = Store.state.settings.sync?.lastAt;
+
+  /* Signing in already answered this question — keeping the work is the whole
+     reason anyone makes an account. So the card stops offering a toggle that
+     could only ever contradict it, and the device-code section goes with it:
+     a code is how a guest reaches a second device, and an account is how
+     everyone else does. */
+  if (Auth.isIn) {
+    $('#syncToggle').checked = true;
+    $('#syncToggle').disabled = true;
+    $('#syncOwn').hidden = true;
+    // "Off by default" is true of the app and false of this screen right now.
+    $('#syncIntro').textContent = 'On, because you are signed in — this is what an account '
+      + 'is for. Signing out stops it and leaves everything on this device.';
+    $('#syncStatus').dataset.state = message ? 'wait' : 'ok';
+    $('#syncHow').textContent = message || (last
+      ? `Saved to your account. Last sent ${new Date(last).toLocaleString()}.`
+      : 'Saved to your account as you study.');
+    return;
+  }
+
+  const on = Boolean(Store.state.settings.sync?.enabled);
+  $('#syncToggle').disabled = false;
+  $('#syncOwn').hidden = false;
+  $('#syncIntro').textContent = 'Off by default. Everything already works on this device '
+    + 'alone — this is for surviving a cleared browser, and picking up where you left off '
+    + 'on another phone or laptop.';
   $('#syncStatus').dataset.state = message ? 'wait' : on ? 'ok' : 'wait';
   $('#syncHow').textContent = message || (on
     ? (last ? `Saved. Last sent ${new Date(last).toLocaleString()}.`

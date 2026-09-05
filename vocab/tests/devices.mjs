@@ -79,9 +79,35 @@ for (const device of DEVICES) {
   page.on('pageerror', (e) => problems.push(`${device.name}: ${e.message}`));
   page.on('console', (m) => { if (m.type() === 'error') problems.push(`${device.name}: ${m.text()}`); });
 
+  /* The welcome asks the proxy whether accounts are possible and hides the
+     two account buttons when they are not. That is right in the field and
+     useless here — the form is a screen the sweep has to measure — so the
+     answer is stubbed and only the answer. */
+  await page.route('**/api/health', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json',
+    body: JSON.stringify({ ok: true, accounts: { rounds: 250000, tries: 8 } }),
+  }));
+
   await page.goto(`${BASE}/index.html`, { waitUntil: 'networkidle' });
   await page.evaluate(() => document.fonts.ready);
   await page.waitForTimeout(300);
+
+  /* A fresh context has never chosen, so the first thing on screen is the
+     welcome. Measured here, in the same loop as everything else, and then
+     walked through as a person would — which is also the cheapest possible
+     check that it is not a dead end at 320px. */
+  await page.waitForSelector('#gate', { state: 'visible' });
+  await page.waitForSelector('#gateNew:not([hidden])');
+  await measure('welcome');
+  await page.click('#gateNew');
+  await page.waitForSelector('#gateFormEl', { state: 'visible' });
+  await measure('welcome-form');
+  await page.click('#gateBack');
+  await page.waitForTimeout(120);
+  await page.click('#gateGuest');
+  await page.waitForSelector('#app', { state: 'visible' });
+  await page.waitForTimeout(200);
 
   /* The rail starts closed, and choosing a view closes it again on a narrow
      screen — so the sweep opens it before each move rather than once. */
@@ -92,6 +118,41 @@ for (const device of DEVICES) {
     }
     await page.click(`.tab[data-tab="${tab}"]`);
   };
+
+  /** Nothing may reach past the right edge, on any screen, in any state. */
+  async function measure(what) {
+    await page.waitForTimeout(150);
+    const overflow = await page.evaluate(() => {
+      const docWidth = document.documentElement.clientWidth;
+
+      /* Past the right edge is only a fault if nothing above it clips the
+         overhang. A layer drawn deliberately larger than its box and cut off
+         by overflow:hidden cannot turn the page into a sideways scroller,
+         which is the whole thing this looks for — and the welcome screen's
+         background is three such layers. Where an ancestor does clip, the
+         ancestor is measured on its own account anyway. */
+      const escapes = (el) => {
+        const right = el.getBoundingClientRect().right;
+        for (let p = el.parentElement; p; p = p.parentElement) {
+          if (getComputedStyle(p).overflowX !== 'visible'
+              && right > p.getBoundingClientRect().right + 1.5) return false;
+        }
+        return true;
+      };
+
+      const wide = [...document.querySelectorAll('body *')]
+        .filter((el) => el.getBoundingClientRect().right > docWidth + 1.5)
+        .filter(escapes)
+        .map((el) => el.tagName.toLowerCase() + '.' + String(el.className.baseVal ?? el.className ?? '').split(' ')[0]);
+      return {
+        scrolls: document.documentElement.scrollWidth > docWidth + 1,
+        culprits: [...new Set(wide)].slice(0, 4),
+      };
+    });
+    if (overflow.scrolls || overflow.culprits.length) {
+      problems.push(`${device.name}/${what}: overflows — ${overflow.culprits.join(', ') || 'document'}`);
+    }
+  }
 
   const stops = [
     ...VIEWS.map((view) => ({ view, tab: view })),
@@ -111,21 +172,7 @@ for (const device of DEVICES) {
       await page.waitForSelector(ready, { state: 'visible' });
       if (sit) await sitPlacement(page);
     }
-    await page.waitForTimeout(150);
-
-    const overflow = await page.evaluate(() => {
-      const docWidth = document.documentElement.clientWidth;
-      const wide = [...document.querySelectorAll('body *')]
-        .filter((el) => el.getBoundingClientRect().right > docWidth + 1.5)
-        .map((el) => el.tagName.toLowerCase() + '.' + String(el.className.baseVal ?? el.className ?? '').split(' ')[0]);
-      return {
-        scrolls: document.documentElement.scrollWidth > docWidth + 1,
-        culprits: [...new Set(wide)].slice(0, 4),
-      };
-    });
-    if (overflow.scrolls || overflow.culprits.length) {
-      problems.push(`${device.name}/${view}: overflows — ${overflow.culprits.join(', ') || 'document'}`);
-    }
+    await measure(view);
   }
 
   if (device.w < TOUCH_WIDTH) {
@@ -181,4 +228,4 @@ if (problems.length) {
   console.error(`\n${problems.length} problem(s):\n - ${problems.join('\n - ')}\n`);
   process.exit(1);
 }
-console.log(`clean across ${DEVICES.length} device shapes × ${VIEWS.length + DEEP_VIEWS.length} views`);
+console.log(`clean across ${DEVICES.length} device shapes × ${VIEWS.length + DEEP_VIEWS.length + 2} views`);

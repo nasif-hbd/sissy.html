@@ -701,6 +701,49 @@ gradings. Settings stay on the device that chose them: a phone and a laptop
 want different reminder times, and syncing those would be a bug wearing a
 feature's clothes.
 
+## Accounts
+
+Optional, and offered once — the welcome screen asks for a sign-in, a sign-up,
+or nothing at all, and "nothing at all" is the primary button. A guest keeps
+every feature; an account buys one thing, which is that the work outlives the
+browser. Whichever they pick is remembered, and the screen never asks again.
+
+**The password never reaches the server.** The browser runs 250,000 rounds of
+PBKDF2 and sends the result; the server salts that and stores the salted hash.
+This is not decoration. A Worker on the free plan gets ten milliseconds of CPU
+per request and an honest password hash costs a hundred times that, so hashing
+server-side would mean either failing every signup or lowering the count until
+the hash was worthless. Moving the rounds to the browser keeps the work factor
+exactly where it matters — a stolen database still costs 250,000 rounds per
+guess — and the Worker gains something it did not have before: it cannot log,
+leak or dump a password it never receives. The trade is that the derived value
+is password-equivalent in flight, so this leans on HTTPS, as sending the
+password itself would.
+
+Session tokens are 32 random bytes; only their SHA-256 is stored, so a leaked
+table cannot sign anyone in. A fast hash is right there and would be wrong
+above — there is nothing to stretch when the input is already uniform.
+
+`whoIs(body, env)` in `worker.mjs` is the boundary the sync routes sit behind.
+A token always wins, the uid is resolved from the session rather than read from
+the request, and a token that does not resolve is refused outright — never
+quietly demoted to whatever device id came alongside it, which would hand a
+caller any account they cared to name. `tests/authroutes.test.mjs` drives that
+one case through the real handler.
+
+Signing in on a device that has already been used is where this kind of feature
+usually eats a fortnight of work. `mergeSnapshots` in `sync.js` joins the two
+instead of choosing: the card reviewed most recently wins (not the one further
+ahead — that would promote a word the learner has since forgotten), a day takes
+the larger of each counter rather than the sum (a device's own numbers come back
+to it on the next sync, and adding would inflate every day a little more each
+round), and both answer logs survive. `tests/merge.test.mjs` pins it, including
+that a second merge changes nothing.
+
+Accounts need D1 specifically — KV has no unique index, so it cannot promise one
+address is one account. The health route says whether this deployment has one,
+and the app hides the buttons rather than offering a form whose last step fails.
+
 ## Feedback
 
 A floating button on every screen. Each report carries the screen, the engine,

@@ -150,20 +150,57 @@ function kv(store) {
 /**
  * A write budget per address, so one script cannot fill the database.
  *
- * The address is hashed and the counter expires, so what is kept is "someone
- * wrote 40 times this hour", not "this person was here". Best effort: without
- * a store there is no limiter, and the routes still work.
+ * The address is hashed and the counter is per clock-hour, so what is kept is
+ * "someone wrote 40 times this hour", never "this person was here".
+ *
+ * It used to need a KV namespace and quietly did nothing without one — which
+ * is the shape of deployment this app actually has, so in practice there was
+ * no limiter at all on any route that called it. D1 is the fallback now: the
+ * database that is already bound is the one that would fill up.
  */
 export async function withinRate(env, ip, { perHour = 120 } = {}) {
-  const kvStore = env?.RATE || env?.FEEDBACK;
-  if (!kvStore || typeof kvStore.put !== 'function' || !ip) return true;
+  if (!ip) return true;
+  const hour = new Date().toISOString().slice(0, 13);
+  const key = `rate:${await sha(ip)}:${hour}`;
 
-  const key = `rate:${await sha(ip)}:${new Date().toISOString().slice(0, 13)}`;
-  const seen = Number(await kvStore.get(key)) || 0;
-  if (seen >= perHour) return false;
-  // Two hours, so the hour-boundary key is gone well before it could be reused.
-  await kvStore.put(key, String(seen + 1), { expirationTtl: 7200 });
-  return true;
+  const kvStore = env?.RATE || env?.FEEDBACK;
+  if (kvStore && typeof kvStore.put === 'function') {
+    const seen = Number(await kvStore.get(key)) || 0;
+    if (seen >= perHour) return false;
+    // Two hours, so the hour-boundary key is gone well before it is reusable.
+    await kvStore.put(key, String(seen + 1), { expirationTtl: 7200 });
+    return true;
+  }
+
+  const db = env?.DB || env?.VOCABX_DB;
+  if (!db || typeof db.prepare !== 'function') return true;
+  return withinRateD1(db, key, hour, perHour);
+}
+
+/* KV expires rows for you and D1 does not, so old hours are swept here — on
+   one write in fifty, which keeps the table small without paying for a
+   delete on every request. */
+async function withinRateD1(db, key, hour, perHour) {
+  try {
+    await db.prepare('CREATE TABLE IF NOT EXISTS rate ('
+      + 'key TEXT PRIMARY KEY, n INTEGER NOT NULL, hour TEXT NOT NULL)').run();
+
+    const row = await db.prepare('SELECT n FROM rate WHERE key = ?').bind(key).first();
+    if ((row?.n || 0) >= perHour) return false;
+
+    await db.prepare('INSERT INTO rate (key, n, hour) VALUES (?, 1, ?) '
+      + 'ON CONFLICT(key) DO UPDATE SET n = rate.n + 1').bind(key, hour).run();
+
+    if (Math.random() < 0.02) {
+      await db.prepare('DELETE FROM rate WHERE hour < ?').bind(hour).run();
+    }
+    return true;
+  } catch {
+    /* A limiter that throws must not be a wall. Failing open here loses the
+       budget for one request; failing closed would take the app down for
+       everybody the moment this table had a bad day. */
+    return true;
+  }
 }
 
 async function sha(text) {

@@ -48,6 +48,98 @@
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
 </svg>
 
+<!-- ═══ The welcome ════════════════════════════════════════════════════════
+     Shown once, before the app, and never again after an answer. Three ways
+     through it and all three are real: an account keeps your work when this
+     browser is cleared, and a guest gets every single feature without one.
+     Guest is not a trial and is not nagged — it is where most people should
+     stay, and the copy says so.
+============================================================================ -->
+<div class="gate" id="gate" hidden>
+  <!-- Painted, not animated frame by frame: three blurred blooms on very slow
+       CSS keyframes, so it costs the compositor and not the battery. Stops
+       dead under prefers-reduced-motion. -->
+  <div class="gate__sky" aria-hidden="true">
+    <span class="gate__bloom gate__bloom--a"></span>
+    <span class="gate__bloom gate__bloom--b"></span>
+    <span class="gate__bloom gate__bloom--c"></span>
+    <span class="gate__mesh"></span>
+  </div>
+
+  <!-- Focus lands here, not on the primary button: a programmatic focus on a
+       button paints the full focus ring on load, for mouse users too, which
+       reads as an error state rather than a starting point. A screen reader
+       still announces the dialog, and the first Tab still reaches the
+       button. -->
+  <div class="gate__panel" id="gatePanel" role="dialog" aria-modal="true"
+       aria-labelledby="gateTitle" tabindex="-1">
+    <div class="gate__brand">
+      <span class="gate__mark"><img src="./icons/mark-64.webp" alt="" width="34" height="34"></span>
+      <span class="gate__wordmark">VocabX</span>
+    </div>
+
+    <!-- ── choose ── -->
+    <section class="gate__pane" id="gateChoose">
+      <h1 class="gate__title" id="gateTitle">Learn more.<br>Know more.</h1>
+      <p class="gate__lede">117,845 words, a schedule that knows what you are about to
+         forget, and a tutor that answers with no connection at all.</p>
+
+      <div class="gate__acts">
+        <button class="btn btn--primary btn--wide gate__go" id="gateGuest" type="button">
+          Start learning
+        </button>
+        <button class="btn btn--quiet btn--wide" id="gateNew" type="button">Create an account</button>
+        <button class="btn btn--wide gate__link" id="gateOld" type="button">I already have one</button>
+      </div>
+
+      <p class="gate__foot" id="gateFoot">Starting takes nothing — no email, no account.
+         Everything stays on this device. You can add an account later from Settings.</p>
+    </section>
+
+    <!-- ── sign in / sign up ── -->
+    <section class="gate__pane" id="gateForm" hidden>
+      <button class="gate__back" id="gateBack" type="button">
+        <svg class="ico ico--sm" aria-hidden="true"><use href="#i-back"/></svg>Back
+      </button>
+      <h2 class="gate__title gate__title--sm" id="gateFormTitle">Create an account</h2>
+      <p class="gate__lede gate__lede--sm" id="gateFormLede">So your streak, your schedule and
+         your word list survive a cleared browser.</p>
+
+      <form class="gate__form" id="gateFormEl" novalidate>
+        <label class="field gate__field" id="gateNameField">
+          <span>Name</span>
+          <input class="input" id="gateName" type="text" autocomplete="name"
+                 placeholder="What should the app call you?" maxlength="40">
+        </label>
+        <label class="field gate__field">
+          <span>Email</span>
+          <input class="input" id="gateEmail" type="email" autocomplete="email"
+                 inputmode="email" placeholder="you@example.com" required>
+        </label>
+        <label class="field gate__field">
+          <span>Password</span>
+          <input class="input" id="gatePass" type="password" autocomplete="current-password"
+                 placeholder="At least 8 characters" required minlength="8">
+        </label>
+
+        <!-- The one thing that must never be silent: aria-live, because the
+             error appears without the page moving. -->
+        <p class="gate__error" id="gateError" role="alert" hidden></p>
+
+        <button class="btn btn--primary btn--wide gate__go" id="gateSubmit" type="submit">
+          <span id="gateSubmitLabel">Create account</span>
+        </button>
+      </form>
+
+      <p class="gate__foot">
+        <button class="gate__link gate__link--inline" id="gateSwap" type="button">
+          Already have an account? Sign in
+        </button>
+      </p>
+    </section>
+  </div>
+</div>
+
 <div id="app" class="app" hidden>
 
   <!-- First stop for a keyboard or screen reader: the eight nav buttons
@@ -81,8 +173,9 @@
         <svg class="ico ico--sm" aria-hidden="true"><use href="#i-flame"/></svg><span id="streakCount">0</span>
       </div>
       <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle colour theme"><svg class="ico" aria-hidden="true"><use href="#i-theme"/></svg><span id="themeLabel">Auto</span></button>
-      <!-- The design's avatar. It is the level badge here: there are no
-           accounts, so a photograph of nobody would be a lie. -->
+      <!-- The design's avatar. A guest has no face to show, so it stays the
+           level badge; signed in it is the initial, which is the one true
+           thing the app knows to put there. -->
       <span class="avatar" id="levelBadge" title="Your level">1</span>
     </div>
   </header>
@@ -950,18 +1043,44 @@
           </div>
         </div>
 
+        <div class="card" id="accountCard">
+          <h3 class="card__title">Account</h3>
+          <p class="status" id="acctStatus"><i class="status__dot"></i><span id="acctHow"></span></p>
+
+          <div class="row row--even" id="acctOut">
+            <button class="btn btn--primary" id="acctSignup" type="button">Create an account</button>
+            <button class="btn btn--quiet" id="acctSignin" type="button">Sign in</button>
+          </div>
+
+          <div class="acct" id="acctIn" hidden>
+            <div class="acct__who">
+              <span class="acct__face" id="acctFace" aria-hidden="true"></span>
+              <div class="acct__names">
+                <b id="acctName"></b>
+                <span class="hint" id="acctEmail"></span>
+              </div>
+            </div>
+            <div class="row row--even">
+              <button class="btn btn--quiet" id="acctSignout" type="button">Sign out</button>
+              <button class="btn btn--quiet" id="acctSignoutAll" type="button">Sign out everywhere</button>
+            </div>
+            <p><button class="btn btn--danger btn--wide" id="acctErase" type="button">
+              Delete my account</button></p>
+          </div>
+        </div>
+
         <div class="card">
           <h3 class="card__title">Save my work online</h3>
-          <p class="hint">Off by default. Everything already works on this device alone —
-             this is for surviving a cleared browser, and picking up where you left off on
-             another phone or laptop.</p>
+          <p class="hint" id="syncIntro">Off by default. Everything already works on this
+             device alone — this is for surviving a cleared browser, and picking up where you
+             left off on another phone or laptop.</p>
           <label class="check">
             <input type="checkbox" id="syncToggle">
             <span>Keep my progress and my Ask history on the server</span>
           </label>
           <p class="status" id="syncStatus"><i class="status__dot"></i><span id="syncHow"></span></p>
 
-          <details class="advanced">
+          <details class="advanced" id="syncOwn">
             <summary>Use it on another device</summary>
             <div class="other-devices">
               <p>Your work is filed under a random code this device made for itself. It is

@@ -9,13 +9,15 @@
  * Bump CACHE when you change any shell file — the old cache is dropped on
  * activate.
  */
-const CACHE = 'vocabx-v39';
+const CACHE = 'vocabx-v40';
 /**
  * Every file the app needs to start with no network.
  *
  * Keep this complete: a module missing here still works online (the fetch
  * handler caches it on first use) but a cold first launch offline fails on it.
- * Eight modules added after this list was written were missing from it.
+ * Eight modules added after this list was written were missing from it, and
+ * two more went missing the next time modules were added — so it is now a
+ * test (tests/shell.test.mjs) rather than a note asking to be remembered.
  */
 const SHELL = [
   './',
@@ -26,10 +28,12 @@ const SHELL = [
   './js/advice.js',
   './js/ai.js',
   './js/actions.js',
+  './js/auth.js',
   './js/brief.js',
   './js/catalog.js',
   './js/config.js',
   './js/exam.js',
+  './js/gate.js',
   './js/lesson.js',
   './js/local.js',
   './js/notify.js',
