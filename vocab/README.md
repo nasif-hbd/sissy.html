@@ -933,10 +933,25 @@ only then raises a notification through the service worker, with **Review now**
 and **In 1 hour** actions. Each slot fires at most once per day. Clicking the
 notification focuses the existing tab and routes it to the right view.
 
-**Web Push** (optional, needs the proxy). With VAPID keys set, the browser
-subscription is stored server-side along with the learner's reminder times and
-timezone offset, and `server/proxy.mjs` pushes on schedule — so reminders arrive
-with every tab closed.
+**Web Push** (optional, and only from the Node proxy). With VAPID keys set, the
+browser subscription is stored server-side along with the learner's reminder
+times and timezone offset, and `server/proxy.mjs` pushes on schedule — so
+reminders arrive with every tab closed.
+
+`worker.mjs` implements none of the four push routes and reports `push: false`
+on `/api/health`. The app asks before offering the switch: on a Worker
+deployment the toggle disables itself and says which half of the pair is
+missing, rather than being a box that can only fail when ticked — which is what
+it was, and worse, because `notify.js` used `proxyBase()` without importing it,
+so the failure was a `ReferenceError` shown to the learner as a toast reading
+"proxyBase is not defined". `tests/imports.test.mjs` now fails on any module
+that uses another's export without importing it, which is the only kind of test
+that could have caught it: nothing loads wrong, and the broken line sits inside
+a function nobody calls until someone ticks the box.
+
+The installed Android app needs none of this — its WebView has no Notifications
+API at all, so `notify.js` routes through the `AndroidHost` bridge and the app
+raises reminders itself, open or closed.
 
 ```bash
 cd vocab/server

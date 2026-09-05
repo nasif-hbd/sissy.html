@@ -44,6 +44,34 @@ export function baseOf(endpoint) {
     .replace(/\/api(\/[\w-]*)*$/i, '');
 }
 
+/**
+ * What the server says it can do, asked once.
+ *
+ * The health route answers several questions at once — which engines have
+ * keys, whether accounts are possible, whether push is — and three different
+ * modules wanted to ask. One fetch, one cache, one place that knows the route.
+ *
+ * Only a success is remembered. A failure is very often "offline at the
+ * moment", and caching that for the life of the page would tell someone who
+ * opened the app on a train that their deployment has no database.
+ */
+let known = null;
+export function serverInfo() {
+  if (known) return known;
+  const asking = (async () => {
+    if (!proxyBase()) return null;
+    try {
+      const res = await fetch(`${proxyBase()}${AI.routes.health}`, { signal: timeout(6000) });
+      const body = await res.json();
+      if (body?.ok) known = Promise.resolve(body);
+      return body || null;
+    } catch {
+      return null;
+    }
+  })();
+  return asking;
+}
+
 export const AIClient = {
   get mode() { return cfg().mode; },
   /**

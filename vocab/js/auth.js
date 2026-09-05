@@ -24,8 +24,7 @@
  * and it is why signing in shows that it is working rather than appearing to
  * hang.
  */
-import { AI } from './config.js';
-import { proxyBase } from './ai.js';
+import { proxyBase, serverInfo } from './ai.js';
 
 const TOKEN = 'vocabx.session';
 const CACHED = 'vocabx.account';
@@ -185,27 +184,9 @@ export const Auth = {
  * A Worker with no database bound answers plainly, and the welcome screen
  * would rather say so than show a form whose last step fails.
  *
- * Only a yes is remembered. A no is very often just "offline at the moment",
- * and caching that for the life of the page means someone who opened the app
- * on a train is told accounts do not exist for the rest of the session — on a
- * deployment where they do.
+ * The caching, and the reason only a success is kept, live in serverInfo().
  */
-let known = null;
-export function serverAccounts() {
-  if (known) return known;
-  const asking = (async () => {
-    if (!possible()) return false;
-    try {
-      const res = await fetch(`${proxyBase()}${AI.routes.health}`, {
-        signal: AbortSignal.timeout ? AbortSignal.timeout(6000) : undefined,
-      });
-      const body = await res.json();
-      const can = body?.accounts || false;
-      if (can) known = Promise.resolve(can);
-      return can;
-    } catch {
-      return false;
-    }
-  })();
-  return asking;
+export async function serverAccounts() {
+  if (!possible()) return false;
+  return (await serverInfo())?.accounts || false;
 }

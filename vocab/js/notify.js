@@ -12,6 +12,11 @@
  *     even with every tab closed. Optional: needs VAPID keys on the server.
  */
 import { NOTIFY, PUSH } from './config.js';
+/* Where the proxy is. Push is the one part of this file that talks to a
+   server, and it called this without importing it — so both enable() and
+   disable() threw "proxyBase is not defined" the moment anyone ticked the
+   box, and the toast showed that sentence to the learner. */
+import { proxyBase, serverInfo, diagnose } from './ai.js';
 import { Store, dayKey } from './store.js';
 import { queueCounts } from './srs.js';
 import { dueStep, cardFor, quoteFor } from './routine.js';
@@ -213,17 +218,49 @@ function nextModule(state) {
 
 // ── Web Push (optional) ─────────────────────────────────────────────────────
 
+/**
+ * A request that says why it failed in the app's own words.
+ *
+ * A browser reports every network failure as "Failed to fetch" — wrong scheme,
+ * wrong host, server down, origin not allowed — and that sentence was reaching
+ * the learner as a toast. diagnose() knows which page it is on and which
+ * address it was given, so it can nearly always say which one it was.
+ */
+async function reach(url, options) {
+  try {
+    return await fetch(url, options);
+  } catch (err) {
+    throw new Error(diagnose(err));
+  }
+}
+
 export const Push = {
   get supported() { return 'PushManager' in window && 'serviceWorker' in navigator; },
 
+  /**
+   * Whether the server on the other end can actually push.
+   *
+   * The browser supporting Push says nothing about the deployment. The Node
+   * proxy implements the four push routes; the Cloudflare Worker implements
+   * none of them and says so on /api/health. Without this the toggle is a box
+   * that can only ever fail when ticked — which is how it behaved.
+   */
+  async offered() {
+    if (!this.supported) return false;
+    return (await serverInfo())?.push === true;
+  },
+
   async enable() {
     if (!this.supported) throw new Error('This browser has no Push support.');
+    if (!(await this.offered())) {
+      throw new Error('This deployment\u2019s proxy does not do server push.');
+    }
     if (Notifier.permission !== 'granted') {
       const result = await Notifier.request();
       if (result !== 'granted') throw new Error('Notification permission denied.');
     }
     const base = proxyBase();
-    const keyRes = await fetch(`${base}${PUSH.routes.publicKey}`);
+    const keyRes = await reach(`${base}${PUSH.routes.publicKey}`);
     if (!keyRes.ok) throw new Error('Proxy has no VAPID key configured.');
     const { publicKey } = await keyRes.json();
     if (!publicKey) throw new Error('Proxy has no VAPID key configured.');
@@ -233,7 +270,7 @@ export const Push = {
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey),
     });
-    const res = await fetch(`${base}${PUSH.routes.subscribe}`, {
+    const res = await reach(`${base}${PUSH.routes.subscribe}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({

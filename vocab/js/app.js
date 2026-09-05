@@ -3013,6 +3013,20 @@ function refreshNotifyState() {
   }[state] || state;
   $('#notifyEnable').disabled = state === 'granted' || state === 'unsupported';
   $('#pushToggle').checked = Boolean(Store.state.settings.push?.enabled);
+
+  /* Asked after the card is drawn, never before it. A box that can only fail
+     when ticked is worse than no box: the Cloudflare Worker implements none of
+     the push routes and says so on /api/health, so on that deployment this
+     switches itself off and explains, instead of throwing when pressed. */
+  Push.offered().then((can) => {
+    $('#pushToggle').disabled = !can;
+    $('#pushNote').textContent = can
+      ? 'Your proxy can push, so reminders arrive with the app closed.'
+      : 'Your proxy does not do server push, so reminders arrive while VocabX is '
+        + 'open in a tab — or any time in the installed Android app, which raises '
+        + 'them itself. The Node proxy in vocab/server does push; the Cloudflare '
+        + 'Worker does not.';
+  });
 }
 
 // ── extras ─────────────────────────────────────────────────────────────────
