@@ -7,6 +7,7 @@
  */
 import { bucket, previewIntervals, formatDelta, queueCounts, forecast } from './srs.js';
 import { summary, heatmap, masteryBreakdown, weakest } from './stats.js';
+import { installOffer } from './install.js';
 
 export const $ = (sel, root = document) => root.querySelector(sel);
 export const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
@@ -74,7 +75,26 @@ export function announce(message) {
   lastSaid = message;
 }
 
+/**
+ * Move to a screen.
+ *
+ * The swap itself is the same three lines it has always been; what wraps it
+ * is the browser's own view-transition, which cross-fades the old screen out
+ * and the new one in without a single animated property in JS. Where the API
+ * is missing the callback simply runs, so the two paths are the same code and
+ * one of them is prettier.
+ */
 export function switchView(name) {
+  /* Not during boot: the app is still hidden then, and a transition would
+     snapshot an empty page and cross-fade it into the first screen. */
+  if (document.startViewTransition && !$('#app').hidden) {
+    document.startViewTransition(() => paintView(name));
+    return;
+  }
+  paintView(name);
+}
+
+function paintView(name) {
   for (const view of $$('.view')) view.hidden = view.dataset.view !== name;
   for (const tab of $$('.tab')) {
     const on = tab.dataset.tab === name;
@@ -514,39 +534,111 @@ function drawRecent(data, handlers) {
  * fire. Everywhere else the steps carry it, because a button that silently
  * does nothing is worse than a sentence that tells the truth.
  */
-export function renderInstall(state, { dismissed = false, downloads = [] } = {}) {
+export function renderInstall(state, { dismissed = false, download = null } = {}) {
+  /* Someone already running the installed app is not offered the file. */
+  const file = state.installed ? null : download;
+
+  /* One offer, named for the device reading it: "Download for Mac" where there
+     is a file, "Add to your iPhone" where there is not and never will be. A
+     single "Install" label is wrong on most of them. */
+  const offer = installOffer(state, { download: file });
+
+  /* The readout says what this device can do about the offer above it. Where
+     there is a file that is "yes, and here is what it is" — `state.how` would
+     answer a question about the browser that the heading did not ask. */
   const status = $('#installStatus');
-  status.dataset.state = state.installed ? 'ok' : state.canPrompt ? 'ok' : 'wait';
-  $('#installHow').textContent = state.how;
+  status.dataset.state = state.installed || file || state.canPrompt ? 'ok' : 'wait';
+  $('#installHow').textContent = file ? offer.hint : state.how;
+  $('#installTitle').textContent = state.installed ? 'VocabX is installed' : offer.label;
+  /* The button prompts the browser, so it says so. Where the headline offer
+     is a file (Windows), the heading carries that and this button carries the
+     smaller second option — labelling it "Download" would be a lie about what
+     pressing it does. */
+  const go = $('#installGo');
+  go.hidden = !state.canPrompt;
+  if (state.canPrompt) go.textContent = offer.also ? offer.also.label : offer.label;
+  // Where a file leads, the file is the emphasised button and this is the
+  // quiet alternative — otherwise two primary buttons compete for the same tap.
+  go.classList.toggle('btn--primary', !file);
+  go.classList.toggle('btn--quiet', Boolean(file));
 
-  $('#installGo').hidden = !state.canPrompt;
-
-  // Steps are the fallback for platforms with no prompt — and pointless noise
-  // next to a working button, or once the app is already installed.
-  const showSteps = !state.installed && !state.canPrompt && state.steps.length;
+  /* Steps are the last resort: no file, no prompt, nothing to press. Next to
+     a download button they are noise — worse than noise, since they describe
+     a different way of getting the app than the one the heading offered. The
+     collapsed "another device" section below still has them. */
+  const showSteps = !state.installed && !state.canPrompt && !file && state.steps.length;
   $('#installSteps').replaceChildren(...(showSteps
     ? state.steps.map((step) => el('li', { text: step })) : []));
 
-  $('#installNote').textContent = state.note || '';
-  $('#installNote').hidden = !state.note;
+  /* The file's own caveat sits with the file rather than at the bottom of the
+     card, so what you are agreeing to is next to the button that starts it. */
+  $('#installDownloads').replaceChildren(...(file ? [
+    el('a', { class: 'btn btn--primary btn--wide', href: file.href, download: '' },
+      icon('download'), file.label),
+    ...(file.note ? [el('p', { class: 'hint', text: file.note })] : []),
+  ] : []));
 
-  // Only the platform's own download, and only when there is one.
-  const mine = downloads.filter((d) => d.os === state.os);
-  $('#installDownloads').replaceChildren(...mine.map((d) =>
-    el('a', { class: 'btn btn--quiet', href: d.href, download: '' }, icon('download'), d.label)));
+  /* The catch-all download is for taking the app to a *different* computer.
+     Where this device is already being offered the same file above, a second
+     identical button is just noise. */
+  const anyDownload = $('#installAnyDownload');
+  if (anyDownload) anyDownload.hidden = Boolean(file);
 
-  // Home carries the offer once: only when it can be done in one tap, and only
-  // until it is taken or waved away.
-  const onHome = state.canPrompt && !state.installed && !dismissed;
+  /* Where the download is on screen, the platform note only says a download
+     exists — which the button said better. */
+  const note = file ? '' : state.note || '';
+  $('#installNote').textContent = note;
+  $('#installNote').hidden = !note;
+
+  /* Home carries the offer whenever there is one to make, not only where the
+     browser can prompt — an iPhone has no prompt and is exactly where someone
+     most needs telling that the app can leave the browser at all. It stays
+     until the offer is taken or waved away. */
+  const onHome = !state.installed && !dismissed && offer.kind !== 'done';
   $('#homeInstallCard').hidden = !onHome;
-  if (onHome) $('#homeInstallHow').textContent = state.how;
+  if (onHome) {
+    // The heading names the same thing the button does — a card that says
+    // "Install" over a button that says "Download" reads as two offers.
+    $('#homeInstallTitle').textContent = offer.label;
+    $('#homeInstallHow').textContent = offer.hint;
+
+    /* Three shapes of button, one slot. Where the browser can prompt, it
+       prompts. Where it cannot, the honest offer is the steps — which live in
+       Settings — rather than a button that would do nothing. */
+    const homeGo = $('#homeInstallGo');
+    homeGo.hidden = !state.canPrompt && !(offer.kind === 'steps' && state.steps.length);
+    homeGo.dataset.action = state.canPrompt ? 'prompt' : 'how';
+    if (!homeGo.hidden) {
+      homeGo.textContent = state.canPrompt
+        ? (offer.also ? offer.also.label : offer.label)
+        : 'Show me how';
+    }
+
+    const link = $('#homeInstallDownload');
+    link.hidden = !file;
+    if (file) {
+      link.href = file.href;
+      $('#homeInstallDownloadLabel').textContent = file.label;
+    }
+
+    /* The headline offer is the emphasised button and comes first, whichever
+       one it is — a quiet "Download for Windows" under a bright "Or install
+       from this page" contradicts the heading above both. */
+    const card = $('#homeInstallCard');
+    card.insertBefore(file ? link : homeGo, file ? homeGo : link);
+    link.classList.toggle('btn--primary', Boolean(file));
+    link.classList.toggle('btn--quiet', !file);
+    homeGo.classList.toggle('btn--primary', !file);
+    homeGo.classList.toggle('btn--quiet', Boolean(file));
+  }
 
   // The sidebar carries it too, where the design puts an upgrade offer, and
   // steps aside for the streak card once there is nothing left to install.
   const inNav = state.canPrompt && !state.installed && !dismissed;
   $('#navInstall').hidden = !inNav;
   $('#navStreak').hidden = inNav;
-  if (inNav) $('#navInstallHow').textContent = state.how;
+  // It only ever prompts, so like the Settings button it names the prompt.
+  if (inNav) $('#navInstallHow').textContent = offer.also ? offer.also.label : offer.label;
 }
 
 // ── test ───────────────────────────────────────────────────────────────────

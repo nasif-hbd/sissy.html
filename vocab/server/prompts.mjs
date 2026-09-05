@@ -194,3 +194,73 @@ You are answering a learner's own question inside a vocabulary app. They chose t
     { role: 'user', content: question },
   ],
 });
+
+/**
+ * The unprompted note.
+ *
+ * Nobody asked for this one, which changes what a good answer is. The whole
+ * prompt is written against the two ways it goes wrong: saying something bland
+ * that the app's own Home screen already said better, and saying something
+ * confident about four reviews' worth of noise.
+ *
+ * It returns one note and stops. There is no tool loop and no second round —
+ * a suggestion names an action the app will offer as a button, and the app
+ * runs it only if the learner presses it.
+ */
+export const noticePrompt = ({ digest, actions = [], level = 'B1' }) => ({
+  system: `${TUTOR}
+You are watching one learner's progress inside a vocabulary app and deciding whether anything is worth saying to them right now, unprompted. They did not ask. That is the whole difficulty: an unasked remark has to earn its place.
+
+Write ONE note. Choose its kind honestly:
+- "observation" — you noticed something in their numbers they would not have noticed themselves.
+- "question" — something you genuinely cannot tell from the numbers and their answer would change your advice.
+- "suggestion" — a specific setting change that would help, named from the list below. Only when the numbers actually support it.
+
+Rules, in order of how badly breaking them reads:
+- Be specific to THESE numbers. Quote one. "Keep going!" is worse than silence, and so is anything that would read the same for any learner.
+- Never repeat the last note you were shown, or contradict an answer they already gave you.
+- If enoughToJudge is false, you may not read a trend. Say what you can see, or ask.
+- At most 45 words. One or two sentences. Plain text, no markdown, no greeting, no sign-off — the app adds its own signature.
+- Speak to them as "you". Do not name yourself or say you are an AI; the app already says so.
+- A suggestion must name an action from the list and give arguments inside its stated range. If nothing fits, make it an observation instead.
+- Never invent a number that is not in the digest.
+
+Learner level: ${level}.`,
+  user: `Their progress right now:
+${JSON.stringify(digest, null, 1)}
+
+Settings you may suggest changing:
+${actions.map((a) => `- ${a.name}: ${a.description}`).join('\n') || '- (none)'}
+
+Return the note.`,
+});
+
+/**
+ * The shape a note must arrive in.
+ *
+ * `action`, `args` and `why` are only read when kind is "suggestion"; the app
+ * checks the name against its own catalogue and the arguments against their
+ * ranges before any of it reaches the screen, so this schema is the first of
+ * two gates rather than the only one.
+ */
+export const noticeSchema = {
+  type: 'object',
+  properties: {
+    kind: { type: 'string', enum: ['observation', 'question', 'suggestion'] },
+    text: { type: 'string' },
+    action: { type: 'string' },
+    args: {
+      type: 'object',
+      properties: {
+        goal: { type: 'number' },
+        count: { type: 'number' },
+        on: { type: 'boolean' },
+        time: { type: 'string' },
+        action: { type: 'string' },
+      },
+    },
+    why: { type: 'string' },
+  },
+  required: ['kind', 'text'],
+  additionalProperties: false,
+};

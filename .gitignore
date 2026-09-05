@@ -2,8 +2,12 @@
 # local tooling only — Playwright is linked in from the machine image
 node_modules
 
-# The web package is the repo itself, rebuilt — scripts/package-web.sh makes it
-# on demand. Committing 16MB of it every round would bloat history for nothing.
-download/vocabx-web.zip
+# Every archive under download/ is assembled from things that are committed —
+# scripts/package-web.sh and vocab/desktop/package.sh make them on demand.
+# Committing 30MB of zip every round would bloat history for nothing, and the
+# launchers they are built around (44 KB and 16 KB) are in the repo instead, so
+# rebuilding needs no compiler.
+download/*.zip
 
-download/vocabx-pages-with-ai.zip
+# Assembled from vocab/desktop/icon/*.png by build-icns.py, which is committed.
+vocab/desktop/VocabX.icns

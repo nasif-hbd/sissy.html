@@ -907,6 +907,13 @@ const SHARD_LIMIT = 140 * 1024;
    collapses to an underscore — the client sanitises identically. */
 const prefixOf = (w, n) => w.slice(0, n).replace(/[^a-z]/g, '_').padEnd(n, '_');
 
+/* MS-DOS device names are still reserved on Windows — `con.json` cannot be
+   created in any folder — and an unzip that hits one drops the file with a
+   warning nobody reads. Kept identical to shardFile() in js/catalog.js; the
+   two are checked against each other by tests/dict.test.mjs. */
+const RESERVED_NAME = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i;
+const shardFile = (key) => (RESERVED_NAME.test(key) ? `${key}-dict` : key);
+
 function bucket(words, depth) {
   const out = new Map();
   for (const r of words) {
@@ -936,7 +943,7 @@ for (const [key, group] of shards) {
   const words = {};
   for (const r of group) words[r.w] = { p: r.p, d: r.d, e: r.e, s: r.s, bn: r.bn, hi: r.hi, zh: r.zh };
   const json = JSON.stringify(words);
-  fs.writeFileSync(path.join(OUT_DICT, `${key}.json`), json);
+  fs.writeFileSync(path.join(OUT_DICT, `${shardFile(key)}.json`), json);
   total += json.length;
 }
 

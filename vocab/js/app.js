@@ -10,6 +10,9 @@
 import { APP, AI as AICFG, THEMES, PROVIDERS } from './config.js';
 import { Store, refreshStreak, makeSrs, dayKey, snapshot, restore } from './store.js';
 import { schedule, buildQueue, bucket, plannedSession, queueCounts, spokenDelta } from './srs.js';
+import { learningBrief, briefText, headline, prompts, localAdvice } from './brief.js';
+import { Sync, pushSoon, snapshotOf, mergeSnapshots, hasWork } from './sync.js';
+import { declarations, runAction } from './actions.js';
 import { makeSessionTimer, reportPayload, weakest, summary, window as windowStats, recentDays,
          dashboard, recentlyLearned, activeDays } from './stats.js';
 import { Notifier, Push } from './notify.js';
@@ -36,7 +39,11 @@ import { STARTERS, contextFor } from './chat.js';
 import { feedbackAsText, feedbackSubject, feedbackMailto, anonymise,
          manifestOf } from './feedback.js';
 import { SUBJECTS, modesFor, buildRound, markOne, markRound } from './testlab.js';
-import { createInstaller } from './install.js';
+import { createInstaller, downloadFor } from './install.js';
+import { Auth, serverAccounts } from './auth.js';
+import { openGate, initialOf } from './gate.js';
+import { shouldLook, digest, suggestable, validate, localNotice, remember, settle,
+         open as openNotice } from './notice.js';
 
 // ── session state ──────────────────────────────────────────────────────────
 const session = {
@@ -82,6 +89,10 @@ async function boot() {
   wireWords();
   wireInstall();
   wireFeedback();
+  wireAssist();
+  wireSync();
+  wireAccount();
+  wireNotice();
   wireFeedbackView();
   wireInbox();
   wireTest();
@@ -94,6 +105,15 @@ async function boot() {
   Store.on(() => renderHeader(Store.state));
   render();
 
+  /* The welcome, on a first run only. It goes up before the app is revealed
+     so nobody sees the app flash behind it, and the app is fully wired by
+     now, so whatever they choose lands on a screen that is already ready. */
+  if (!Auth.chose) {
+    const { how } = await openGate();
+    if (how === 'signup' || how === 'login') await joinAccount(how);
+  }
+  drawAccount();
+
   $('#app').hidden = false;
 
   const startView = location.hash.replace('#', '');
@@ -104,6 +124,17 @@ async function boot() {
   window.addEventListener('hashchange', () => {
     if (location.hash === '#inbox' && $('#view-inbox').hidden) openInbox();
   });
+
+  /* A kept session is re-checked in the background rather than before the
+     first paint: the app is entirely usable while the answer is in flight,
+     and blocking on it would put a spinner in front of someone who is
+     already signed in. */
+  if (Auth.token) {
+    Auth.resume().then((out) => {
+      drawAccount();
+      if (out.out) toast('Signed out — your work is still on this device.');
+    });
+  }
 
   await Notifier.registerServiceWorker();
   if (Store.state.settings.reminders.enabled) Notifier.start();
@@ -117,6 +148,11 @@ async function boot() {
     drawXp(Store.state);
     drawHome(Store.state);
   }).catch(() => {});
+
+  /* Two moments, both of them after something happened rather than on a
+     clock: the app being opened, and a session ending. shouldLook() says no
+     to nearly all of them. */
+  lookAround();
 
   timer.resume();
   document.addEventListener('visibilitychange', () => {
@@ -186,6 +222,11 @@ function render() {
   renderProgress(state);
   drawXp(state);
   drawHome(state);
+  drawNotice();
+  /* Profile reads the same ledger every other screen does, so it redraws with
+     them. It used to redraw only when the account changed, which meant a
+     streak earned since sign-in was not on it. */
+  drawProfile();
   renderLevelSummary(state.placement || null);
 }
 
@@ -406,6 +447,11 @@ function gradeCard(grade) {
     wordId: word.id, grade, correct: grade > 0, mode: 'flashcard',
     ms: Date.now() - session.shownAt,
   });
+
+  /* A session is a hundred gradings, so this coalesces them into one write a
+     minute after the last card rather than a hundred as they happen. Does
+     nothing at all unless the learner turned syncing on. */
+  pushSoon(Store.state);
 
   if (grade === 0) {
     // Failed cards go to the back of this session rather than disappearing.
@@ -744,7 +790,7 @@ function drawHome(state) {
   const plan = plannedSession(state, { newAllowance: newLeftToday(state) });
 
   const days = state.streak.current || 0;
-  $('#levelBadge').textContent = standing(state.xp?.total || 0).level;
+  drawBadge(state);
   $('#navStreakTitle').textContent = days
     ? `${days} day${days === 1 ? '' : 's'} in a row`
     : 'Nothing learned yet';
@@ -1175,7 +1221,17 @@ function wireInstall() {
 
   $('#installGo').addEventListener('click', runInstall);
   $('#navInstallGo').addEventListener('click', runInstall);
-  $('#homeInstallGo').addEventListener('click', runInstall);
+  /* The one Home button is whichever offer this device can actually take:
+     the browser's install prompt, or — where there is none — the steps, which
+     are in Settings beside the rest of the install answer. */
+  $('#homeInstallGo').addEventListener('click', (e) => {
+    if (e.currentTarget.dataset.action === 'how') {
+      switchView('settings');
+      $('#installTitle').closest('.card')?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    } else {
+      runInstall();
+    }
+  });
   $('#homeInstallClose').replaceChildren(icon('close'));
   $('#homeInstallClose').addEventListener('click', () => {
     // Asked once. Someone who said no does not want it every time they open
@@ -1198,21 +1254,10 @@ function drawInstall(state = installer?.state()) {
   if (!state) return;
   renderInstall(state, {
     dismissed: Boolean(Store.state.settings.installDismissed),
-    downloads: DOWNLOADS,
+    // The app sits one level below the site root, where download/ lives.
+    download: downloadFor(state.os, { base: '../download/' }),
   });
 }
-
-/**
- * Files offered for download, by platform.
- *
- * Relative to the app, so they work wherever the app is hosted; a link is only
- * shown once its file is actually reachable, or a fresh checkout would offer a
- * 404.
- */
-const DOWNLOADS = [
-  { os: 'windows', label: 'Windows download', href: '../download/vocabx-windows.zip',
-    note: 'Unzip and run VocabX.exe. No browser install, no runtime.' },
-];
 
 // ── the feedback screen ────────────────────────────────────────────────────
 
@@ -1465,6 +1510,808 @@ function drawInbox(notes) {
  * can paste it wherever they like.
  */
 let feedbackKind = 'idea';
+
+/* ── assistance ─────────────────────────────────────────────────────────── */
+
+/**
+ * The assistant, in the corner, on every screen.
+ *
+ * It is the same engine as the Ask tab, asked a different way. Ask is where
+ * you bring a question about a word; this is where you bring a question about
+ * *yourself* — what to do now, why a word keeps slipping, whether the week has
+ * gone well. Those questions are unanswerable without the numbers, so every
+ * message carries a derived snapshot of them.
+ *
+ * What is sent is counts, rates and a handful of terms. Never the history log,
+ * never anything typed into feedback, never a word list — a snapshot that fits
+ * in a few hundred characters cannot leak what it does not contain.
+ */
+/* ── keeping the work somewhere else ────────────────────────────────────── */
+
+/* ── the assistant, unprompted ──────────────────────────────────────────── */
+
+/**
+ * Ask whether anything is worth saying, and if so, say it.
+ *
+ * Runs after a session ends and when the app is opened, never during one.
+ * `shouldLook` says no nearly always — the cost of asking is one cheap read of
+ * the ledger, and the cost of getting this wrong is an assistant nobody wants
+ * on. Failure is silent by design: this is not a request anyone is waiting on,
+ * so a dead network is the same as nothing worth remarking.
+ */
+let looking = false;
+async function lookAround() {
+  if (looking) return;
+  const view = $$('.view').find((v) => !v.hidden)?.dataset.view || '';
+  if (!shouldLook(Store.state, { view })) return;
+
+  looking = true;
+  try {
+    const due = readyNow(plannedSession(Store.state));
+    const saw = digest(Store.state, { due });
+
+    /* The engine gets the digest and the names of the settings it may propose
+       — never the ability to change one. What comes back is a note, and a
+       note is words plus at most the name of an action. */
+    const raw = AIClient.isLive
+      ? await AIClient.notice({ digest: saw, actions: suggestable(),
+                                level: Store.state.profile.level })
+      : null;
+
+    const note = raw
+      ? validate(raw, { engine: AIClient.engine, model: AIClient.model, saw })
+      : localNotice(Store.state, { due });
+
+    remember(note);
+    render();
+  } finally {
+    looking = false;
+  }
+}
+
+/** What the switch in Settings says about itself right now. */
+function drawNoticeSetting() {
+  const on = Boolean(Store.state.settings.notices?.enabled);
+  $('#noticeToggle').checked = on;
+  $('#noticeNote').textContent = !on
+    ? 'Off. Nothing will appear on Home.'
+    : AIClient.isLive
+      ? `${AIClient.engine} sees a summary of your counts — never your word list, your `
+        + 'answers, or anything you have typed. At most two notes a day.'
+      : 'No engine is set, so the notes are the app\u2019s own reading of your numbers, '
+        + 'written on this device. At most two a day.';
+}
+
+/** What the Accept button on a suggestion says, in the app's own words. */
+function acceptLabel(note) {
+  // The argument names are the catalogue's, not this function's — a label
+  // built from a name the action does not take reads perfectly and passes
+  // undefined when pressed, which is exactly what it did.
+  if (note.action === 'set_daily_goal') return `Set the goal to ${note.args.reviews}`;
+  if (note.action === 'set_new_per_day') return `Make it ${note.args.words} new a day`;
+  if (note.action === 'set_reminders_enabled') return note.args.on ? 'Turn reminders on' : 'Turn reminders off';
+  if (note.action === 'set_reminder') return `Add a reminder at ${note.args.time}`;
+  return 'Do it';
+}
+
+function drawNotice() {
+  const note = openNotice(Store.state);
+  const card = $('#noticeCard');
+  card.hidden = !note;
+  if (!note) return;
+
+  $('#noticeText').textContent = note.text;
+
+  /* The signature, and the reason this feature is allowed to speak first. It
+     names the engine, the model and the time, and says outright that a
+     machine wrote it — the app never lets one engine's words be labelled as
+     another's, and unprompted words need that more, not less. */
+  const when = new Date(note.at).toLocaleString(undefined,
+    { hour: 'numeric', minute: '2-digit', day: 'numeric', month: 'short' });
+  $('#noticeBy').textContent = `Written by ${note.engine}${note.model ? ` · ${note.model}` : ''} · ${when}`;
+
+  /* Once a suggestion has been accepted the card stops offering it and starts
+     offering the way back. It is the learner who closes the note, not the act
+     of agreeing to it — otherwise "Undo" would flash past with the card. */
+  const done = note.state === 'done';
+  const suggestion = !done && note.kind === 'suggestion' && note.action;
+  $('#noticeSuggest').hidden = !suggestion;
+  $('#noticeAsk').hidden = done || note.kind !== 'question';
+  $('#noticePlain').hidden = suggestion || (!done && note.kind === 'question');
+  if (suggestion) $('#noticeAccept').textContent = acceptLabel(note);
+
+  if (done) {
+    $('#noticeText').textContent = note.result || note.text;
+    // The closure that undoes it lives on this page only. After a reload
+    // there is nothing to offer, so nothing is offered.
+    $('#noticeUndo').hidden = !(undoable && undoable.id === note.id);
+    $('#noticeOk').textContent = 'Close';
+  } else {
+    $('#noticeUndo').hidden = true;
+    $('#noticeOk').textContent = 'Got it';
+  }
+}
+
+/* The way back out of an accepted suggestion. A closure, so it lives on this
+   page only — which is why the button is drawn from it rather than from the
+   note, and why a reload offers nothing it cannot deliver. */
+let undoable = null;
+
+function wireNotice() {
+  $('#noticeOk').addEventListener('click', () => {
+    const note = openNotice(Store.state);
+    settle(note?.id, note?.state === 'done' ? 'accepted' : 'dismissed');
+    undoable = null;
+    render();
+  });
+
+  $('#noticeDecline').addEventListener('click', () => {
+    settle(openNotice(Store.state)?.id, 'declined');
+    render();
+    toast('Left as it was.');
+  });
+
+  /* The only path from a suggestion to a change, and it runs through the same
+     runAction and the same Undo as everything the assistant does when asked.
+     Nothing about a note being unprompted earns it a shortcut. */
+  $('#noticeAccept').addEventListener('click', async () => {
+    const note = openNotice(Store.state);
+    if (!note?.action) return;
+
+    const result = await runAction(note.action, note.args, await actionContext());
+    if (result?.refused) {
+      /* The action refused what the note offered — a range it would not take,
+         or a state that has moved since. The note becomes the refusal rather
+         than a button that does nothing. */
+      settle(note.id, 'done', { result: `Not done: ${result.refused}` });
+      undoable = null;
+      render();
+      return;
+    }
+
+    undoable = result.undo ? { id: note.id, undo: result.undo } : null;
+    settle(note.id, 'done', { result: result.say || 'Done.' });
+    render();
+    toast(result.say || 'Done.');
+  });
+
+  $('#noticeUndo').addEventListener('click', () => {
+    if (!undoable) return;
+    undoable.undo();
+    settle(undoable.id, 'declined');
+    undoable = null;
+    render();
+    toast('Put back.');
+  });
+
+  $('#noticeAsk').addEventListener('submit', (e) => {
+    e.preventDefault();
+    const answer = $('#noticeAnswer').value.trim().slice(0, 200);
+    /* Kept on the note and shown to the engine next time, so an answer is a
+       reply rather than a form submission into nothing. */
+    settle(openNotice(Store.state)?.id, 'answered', { answer });
+    $('#noticeAnswer').value = '';
+    render();
+    toast(answer ? 'Noted.' : 'Skipped.');
+  });
+
+  const toggle = $('#noticeToggle');
+  toggle.checked = Boolean(Store.state.settings.notices?.enabled);
+  toggle.addEventListener('change', () => {
+    Store.set('settings.notices.enabled', toggle.checked);
+    drawNoticeSetting();
+    toast(toggle.checked ? 'It will speak up when it has something.' : 'It will stay quiet.');
+    if (toggle.checked) lookAround();
+  });
+  drawNoticeSetting();
+
+  $('#noticeOff').addEventListener('click', () => {
+    Store.set('settings.notices.enabled', false);
+    settle(openNotice(Store.state)?.id, 'dismissed');
+    render();
+    $('#noticeToggle').checked = false;
+    toast('It will not speak up again. Settings can turn it back on.');
+  });
+}
+
+/**
+ * What happens the moment someone stops being a guest.
+ *
+ * Signing up is easy — the account is new, so this device's work is simply
+ * pushed up. Signing in is the one that can destroy a fortnight of study: the
+ * account has a snapshot and this device has its own, and choosing either one
+ * loses the other. So they are merged, and only then written back. sync.js
+ * sets out the rule for every field.
+ */
+async function joinAccount(how) {
+  if (!Auth.isIn) return;
+
+  try {
+    if (how === 'signup') {
+      const at = await Sync.push(Store.state);
+      if (at) Store.set('settings.sync.lastAt', at);
+      toast(`Account made. Your work is saved as ${Auth.user?.name || Auth.user?.email}.`);
+      return;
+    }
+
+    const found = await Sync.pull();
+    if (!found?.snapshot) {
+      // Nothing up there yet — this device becomes the record.
+      const at = await Sync.push(Store.state);
+      if (at) Store.set('settings.sync.lastAt', at);
+      toast(`Signed in as ${Auth.user?.name || Auth.user?.email}.`);
+      return;
+    }
+
+    /* Read before anything is applied. Afterwards the answer is always yes —
+       the merged state is in the store by then — and the message would tell
+       someone their fresh phone had been merged with something. */
+    const hadWork = hasWork(Store.state);
+
+    const merged = hadWork
+      ? mergeSnapshots(snapshotOf(Store.state), found.snapshot)
+      : found.snapshot;
+    applySnapshot(merged);
+
+    // Written straight back, so the other device sees the join too rather
+    // than pushing its own half over it on its next sync.
+    const at = await Sync.push(Store.state);
+    if (at) Store.set('settings.sync.lastAt', at);
+
+    toast(hadWork
+      ? 'Signed in. Your saved work and this device\'s have been merged.'
+      : 'Signed in. Your saved work is back.');
+  } catch {
+    /* The account is real and the session is good; only the first sync
+       failed. Saying nothing would look like the work was lost. */
+    toast('Signed in, but could not reach your saved work yet. It will sync later.', 'bad');
+  }
+}
+
+/**
+ * The one thing in the header that has two possible truths.
+ *
+ * Signed in it is the account's initial; a guest has no face to show, so it
+ * stays the level badge it has always been. Both callers go through here
+ * rather than writing to the element: they used to, and the later of the two
+ * won — which meant signing up showed a level for as long as it took the
+ * module manifest to land, and then still did.
+ */
+function drawBadge(state = Store.state) {
+  const badge = $('#levelBadge');
+  const user = Auth.isIn ? Auth.user : null;
+
+  badge.textContent = user ? initialOf(user) : standing(state.xp?.total || 0).level;
+  badge.title = user ? `Signed in as ${user.name || user.email}` : 'Your level';
+  badge.classList.toggle('avatar--who', Boolean(user));
+}
+
+/**
+ * The name to put on screen.
+ *
+ * An account's name wins, because it is the one that followed you here. A
+ * guest's is theirs alone and lives on the device — which is the only place a
+ * guest has, and is not a lesser answer.
+ */
+function myName() {
+  return (Auth.isIn ? Auth.user?.name : Store.state.profile?.name) || '';
+}
+
+/**
+ * The Profile screen.
+ *
+ * The same screen for a guest and for someone signed in — the standing, the
+ * streak and the ledger are the learner's, not the account's, and hiding them
+ * behind a signup would be a lie about where the work lives. What the account
+ * adds is an email line and somewhere to sign out.
+ */
+function drawProfile() {
+  const state = Store.state;
+  const user = Auth.isIn ? Auth.user : null;
+  const name = myName();
+  const s = summary(state);
+  const rank = standing(state.xp?.total || 0);
+
+  $('#profFace').textContent = (name || '?').trim()[0]?.toUpperCase() || '?';
+  $('#profName').textContent = name || 'Learner';
+  $('#profTitle').textContent = `Level ${rank.level} · ${rank.title}`;
+  $('#profWhere').textContent = user
+    ? `${user.email} · member since ${monthOf(user.made)}`
+    : `Guest · on this device since ${monthOf(state.createdAt)}`;
+
+  /* An account's name is on the server, a guest's is on the device, and the
+     hint says which so nobody is surprised by where it did or did not follow
+     them. */
+  $('#profNameHint').textContent = user
+    ? 'What the app calls you, saved to your account and shown on every device you sign in on.'
+    : 'What the app calls you. Kept on this device — an account would carry it with you.';
+  // Not clobbered mid-edit: this redraws on every store change.
+  if (document.activeElement !== $('#profNameInput')) $('#profNameInput').value = name;
+
+  $('#profLevelNote').textContent = rank.need
+    ? `${rank.into} of ${rank.need} XP towards level ${rank.level + 1}.`
+    : `Level ${rank.level}.`;
+  $('#profLevelFill').style.width = `${Math.round(rank.pct * 100)}%`;
+
+  const minutes = Math.round(
+    Object.values(state.days || {}).reduce((n, d) => n + (d.seconds || 0), 0) / 60);
+  $('#profStats').replaceChildren(...[
+    ['Words learned', s.studied],
+    ['Now in review', s.known],
+    ['Day streak', s.streak],
+    ['Longest streak', s.longest],
+    ['Days active', activeDays(state)],
+    ['Time studied', minutes >= 60 ? `${Math.round(minutes / 60)} h` : `${minutes} min`],
+  ].map(([label, value]) => el('div', { class: 'profile__stat' },
+    el('b', { text: String(value) }), el('span', { text: label }))));
+
+  /* Only once they have sat it. An empty "your level: —" on a first run is a
+     reproach rather than information; Home already invites them to take it. */
+  const exam = state.placement;
+  $('#profExam').hidden = !exam;
+  if (exam) {
+    const when = new Date(exam.at || Date.now()).toLocaleDateString(
+      undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+    $('#profExamNote').textContent = `${exam.level} — ${exam.correct} of ${exam.answered} `
+      + `right, taken ${when}.`;
+  }
+}
+
+/** "March 2026", or nothing at all rather than "Invalid Date". */
+function monthOf(when) {
+  const at = when ? new Date(when) : null;
+  if (!at || Number.isNaN(at.getTime())) return 'today';
+  return at.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+}
+
+/** The Profile screen, and the initial in the header. */
+function drawAccount() {
+  const user = Auth.isIn ? Auth.user : null;
+
+  $('#acctIn').hidden = !user;
+  $('#acctOut').hidden = Boolean(user);
+  $('#acctStatus').dataset.state = user ? 'ok' : 'wait';
+  $('#acctHow').textContent = user
+    ? 'Signed in. Your work is saved as you study, on every device you sign in on.'
+    : 'Not signed in. Everything is on this device — which is fine, and is how '
+      + 'most people use it. An account is for surviving a cleared browser.';
+
+  $('#settingsAcctHint').textContent = user
+    ? `Signed in as ${user.email}. Your name, your standing and signing out are on Profile.`
+    : 'Not signed in. Your name and your standing are on Profile, along with signing up.';
+
+  /* Also called from render(). Signing out does not go through render(), and a
+     profile still showing the account someone just left is worse than one
+     extra pass over six tiles. */
+  drawProfile();
+  drawBadge();
+  /* The sync card's answer depends on this one — signing in turns it on — so
+     it is redrawn from here rather than at each of the five places that
+     change an account. It was not, and signing up left "Off. Everything stays
+     on this device." on screen underneath a card saying the opposite. */
+  drawSync();
+
+  /* Asked after the card is drawn, never before: the card must not wait on
+     the network to appear. If this deployment has no database the two buttons
+     go quiet here rather than opening a form that cannot finish. */
+  if (!user) {
+    serverAccounts().then((can) => {
+      $('#acctSignup').disabled = !can;
+      $('#acctSignin').disabled = !can;
+      if (!can) {
+        // "The section below" moved to Settings when this card did.
+        $('#acctHow').textContent = 'Accounts are not set up on this deployment, so everything '
+          + 'is kept on this device. Nothing else is missing — Settings can still put your '
+          + 'work on another device with a code.';
+      }
+    });
+  }
+}
+
+function wireAccount() {
+  /* The header avatar is the thing on screen that most looks like "you", so
+     it is now the way in — it was decoration before. */
+  $('#levelBadge').addEventListener('click', () => switchView('profile'));
+  $('#settingsProfile').addEventListener('click', () => switchView('profile'));
+
+  // openAssess switches the view itself and draws the last result, so this is
+  // the whole of it — Home and Progress reach the same screen the same way.
+  $('#profExamGo').addEventListener('click', openAssess);
+
+  const saveName = async () => {
+    const name = $('#profNameInput').value.trim().slice(0, 40);
+
+    /* A guest's name goes in the store and nowhere else; an account's has to
+       reach the server or it would come back wrong on the next device. The
+       local copy is written either way, so the screen never argues with the
+       box someone just typed in. */
+    Store.set('profile.name', name);
+    if (!Auth.isIn) { drawAccount(); toast(name ? `Hello, ${name}.` : 'Name cleared.'); return; }
+
+    const out = await Auth.rename(name);
+    drawAccount();
+    toast(out?.ok ? 'Name saved to your account.' : (out?.error || 'Could not reach the server.'),
+      out?.ok ? 'ok' : 'bad');
+  };
+
+  $('#profNameSave').addEventListener('click', saveName);
+  $('#profNameInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); saveName(); }
+  });
+
+  const open = async (mode) => {
+    const { how } = await openGate({ mode, dismissible: true });
+    if (how === 'signup' || how === 'login') await joinAccount(how);
+    drawAccount();
+  };
+
+  /* Signing up hands the account the name a guest was already using, rather
+     than making them type it a second time into a form that already asked. */
+  $('#acctSignup').addEventListener('click', () => {
+    const mine = Store.state.profile?.name;
+    if (mine) setTimeout(() => { const box = $('#gateName'); if (box && !box.value) box.value = mine; }, 0);
+  });
+
+  $('#acctSignup').addEventListener('click', () => open('signup'));
+  $('#acctSignin').addEventListener('click', () => open('signin'));
+
+  $('#acctSignout').addEventListener('click', async () => {
+    await Auth.logout();
+    drawAccount();
+    toast('Signed out. Your work is still on this device.');
+  });
+
+  $('#acctSignoutAll').addEventListener('click', async () => {
+    if (!confirm('Sign out on every device you have used?\n\n'
+      + 'Your work stays saved — you just have to sign in again.')) return;
+    await Auth.logout({ everywhere: true });
+    drawAccount();
+    toast('Signed out everywhere.');
+  });
+
+  $('#acctErase').addEventListener('click', async () => {
+    const who = Auth.user?.email || 'this account';
+    if (!confirm(`Delete ${who} and everything saved with it?\n\n`
+      + 'Your progress and your Ask history go with it. What is on this device '
+      + 'stays, and the app keeps working as a guest. This cannot be undone.')) return;
+    const out = await Auth.erase();
+    drawAccount();
+    toast(out?.ok ? 'Account deleted.' : (out?.error || 'Could not reach the server.'),
+      out?.ok ? 'ok' : 'bad');
+  });
+}
+
+/**
+ * The optional server copy.
+ *
+ * Off unless someone turns it on, and every path through it degrades to doing
+ * nothing rather than to an error — the app has always worked with only this
+ * device, and turning this on must not make that less true.
+ */
+function wireSync() {
+  const toggle = $('#syncToggle');
+  toggle.checked = Boolean(Store.state.settings.sync?.enabled);
+  $('#syncCode').value = Sync.deviceId() || 'unavailable in this browser';
+
+  toggle.addEventListener('change', async () => {
+    Store.set('settings.sync.enabled', toggle.checked);
+    drawSync('Saving…');
+    if (!toggle.checked) { drawSync(); return; }
+
+    /* Turning it on for the first time on a second device should find the
+       work already there rather than overwrite it with an empty start. */
+    const found = await Sync.pull();
+    if (found && (found.snapshot?.words) && !Object.keys(Store.state.words).length) {
+      applySnapshot(found.snapshot);
+      toast('Found your saved work and restored it.');
+    } else {
+      const at = await Sync.push(Store.state);
+      if (at) Store.set('settings.sync.lastAt', at);
+    }
+    drawSync();
+  });
+
+  $('#syncCopy').addEventListener('click', async () => {
+    try {
+      await navigator.clipboard.writeText(Sync.deviceId() || '');
+      toast('Code copied.');
+    } catch { $('#syncCode').select(); toast('Press Ctrl+C to copy.', 'bad'); }
+  });
+
+  $('#syncJoinGo').addEventListener('click', async () => {
+    const code = $('#syncJoin').value.trim();
+    if (!Sync.adoptId(code)) { toast('That does not look like a code.', 'bad'); return; }
+    $('#syncCode').value = Sync.deviceId();
+    $('#syncJoin').value = '';
+    drawSync('Looking…');
+
+    const found = await Sync.pull();
+    if (!found) { drawSync('Nothing is stored under that code yet.'); return; }
+    applySnapshot(found.snapshot);
+    toast('Joined. Your work from the other device is here.');
+    drawSync();
+  });
+
+  $('#syncForget').addEventListener('click', async () => {
+    if (!confirm('Delete everything stored on the server for this code?\n\n'
+      + 'What is on this device stays. This cannot be undone.')) return;
+    // Once, not twice: awaiting it inside both arms of the ternary sent the
+    // delete a second time.
+    const gone = await Sync.forget();
+    toast(gone ? 'Deleted from the server.' : 'Could not reach the server.',
+      gone ? 'ok' : 'bad');
+    drawSync();
+  });
+
+  drawSync();
+}
+
+/**
+ * What the assistant just did, and how to put it back.
+ *
+ * Shown even when the reply already mentions it. A model saying "I've moved
+ * your reminder" is a claim; this is the app's own account of what changed,
+ * and it carries the undo, so agreeing after the fact is a real option rather
+ * than a form of words.
+ */
+function showChanges(changes = []) {
+  const box = $('#assistChanges');
+  box.replaceChildren(...changes.map((c) => {
+    const row = el('div', { class: 'assist__change' },
+      el('span', { text: c.refused ? `Not done: ${c.refused}` : c.say }));
+    if (c.undo) {
+      row.append(el('button', {
+        class: 'btn btn--quiet btn--sm', type: 'button', text: c.undoLabel || 'Undo',
+        onclick: (e) => {
+          c.undo();
+          e.currentTarget.remove();
+          row.append(el('span', { class: 'hint', text: ' — put back.' }));
+          toast('Put back.');
+        },
+      }));
+    }
+    return row;
+  }));
+  box.hidden = !changes.length;
+}
+
+function drawSync(message) {
+  const last = Store.state.settings.sync?.lastAt;
+
+  /* Signing in already answered this question — keeping the work is the whole
+     reason anyone makes an account. So the card stops offering a toggle that
+     could only ever contradict it, and the device-code section goes with it:
+     a code is how a guest reaches a second device, and an account is how
+     everyone else does. */
+  if (Auth.isIn) {
+    $('#syncToggle').checked = true;
+    $('#syncToggle').disabled = true;
+    $('#syncOwn').hidden = true;
+    // "Off by default" is true of the app and false of this screen right now.
+    $('#syncIntro').textContent = 'On, because you are signed in — this is what an account '
+      + 'is for. Signing out stops it and leaves everything on this device.';
+    $('#syncStatus').dataset.state = message ? 'wait' : 'ok';
+    $('#syncHow').textContent = message || (last
+      ? `Saved to your account. Last sent ${new Date(last).toLocaleString()}.`
+      : 'Saved to your account as you study.');
+    return;
+  }
+
+  const on = Boolean(Store.state.settings.sync?.enabled);
+  $('#syncToggle').disabled = false;
+  $('#syncOwn').hidden = false;
+  $('#syncIntro').textContent = 'Off by default. Everything already works on this device '
+    + 'alone — this is for surviving a cleared browser, and picking up where you left off '
+    + 'on another phone or laptop.';
+  $('#syncStatus').dataset.state = message ? 'wait' : on ? 'ok' : 'wait';
+  $('#syncHow').textContent = message || (on
+    ? (last ? `Saved. Last sent ${new Date(last).toLocaleString()}.`
+            : 'On. Your work is sent as you study.')
+    : 'Off. Everything stays on this device.');
+}
+
+/**
+ * Put a downloaded snapshot back into the app.
+ *
+ * Replaces the schedule and the ledger, and leaves settings alone: a phone and
+ * a laptop want different reminder times, and syncing those would be a bug
+ * wearing a feature's clothes.
+ */
+function applySnapshot(snapshot) {
+  if (!snapshot || typeof snapshot !== 'object') return;
+  for (const key of ['words', 'srs', 'days', 'streak', 'xp', 'history']) {
+    if (snapshot[key] !== undefined) Store.set(key, snapshot[key]);
+  }
+  render();
+}
+
+function wireAssist() {
+  $('#assistBtn').addEventListener('click', openAssist);
+  $('#assistClose').addEventListener('click', closeAssist);
+  $('#assistSheet').addEventListener('click', (e) => {
+    if (e.target.id === 'assistSheet') closeAssist();
+  });
+  $('#assistSend').addEventListener('click', () => askAssist($('#assistInput').value));
+  $('#assistInput').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') askAssist($('#assistInput').value);
+  });
+}
+
+function openAssist() {
+  const brief = learningBrief(Store.state);
+  const due = readyNow(plannedSession(Store.state));
+
+  // On screen before any request leaves the device: the panel already knows
+  // this, and making someone wait to be told it would be theatre.
+  $('#assistHeadline').textContent = headline(brief, due);
+  $('#assistFacts').textContent = briefText(brief);
+  $('#assistEngine').textContent = AIClient.engine;
+  $('#assistEngine').title = AIClient.engineDetail;
+  $('#assistReply').hidden = true;
+  $('#assistReply').textContent = '';
+  $('#assistChanges').hidden = true;
+  $('#assistChanges').replaceChildren();
+  $('#assistNote').textContent = AIClient.isLive
+    ? `${AIClient.engine} sees the summary above — nothing else leaves this device.`
+    : 'Answered on this device. No engine is reachable, so the advice is the app\u2019s own.';
+
+  $('#assistPrompts').replaceChildren(...prompts(brief, due).map((p) =>
+    el('button', { class: 'btn btn--quiet btn--sm', type: 'button', text: p.label,
+                   onclick: () => askAssist(p.ask) })));
+
+  $('#assistSheet').hidden = false;
+  $('#assistInput').focus();
+}
+
+function closeAssist() {
+  $('#assistSheet').hidden = true;
+  $('#assistBtn').focus();
+}
+
+let assisting = false;
+
+/**
+ * What the assistant is told about its own job.
+ *
+ * Written as constraints rather than encouragement. A model given actions and
+ * no boundary will use them to be helpful in ways nobody asked for — moving a
+ * reminder because the conversation drifted near it, sending a notification to
+ * be friendly. The rule that matters is the last one.
+ */
+const ASSIST_SYSTEM = [
+  'You are the study assistant inside VocabX, an English vocabulary app.',
+  'You can read the learner\u2019s progress and change their settings by calling the',
+  'functions you have been given. Look before you act: call get_progress or',
+  'get_reminders first when the answer depends on where they actually are.',
+  'Change something only when the learner has asked for that change in this',
+  'conversation. Never send a notification unless they asked to be reminded or',
+  'pushed. If you are unsure whether they want a change, say what you would do',
+  'and let them ask. Be brief; two or three sentences is usually enough.',
+].join(' ');
+
+/**
+ * How the actions reach the learner's own state, and nothing else.
+ *
+ * Async because the module list is: handing an action a pending Promise where
+ * it expects an array turns into a refusal the learner cannot act on.
+ */
+async function actionContext() {
+  const modules = await Catalog.modules().catch(() => []);
+  return {
+    state: Store.state,
+    modules: Array.isArray(modules) ? modules : Object.values(modules || {}),
+    commit: (path, value) => { Store.set(path, value); render(); },
+    /* Notifications go through the same Notifier the reminders use, so the
+       Android bridge and the browser path are both already handled. */
+    notify: async (title, body) => {
+      if (Notifier.permission !== 'granted') return false;
+      return Notifier.show(title, body, { actions: false });
+    },
+  };
+}
+
+/**
+ * One exchange: ask, run whatever comes back, ask again with the results.
+ *
+ * Two rounds and no more. A loop that lets a model call functions until it is
+ * satisfied is a loop that can spend somebody's afternoon and somebody's
+ * credit, and nothing in this catalogue needs a third.
+ */
+async function assistTurn(question, onText) {
+  const tools = declarations();
+  let out = await AIClient.act({ question, system: ASSIST_SYSTEM, tools });
+  if (out.offline) return { text: '', offline: true, changes: [] };
+
+  const changes = [];
+  if (out.calls?.length) {
+    const ctx = await actionContext();
+    const results = [];
+    // At most four in a turn: enough to read then write, short of a runaway.
+    for (const call of out.calls.slice(0, 4)) {
+      const result = await runAction(call.name, call.args, ctx);
+      results.push({
+        // Claude matches a result to its call by id; Gemini matches by name.
+        // Carrying both means neither engine needs a special case here.
+        id: call.id,
+        name: call.name,
+        result: result.data || result.say || result.refused,
+        failed: Boolean(result.refused),
+      });
+      if (result.say || result.refused) changes.push({ ...result, name: call.name });
+    }
+    onText?.('');
+    /* The history shape is the engine's own — Gemini wants `parts`, Claude
+       wants `content` — so the question is echoed back in whichever one the
+       first call returned, and the turn is passed through untouched. */
+    const asked = AIClient.provider === 'gemini'
+      ? { role: 'user', parts: [{ text: question }] }
+      : { role: 'user', content: question };
+    out = await AIClient.act({
+      system: ASSIST_SYSTEM, tools, results,
+      history: out.turn ? [asked, out.turn] : [],
+    });
+  }
+  return { text: out.text || '', changes };
+}
+
+async function askAssist(question) {
+  const q = (question || '').trim();
+  if (!q || assisting) return;
+  assisting = true;
+  $('#assistInput').value = '';
+  $('#assistSend').disabled = true;
+
+  const reply = $('#assistReply');
+  reply.hidden = false;
+  reply.textContent = '';
+
+  /* The snapshot rides with the question rather than being a separate call,
+     so the engine cannot answer about a state it was never shown. */
+  const brief = learningBrief(Store.state);
+  const framed = `Here is where I am with my vocabulary learning. ${briefText(brief)}\n\n${q}`;
+
+  const due = readyNow(plannedSession(Store.state));
+
+  /* AIClient.ask falls back to its own offline tutor rather than throwing, and
+     that tutor knows about words, not about you — it answers "how am I doing"
+     with "that needs a live engine". So the no-engine case is decided here,
+     before the call, and answered from the snapshot the app already holds. */
+  if (!AIClient.isLive) {
+    reply.textContent = localAdvice(brief, due);
+    assisting = false;
+    $('#assistSend').disabled = false;
+    return;
+  }
+
+  try {
+    /* Both live engines can act, not only answer: they read the progress and
+       change the settings the learner asked them to change. The built-in
+       tutor cannot, and falls through to the streaming answer below. */
+    if (AIClient.isLive) {
+      const out = await assistTurn(framed);
+      reply.textContent = out.text || 'Done.';
+      showChanges(out.changes);
+      Sync.saveChat(q, reply.textContent, AIClient.engine);
+      return;
+    }
+
+    await AIClient.ask({ question: framed, level: Store.state.settings.level },
+      (token) => { reply.textContent += token; reply.scrollTop = reply.scrollHeight; });
+  } catch (err) {
+    /* Never a dead panel. The generic offline tutor knows about words, not
+       about you, so a question about progress is answered from the snapshot
+       the app already holds rather than with "that needs a live engine". */
+    reply.textContent = localAdvice(brief, due);
+    $('#assistNote').textContent = `${AIClient.engine} was unreachable (${err.message}).`;
+    // Worth keeping: this is the half of the history that is not reproducible
+    // from the schedule. Fire and forget — a failed save must not surface as
+    // an error over an answer that arrived fine.
+    Sync.saveChat(q, reply.textContent, AIClient.engine);
+  } finally {
+    assisting = false;
+    $('#assistSend').disabled = false;
+  }
+}
 
 function wireFeedback() {
   $('#feedbackBtn').addEventListener('click', openFeedback);
@@ -2361,6 +3208,20 @@ function refreshNotifyState() {
   }[state] || state;
   $('#notifyEnable').disabled = state === 'granted' || state === 'unsupported';
   $('#pushToggle').checked = Boolean(Store.state.settings.push?.enabled);
+
+  /* Asked after the card is drawn, never before it. A box that can only fail
+     when ticked is worse than no box: the Cloudflare Worker implements none of
+     the push routes and says so on /api/health, so on that deployment this
+     switches itself off and explains, instead of throwing when pressed. */
+  Push.offered().then((can) => {
+    $('#pushToggle').disabled = !can;
+    $('#pushNote').textContent = can
+      ? 'Your proxy can push, so reminders arrive with the app closed.'
+      : 'Your proxy does not do server push, so reminders arrive while VocabX is '
+        + 'open in a tab — or any time in the installed Android app, which raises '
+        + 'them itself. The Node proxy in vocab/server does push; the Cloudflare '
+        + 'Worker does not.';
+  });
 }
 
 // ── extras ─────────────────────────────────────────────────────────────────

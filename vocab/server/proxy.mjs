@@ -15,6 +15,7 @@
  *   POST /api/ai/suggest          { level, known, … }        → [{term, reason}]
  *   POST /api/ai/coach            { term, sentence, … }      → SSE text
  *   POST /api/ai/report           { stats }                  → SSE text
+ *   POST /api/ai/notice           { digest, actions }        → one signed note
  *   GET  /api/push/public-key     VAPID public key
  *   POST /api/push/subscribe      store a PushSubscription
  *   POST /api/push/unsubscribe    drop one
@@ -29,6 +30,7 @@ import Anthropic from '@anthropic-ai/sdk';
 import {
   wordPrompt, wordSchema, quizPrompt, quizSchema,
   suggestPrompt, suggestSchema, coachPrompt, reportPrompt, assessPrompt, askPrompt,
+  noticePrompt, noticeSchema,
 } from './prompts.mjs';
 // The reminder copy is shared with the app so the wording never drifts between
 // a notification fired in-tab and the same one pushed from here.
@@ -219,6 +221,18 @@ const routes = {
     }
     data.answerIndex = Math.max(0, Math.min(data.options.length - 1, data.answerIndex | 0));
     json(res, 200, { ok: true, data });
+  },
+
+  /* One unprompted note. Structured output, never a tool loop: the shape it
+     can answer in has no room for an action being taken, only named. */
+  'POST /api/ai/notice': async (req, res, body) => {
+    const who = provider(body);
+    const note = await askJsonVia(who, noticePrompt({
+      digest: body?.digest || {},
+      actions: Array.isArray(body?.actions) ? body.actions.slice(0, 12) : [],
+      level: body?.level,
+    }), noticeSchema, body);
+    json(res, 200, { ok: true, data: note });
   },
 
   'POST /api/ai/suggest': async (req, res, body) => {

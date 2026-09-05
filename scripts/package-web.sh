@@ -2,7 +2,7 @@
 # Package the static site for a web host — Cloudflare Pages, Netlify, GitHub
 # Pages, or anything that serves a folder.
 #
-# What ships is the landing page, the app, and the Windows download the landing
+# What ships is the landing page, the app, and the desktop download the landing
 # page links to. What does not ship is the AI proxy (server/ is a Node service
 # you host separately, and it is where the keys live), the build scripts, the
 # tests, and the source artwork the icons are cut from.
@@ -29,14 +29,20 @@ for part in index.html styles.css sw.js manifest.webmanifest js data fonts icons
   cp -r "vocab/$part" "$STAGE/vocab/"
 done
 
-# The desktop download, so the button on the landing page works.
-cp download/vocabx-windows.zip "$STAGE/download/"
+# The desktop downloads, so the buttons on the landing page work. Built here
+# if they are not lying around — they are assembled from committed launchers,
+# so this needs no compiler and there is no step to forget.
+# The desktop download, so the button on the landing page works. Built here if
+# it is not lying around — it is assembled from committed launchers, so this
+# needs no compiler and there is no step to forget.
+[ -f download/vocabx-desktop.zip ] || vocab/desktop/package.sh
+cp download/vocabx-desktop.zip "$STAGE/download/"
 
 # A missing part is a broken site on someone's domain, and the list above is
 # easy to forget to extend.
 for part in index.html _headers .nojekyll vocab/js vocab/data vocab/icons \
             vocab/fonts vocab/styles.css vocab/sw.js vocab/manifest.webmanifest \
-            download/vocabx-windows.zip; do
+            download/vocabx-desktop.zip; do
   [ -e "$STAGE/$part" ] || { echo "packaging lost $part"; exit 1; }
 done
 

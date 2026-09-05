@@ -8,7 +8,7 @@
  */
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { platformOf } from '../js/install.js';
+import { platformOf, installOffer, downloadFor, DOWNLOADS } from '../js/install.js';
 
 const UA = {
   iphoneSafari:  'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
@@ -22,6 +22,8 @@ const UA = {
   macSafari:     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
   macChrome:     'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
   linuxChrome:   'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  androidTablet: 'Mozilla/5.0 (Linux; Android 14; SM-X710) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  chromeOS:      'Mozilla/5.0 (X11; CrOS x86_64 14541.0.0) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
 };
 
 test('an installed app is recognised before anything else', () => {
@@ -131,4 +133,148 @@ test('an unknown user agent still gets a usable answer', () => {
 test('an empty user agent does not throw', () => {
   assert.ok(platformOf('').id);
   assert.ok(platformOf(undefined).id);
+});
+
+test('the device is named the way its owner would name it', () => {
+  // "Install on Desktop" tells nobody anything. The label in the button is
+  // the word the person would use for the thing in their hand.
+  assert.equal(platformOf(UA.iphoneSafari).device, 'iPhone');
+  assert.equal(platformOf(UA.ipadOS, { touchPoints: 5 }).device, 'iPad');
+  assert.equal(platformOf(UA.androidChrome).device, 'Android phone');
+  assert.equal(platformOf(UA.androidTablet).device, 'Android tablet');
+  assert.equal(platformOf(UA.winChrome).device, 'Windows PC');
+  assert.equal(platformOf(UA.macSafari).device, 'Mac');
+  assert.equal(platformOf(UA.macChrome).device, 'Mac');
+  assert.equal(platformOf(UA.chromeOS).device, 'Chromebook');
+  assert.equal(platformOf(UA.linuxChrome).device, 'Linux PC');
+});
+
+test('every platform, installed or not, carries a device name', () => {
+  for (const [name, ua] of Object.entries(UA)) {
+    for (const standalone of [false, true]) {
+      const p = platformOf(ua, { standalone, touchPoints: 5 });
+      assert.equal(typeof p.device, 'string', `${name} has no device name`);
+      assert.ok(p.device.length, `${name} has an empty device name`);
+    }
+  }
+});
+
+test('every desktop is offered its own file', () => {
+  for (const [name, ua, expect] of [
+    ['windows', UA.winChrome, 'Download for Windows'],
+    ['mac', UA.macSafari, 'Download for Mac'],
+    ['linux', UA.linuxChrome, 'Download for Linux'],
+  ]) {
+    const offer = installOffer(platformOf(ua, { touchPoints: 0 }));
+    assert.equal(offer.kind, 'download', `${name} was not offered its file`);
+    assert.equal(offer.label, expect);
+    assert.ok(offer.href, `${name}: a download offer with nothing to download`);
+    assert.ok(offer.note, `${name}: a download with no word about what running it means`);
+  }
+});
+
+test('a phone is never offered a download, because there is no file', () => {
+  // Saying "Download" on an iPhone would promise a file that does not exist
+  // and cannot exist — Apple has no route for one — and Android would need a
+  // signed APK we do not ship. Both install from the browser instead.
+  for (const ua of [UA.iphoneSafari, UA.iphoneChrome, UA.androidChrome, UA.androidFirefox]) {
+    const offer = installOffer(platformOf(ua));
+    assert.notEqual(offer.kind, 'download', `promised a download for: ${ua.slice(0, 30)}`);
+    assert.doesNotMatch(offer.label, /download/i);
+    assert.equal(offer.href, undefined);
+  }
+  assert.equal(downloadFor('ios'), null);
+  assert.equal(downloadFor('android'), null);
+});
+
+test('no file means no download button, even on a desktop', () => {
+  // The caller ships the file, so the caller decides. A build that dropped
+  // the zip must not still put "Download for Windows" on the screen.
+  const offer = installOffer(platformOf(UA.winChrome), { download: null });
+  assert.notEqual(offer.kind, 'download');
+  assert.doesNotMatch(offer.label, /download/i);
+  assert.equal(offer.label, 'Install on Windows');
+});
+
+test('the download path is built for the page that asks', () => {
+  // The app sits a level below the landing page, and a single hard-coded
+  // href would be broken in one of them.
+  assert.equal(downloadFor('mac').href, '../download/vocabx-desktop.zip');
+  assert.equal(downloadFor('mac', { base: './download/' }).href, './download/vocabx-desktop.zip');
+  assert.equal(downloadFor('nonsense'), null);
+});
+
+test('every download names a real file and says what running it costs', () => {
+  for (const [os, d] of Object.entries(DOWNLOADS)) {
+    assert.match(d.file, /^vocabx-[a-z]+\.zip$/, `${os}: odd filename`);
+    assert.match(d.label, /^Download for /, `${os}: the button does not say download`);
+    assert.ok(d.hint && d.note, `${os}: no word about what it is or what it costs`);
+  }
+});
+
+test('the desktops share one archive but not one set of words', () => {
+  // One file to host, because the 28MB of dictionary inside it is the same on
+  // every system. Three sets of instructions, because running it is not.
+  const files = new Set(Object.values(DOWNLOADS).map((d) => d.file));
+  assert.equal(files.size, 1, 'the desktops drifted onto separate archives again');
+
+  const notes = Object.values(DOWNLOADS).map((d) => d.note);
+  assert.equal(new Set(notes).size, notes.length, 'two systems were given the same instructions');
+  assert.match(DOWNLOADS.windows.note, /VocabX\.exe/);
+  assert.match(DOWNLOADS.mac.note, /right-click/i);
+  assert.match(DOWNLOADS.linux.note, /\.\/VocabX/);
+});
+
+test('a desktop keeps the browser install as the second, smaller option', () => {
+  const win = installOffer({ ...platformOf(UA.winChrome), canPrompt: true });
+  assert.ok(win.also, 'Chrome on Windows can do both and should say so');
+  assert.equal(win.also.kind, 'prompt');
+
+  // Firefox on Windows cannot install at all, so there is no second option
+  // to offer — the file is the whole answer.
+  assert.equal(installOffer(platformOf(UA.winFirefox)).also, null);
+  // Nor can Safari, which is where most Macs start.
+  assert.equal(installOffer(platformOf(UA.macSafari, { touchPoints: 0 })).also, null);
+});
+
+test('iOS is told to add, not to install or download', () => {
+  const iphone = installOffer(platformOf(UA.iphoneSafari));
+  assert.equal(iphone.kind, 'steps');
+  assert.equal(iphone.label, 'Add to your iPhone');
+
+  const ipad = installOffer(platformOf(UA.ipadOS, { touchPoints: 5 }));
+  assert.equal(ipad.label, 'Add to your iPad');
+});
+
+test('a device with no file to download is offered the one-tap install', () => {
+  assert.equal(installOffer(platformOf(UA.androidChrome)).label, 'Install on your Android phone');
+  assert.equal(installOffer(platformOf(UA.androidTablet)).label, 'Install on your Android tablet');
+  // ChromeOS runs on the browser it installs into, so there is nothing to ship.
+  assert.equal(installOffer(platformOf(UA.chromeOS)).label, 'Install on your Chromebook');
+  assert.equal(downloadFor('chromeos'), null);
+});
+
+test('an installed app is offered nothing at all', () => {
+  for (const ua of Object.values(UA)) {
+    const offer = installOffer(platformOf(ua, { standalone: true }));
+    assert.equal(offer.kind, 'done', `still selling an install on: ${ua.slice(0, 30)}`);
+    assert.equal(offer.href, undefined, 'offered a download to someone already running the app');
+  }
+});
+
+test('every offer has something to put in a button and under it', () => {
+  for (const [name, ua] of Object.entries(UA)) {
+    for (const canPrompt of [false, true]) {
+      const offer = installOffer({ ...platformOf(ua), canPrompt });
+      assert.ok(offer.label && offer.hint, `${name} (canPrompt=${canPrompt}) is missing copy`);
+      assert.ok(['done', 'download', 'prompt', 'steps'].includes(offer.kind), `${name}: odd kind`);
+    }
+  }
+});
+
+test('an unrecognised device is offered a truthful, generic install', () => {
+  const offer = installOffer(platformOf('some-unknown-browser/1.0'));
+  assert.equal(offer.kind, 'steps');
+  assert.match(offer.label, /this device/);
+  assert.doesNotMatch(offer.label, /undefined/);
 });

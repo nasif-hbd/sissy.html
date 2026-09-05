@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      A framework theme, not Theme.AppCompat: the only dependency here is
+      androidx.webkit, which does not promise to bring AppCompat with it, and a
+      theme whose parent cannot be resolved fails the build with a message
+      about a missing style rather than a missing library.
+    -->
+    <style name="Theme.VocabX" parent="@android:style/Theme.DeviceDefault.NoActionBar">
+        <item name="android:windowBackground">@color/backgroundColor</item>
+    </style>
+</resources>

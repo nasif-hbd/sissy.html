@@ -45,8 +45,110 @@
     <symbol id="i-plane" viewBox="0 0 24 24"><path d="M20 4L3.5 10.5l6.5 2.5 2.5 6.5z"/><path d="M20 4l-10 9"/></symbol>
     <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7"/></symbol>
     <symbol id="i-trend" viewBox="0 0 24 24"><path d="M4 16.5l5-5 3.5 3.5L20 7.5"/><path d="M15 7.5h5v5"/></symbol>
+    <symbol id="i-bot" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 4.5V8"/><circle cx="12" cy="3.5" r="1.2" fill="currentColor" stroke="none"/><circle cx="9" cy="13" r="1.2" fill="currentColor" stroke="none"/><circle cx="15" cy="13" r="1.2" fill="currentColor" stroke="none"/></symbol>
+    <symbol id="i-face" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.75"/><path d="M4.5 20c0-3.6 3.4-5.75 7.5-5.75s7.5 2.15 7.5 5.75"/></symbol>
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
 </svg>
+
+<!-- ═══ The welcome ════════════════════════════════════════════════════════
+     Shown once, before the app, and never again after an answer. Three ways
+     through it and all three are real: an account keeps your work when this
+     browser is cleared, and a guest gets every single feature without one.
+     Guest is not a trial and is not nagged — it is where most people should
+     stay, and the copy says so.
+============================================================================ -->
+<div class="gate" id="gate" hidden>
+  <!-- Painted, not animated frame by frame: three blurred blooms on very slow
+       CSS keyframes, so it costs the compositor and not the battery. Stops
+       dead under prefers-reduced-motion. -->
+  <div class="gate__sky" aria-hidden="true">
+    <span class="gate__bloom gate__bloom--a"></span>
+    <span class="gate__bloom gate__bloom--b"></span>
+    <span class="gate__bloom gate__bloom--c"></span>
+    <span class="gate__mesh"></span>
+  </div>
+
+  <!-- Focus lands here, not on the primary button: a programmatic focus on a
+       button paints the full focus ring on load, for mouse users too, which
+       reads as an error state rather than a starting point. A screen reader
+       still announces the dialog, and the first Tab still reaches the
+       button. -->
+  <div class="gate__panel" id="gatePanel" role="dialog" aria-modal="true"
+       aria-labelledby="gateTitle" tabindex="-1">
+    <div class="gate__brand">
+      <span class="gate__mark"><img src="./icons/mark-64.webp" alt="" width="34" height="34"></span>
+      <span class="gate__wordmark">VocabX</span>
+    </div>
+
+    <!-- ── choose ── -->
+    <section class="gate__pane" id="gateChoose">
+      <h1 class="gate__title" id="gateTitle">Learn more.<br>Know more.</h1>
+      <p class="gate__lede">117,845 words, a schedule that knows what you are about to
+         forget, and a tutor that answers with no connection at all.</p>
+
+      <div class="gate__acts">
+        <button class="btn btn--primary btn--wide gate__go" id="gateNew" type="button">
+          Sign up
+        </button>
+        <button class="btn btn--quiet btn--wide" id="gateOld" type="button">Log in</button>
+      </div>
+
+      <!-- Small on purpose, and still a real way through: a guest gets every
+           feature. If this deployment cannot hold accounts the two buttons
+           above go away and gate.js promotes this one, so the screen is never
+           left with nothing but fine print. -->
+      <p class="gate__aside">
+        <button class="gate__tiny" id="gateGuest" type="button">Continue as a guest</button>
+      </p>
+
+      <p class="gate__foot" id="gateFoot">An account keeps your streak, your schedule and
+         your word list when this browser is cleared, and carries them to another device.
+         A guest gets all of it too — on this device only.</p>
+    </section>
+
+    <!-- ── sign in / sign up ── -->
+    <section class="gate__pane" id="gateForm" hidden>
+      <button class="gate__back" id="gateBack" type="button">
+        <svg class="ico ico--sm" aria-hidden="true"><use href="#i-back"/></svg>Back
+      </button>
+      <h2 class="gate__title gate__title--sm" id="gateFormTitle">Create an account</h2>
+      <p class="gate__lede gate__lede--sm" id="gateFormLede">So your streak, your schedule and
+         your word list survive a cleared browser.</p>
+
+      <form class="gate__form" id="gateFormEl" novalidate>
+        <label class="field gate__field" id="gateNameField">
+          <span>Name</span>
+          <input class="input" id="gateName" type="text" autocomplete="name"
+                 placeholder="What should the app call you?" maxlength="40">
+        </label>
+        <label class="field gate__field">
+          <span>Email</span>
+          <input class="input" id="gateEmail" type="email" autocomplete="email"
+                 inputmode="email" placeholder="you@example.com" required>
+        </label>
+        <label class="field gate__field">
+          <span>Password</span>
+          <input class="input" id="gatePass" type="password" autocomplete="current-password"
+                 placeholder="At least 8 characters" required minlength="8">
+        </label>
+
+        <!-- The one thing that must never be silent: aria-live, because the
+             error appears without the page moving. -->
+        <p class="gate__error" id="gateError" role="alert" hidden></p>
+
+        <button class="btn btn--primary btn--wide gate__go" id="gateSubmit" type="submit">
+          <span id="gateSubmitLabel">Create account</span>
+        </button>
+      </form>
+
+      <p class="gate__foot">
+        <button class="gate__link gate__link--inline" id="gateSwap" type="button">
+          Already have an account? Sign in
+        </button>
+      </p>
+    </section>
+  </div>
+</div>
 
 <div id="app" class="app" hidden>
 
@@ -81,9 +183,10 @@
         <svg class="ico ico--sm" aria-hidden="true"><use href="#i-flame"/></svg><span id="streakCount">0</span>
       </div>
       <button class="icon-btn" id="themeToggle" type="button" aria-label="Toggle colour theme"><svg class="ico" aria-hidden="true"><use href="#i-theme"/></svg><span id="themeLabel">Auto</span></button>
-      <!-- The design's avatar. It is the level badge here: there are no
-           accounts, so a photograph of nobody would be a lie. -->
-      <span class="avatar" id="levelBadge" title="Your level">1</span>
+      <!-- The design's avatar. A guest has no face to show, so it stays the
+           level badge; signed in it is the initial, which is the one true
+           thing the app knows to put there. -->
+      <button class="avatar" id="levelBadge" type="button" title="Your level">1</button>
     </div>
   </header>
 
@@ -110,6 +213,41 @@
           </div>
           <p class="hero__aside" id="homeJourney"></p>
         </header>
+
+        <!-- ═══ The unprompted note ═════════════════════════════════════
+             Nobody asked for this one, so it says who wrote it, when, and
+             that a machine did. It appears rarely (notice.js sets the rules),
+             it never acts by itself, and the signature line carries the way
+             to switch it off. Placed under the greeting rather than above it
+             because the app's own headline is more useful more often. -->
+        <article class="notice" id="noticeCard" hidden>
+          <div class="notice__body">
+            <p class="notice__text" id="noticeText"></p>
+
+            <!-- Only one of these three is ever shown. -->
+            <div class="notice__acts" id="noticeSuggest" hidden>
+              <button class="btn btn--primary btn--sm" id="noticeAccept" type="button"></button>
+              <button class="btn btn--quiet btn--sm" id="noticeDecline" type="button">No thanks</button>
+            </div>
+            <form class="notice__acts" id="noticeAsk" hidden>
+              <input class="input grow" id="noticeAnswer" type="text" maxlength="200"
+                     aria-label="Your answer" placeholder="Answer, if you like…">
+              <button class="btn btn--quiet btn--sm" type="submit">Send</button>
+            </form>
+            <div class="notice__acts" id="noticePlain" hidden>
+              <button class="btn btn--quiet btn--sm" id="noticeUndo" type="button" hidden>Undo</button>
+              <button class="btn btn--quiet btn--sm" id="noticeOk" type="button">Got it</button>
+            </div>
+          </div>
+
+          <!-- The signature. Not decoration: nobody invited these words, so
+               they say whose they are before anything else. -->
+          <p class="notice__sign">
+            <svg class="ico ico--sm" aria-hidden="true"><use href="#i-bot"/></svg>
+            <span id="noticeBy"></span>
+            <button class="notice__off" id="noticeOff" type="button">Turn these off</button>
+          </p>
+        </article>
 
         <!-- Four tiles. They read "0" on a fresh install, which is the truth
              on day one and the reason the hero above says what to do next. -->
@@ -208,12 +346,17 @@
           <div class="card card--tight" id="homeInstallCard" hidden>
             <div class="row row--between">
               <div class="grow">
-                <h3 class="card__title">Install VocabX</h3>
+                <h3 class="card__title" id="homeInstallTitle">Install VocabX</h3>
                 <p class="hint" id="homeInstallHow"></p>
               </div>
               <button class="icon-btn icon-btn--sm" id="homeInstallClose" type="button" aria-label="Not now"></button>
             </div>
             <button class="btn btn--primary btn--wide" id="homeInstallGo">Install</button>
+            <!-- Windows is the one platform with a file, so the link appears
+                 only there; everywhere else the button above is the whole
+                 answer. -->
+            <a class="btn btn--quiet btn--wide" id="homeInstallDownload" hidden download>
+              <svg class="ico" aria-hidden="true"><use href="#i-download"/></svg><span id="homeInstallDownloadLabel">Download</span></a>
           </div>
         </div>
 
@@ -739,6 +882,67 @@
 
     <!-- ───────────────────────── Settings ───────────────────────── -->
     <!-- ─────────────────────── Feedback ─────────────────────── -->
+    <!-- Who you are, which for a guest is still a real answer: a name they
+         chose, kept on the device, and the same standing and streak an account
+         holder sees. Nothing here is withheld until someone signs up. -->
+    <section class="view" id="view-profile" data-view="profile" hidden>
+      <h2 class="sr-only">Profile</h2>
+      <div class="stack">
+
+        <div class="card profile__head">
+          <span class="profile__face" id="profFace" aria-hidden="true"></span>
+          <div class="profile__who">
+            <b id="profName">Learner</b>
+            <span class="hint" id="profWhere"></span>
+            <span class="profile__rank" id="profTitle"></span>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title">Your name</h3>
+          <p class="hint" id="profNameHint">What the app calls you. Kept on this device.</p>
+          <div class="row">
+            <input class="input grow" id="profNameInput" type="text" maxlength="40"
+                   autocomplete="name" aria-label="Your name" placeholder="Your name">
+            <button class="btn btn--quiet" id="profNameSave" type="button">Save</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title">Standing</h3>
+          <p class="hint" id="profLevelNote"></p>
+          <div class="goalbar__track"><div class="goalbar__fill" id="profLevelFill"></div></div>
+          <div class="profile__stats" id="profStats"></div>
+        </div>
+
+        <div class="card" id="profExam" hidden>
+          <h3 class="card__title">Level check</h3>
+          <p class="hint" id="profExamNote"></p>
+          <button class="btn btn--quiet btn--wide" id="profExamGo" type="button">Take it again</button>
+        </div>
+
+        <div class="card" id="profAccount">
+          <h3 class="card__title">Account</h3>
+          <p class="status" id="acctStatus"><i class="status__dot"></i><span id="acctHow"></span></p>
+
+          <div class="row row--even" id="acctOut">
+            <button class="btn btn--primary" id="acctSignup" type="button">Sign up</button>
+            <button class="btn btn--quiet" id="acctSignin" type="button">Log in</button>
+          </div>
+
+          <div class="acct" id="acctIn" hidden>
+            <div class="row row--even">
+              <button class="btn btn--quiet" id="acctSignout" type="button">Sign out</button>
+              <button class="btn btn--quiet" id="acctSignoutAll" type="button">Sign out everywhere</button>
+            </div>
+            <p><button class="btn btn--danger btn--wide" id="acctErase" type="button">
+              Delete my account</button></p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
     <section class="view" id="view-feedback" data-view="feedback" hidden>
       <h2 class="sr-only">Send feedback</h2>
       <div class="stack">
@@ -881,8 +1085,9 @@
           <p class="hint" id="routineNote"></p>
           <label class="check">
             <input type="checkbox" id="pushToggle">
-            <span>Also use server push (works when the app is closed — needs the proxy running)</span>
+            <span>Also use server push (works when the app is closed)</span>
           </label>
+          <p class="hint" id="pushNote"></p>
         </div>
 
         <div class="card">
@@ -946,12 +1151,99 @@
         </div>
 
         <div class="card">
-          <h3 class="card__title">Install VocabX</h3>
+          <h3 class="card__title">The assistant speaking first</h3>
+          <p class="hint">Once in a while it looks at how your week is going and says one
+             thing — a remark, a question, or a setting worth changing. It never changes
+             anything itself: a suggestion is a button you press, and it can be undone.
+             Every note says which engine wrote it.</p>
+          <label class="check">
+            <input type="checkbox" id="noticeToggle">
+            <span>Let it speak up on its own</span>
+          </label>
+          <p class="hint" id="noticeNote"></p>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title">Account</h3>
+          <p class="hint" id="settingsAcctHint"></p>
+          <button class="btn btn--quiet btn--wide" id="settingsProfile" type="button">
+            Open Profile</button>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title">Save my work online</h3>
+          <p class="hint" id="syncIntro">Off by default. Everything already works on this
+             device alone — this is for surviving a cleared browser, and picking up where you
+             left off on another phone or laptop.</p>
+          <label class="check">
+            <input type="checkbox" id="syncToggle">
+            <span>Keep my progress and my Ask history on the server</span>
+          </label>
+          <p class="status" id="syncStatus"><i class="status__dot"></i><span id="syncHow"></span></p>
+
+          <details class="advanced" id="syncOwn">
+            <summary>Use it on another device</summary>
+            <div class="other-devices">
+              <p>Your work is filed under a random code this device made for itself. It is
+                 not an account and there is no password — whoever has the code can read
+                 the work, which is the same promise your browser already makes.</p>
+              <p><b>This device's code</b></p>
+              <div class="row">
+                <input class="input grow" id="syncCode" type="text" readonly aria-label="Your device code">
+                <button class="btn btn--quiet" id="syncCopy" type="button">Copy</button>
+              </div>
+              <p>On the other device, paste it here and press Join. That device will then
+                 read and write the same work as this one.</p>
+              <div class="row">
+                <input class="input grow" id="syncJoin" type="text" placeholder="Paste a code" aria-label="Code to join">
+                <button class="btn btn--quiet" id="syncJoinGo" type="button">Join</button>
+              </div>
+              <p><button class="btn btn--quiet btn--wide" id="syncForget" type="button">
+                Delete everything stored for this code</button></p>
+            </div>
+          </details>
+        </div>
+
+        <div class="card">
+          <h3 class="card__title" id="installTitle">Install VocabX</h3>
           <p class="status" id="installStatus"><i class="status__dot"></i><span id="installHow"></span></p>
+          <!-- The file first where there is one, since the heading names it;
+               empty and invisible on every other platform. -->
+          <div id="installDownloads"></div>
           <button class="btn btn--primary btn--wide" id="installGo" hidden>Install as an app</button>
           <ol class="steps" id="installSteps"></ol>
           <p class="hint" id="installNote" hidden></p>
-          <div class="row row--even" id="installDownloads"></div>
+
+          <!-- The card above answers for the device in your hand. This is for
+               the other one: putting it on the family PC from your phone, or
+               on your phone from the PC. -->
+          <!-- The file, from any device. Someone on a phone still wants to put
+               it on the family PC, and hiding that behind a disclosure meant
+               it did not exist for anyone who did not go looking. -->
+          <a class="btn btn--quiet btn--wide" id="installAnyDownload"
+             href="../download/vocabx-desktop.zip" download>
+            <svg class="ico" aria-hidden="true"><use href="#i-download"/></svg>
+            Download the desktop app</a>
+          <p class="hint">Windows, Mac and Linux in one folder — take it to whichever
+             computer you want it on.</p>
+
+          <details class="advanced">
+            <summary>Every device, and what it takes</summary>
+            <div class="other-devices">
+              <p><b>Windows, Mac or Linux</b> —
+                 <a href="../download/vocabx-desktop.zip" download>download the app</a>.
+                 One folder with a launcher for each: VocabX.exe, VocabX.app, ./VocabX.
+                 The README inside says what the first run will ask of you.</p>
+              <p><b>iPhone or iPad</b> — Safari → Share → “Add to Home Screen”, and it
+                 becomes a real app with its own icon. There is no file to download:
+                 Apple allows no route to an app outside the App Store, for anyone.</p>
+              <p><b>Android phone or tablet</b> — Chrome installs it in one tap, from the
+                 button above or ⋮ → “Install app”. It lands in your app drawer like
+                 anything from the Play Store. There is no APK to download.</p>
+              <p><b>Chromebook</b> — Chrome installs it in one tap. It is already the
+                 browser, so there is nothing to download.</p>
+            </div>
+          </details>
         </div>
 
         <div class="card card--tight">
@@ -996,6 +1288,7 @@
     <button class="tab" data-tab="ask"><svg class="ico" aria-hidden="true"><use href="#i-bulb"/></svg><span class="tab__label">Ask</span></button>
     <button class="tab" data-tab="words"><svg class="ico" aria-hidden="true"><use href="#i-index"/></svg><span class="tab__label">Words</span></button>
     <button class="tab" data-tab="progress"><svg class="ico" aria-hidden="true"><use href="#i-ledger"/></svg><span class="tab__label">Progress</span></button>
+    <button class="tab" data-tab="profile"><svg class="ico" aria-hidden="true"><use href="#i-face"/></svg><span class="tab__label">Profile</span></button>
     <button class="tab" data-tab="settings"><svg class="ico" aria-hidden="true"><use href="#i-setup"/></svg><span class="tab__label">Settings</span></button>
 
     <div class="nav-foot">
@@ -1010,6 +1303,45 @@
       </div>
     </div>
   </nav>
+
+  <!-- Assistance: the same corner, stacked above Feedback. Two buttons in one
+       place is a deliberate pair — one is for asking the app for help, the
+       other for telling us it needs some. -->
+  <button class="fab fab--assist" id="assistBtn" type="button" aria-label="Get assistance">
+    <svg class="ico" aria-hidden="true"><use href="#i-bulb"/></svg>
+    <span class="fab__label">Assist</span>
+  </button>
+
+  <div class="sheet" id="assistSheet" hidden>
+    <div class="sheet__panel sheet__panel--form">
+      <div class="row row--between">
+        <p class="sheet__title">Assistance</p>
+        <span class="pill" id="assistEngine">Built in</span>
+      </div>
+
+      <!-- On screen before anything is asked, and computed on the device: the
+           panel should never make someone wait to learn what it already knows. -->
+      <p class="assist__headline" id="assistHeadline"></p>
+      <p class="hint" id="assistFacts"></p>
+
+      <div class="assist__prompts" id="assistPrompts"></div>
+
+      <div class="assist__reply" id="assistReply" hidden></div>
+
+      <!-- What actually changed, in the app's own words rather than the
+           model's, each with the way to put it back. -->
+      <div class="assist__changes" id="assistChanges" hidden></div>
+
+      <div class="row">
+        <input class="input grow" id="assistInput" type="text" autocomplete="off"
+               placeholder="Ask about your learning…" aria-label="Ask about your learning">
+        <button class="btn btn--primary" id="assistSend" type="button">Ask</button>
+      </div>
+      <p class="footnote" id="assistNote"></p>
+
+      <button class="btn btn--quiet btn--wide" id="assistClose" type="button">Close</button>
+    </div>
+  </div>
 
   <!-- Feedback: fixed to the corner, above the toasts, on every screen. -->
   <button class="fab" id="feedbackBtn" type="button" aria-label="Send feedback">

@@ -1,0 +1,132 @@
+ACCOUNTS, AND "SAVE MY WORK ONLINE"
+
+Five minutes in the Cloudflare dashboard, and both come from the same step:
+one database. Skip it and the app still works exactly as it does now — every
+word, every screen, every feature, kept on the device. This only adds the
+server copy.
+
+1  MAKE THE DATABASE
+
+   dash.cloudflare.com  →  Storage & Databases  →  D1 SQL Database
+   →  Create database
+   Name it:  vocabx
+   →  Create
+
+   There are no tables to make. The Worker creates them the first time
+   somebody signs up or saves.
+
+2  BIND IT TO THE WORKER
+
+   Workers & Pages  →  vocabx-proxy  →  Settings  →  Bindings
+   →  Add  →  D1 database
+
+   Variable name:  DB          <- exactly this, capitals included
+   D1 database:    vocabx
+   →  Deploy
+
+   The variable name is what the code looks for. "db" or "Database" will
+   bind successfully and do nothing.
+
+3  UPDATE THE WORKER CODE
+
+   Workers & Pages  →  vocabx-proxy  →  Edit code
+   Select all (Ctrl+A), delete, paste the whole of worker.js, then Deploy.
+
+4  CHECK IT
+
+   Open this in any browser:
+
+       https://vocabx-proxy.mdmukul666343.workers.dev/api/health
+
+   Two things to look at:
+
+       "accounts": { "rounds": 250000, "tries": 8 }
+       "sees": [ ..., "DB", ... ]
+
+   "accounts": false means the Worker cannot find the database, and the app
+   will not offer to sign anyone in — it hides the buttons rather than
+   showing a form whose last step fails. If that happens, the name in step 2
+   is the thing to check.
+
+ACCOUNTS
+
+   The app asks once, on a first run: sign up, log in, or continue as a
+   guest. Later it is the Profile screen — the header avatar opens it.
+
+   Guest is a real answer, not a trial, even though it is the small print
+   under the two buttons. Everything works; nothing is nagged; nothing is
+   withheld — a guest gets the same Profile screen, the same standing and the
+   same streak. An account buys exactly one thing: the work survives a
+   cleared browser and follows you to another device.
+
+   THE PASSWORD NEVER REACHES THE SERVER
+
+   The browser runs 250,000 rounds of PBKDF2 over it first and sends only
+   the result. The server salts that and stores the salted hash. So:
+
+     · the Worker never handles a password, and cannot log or leak one
+     · a stolen copy of the database is no easier to crack than if the
+       hashing had happened on the server — a guess still has to survive all
+       250,000 rounds to produce a match
+
+   The reason it works this way is not security theatre, it is arithmetic: a
+   Worker on the free plan gets 10 milliseconds of CPU per request, and an
+   honest password hash costs a hundred times that. Doing it on the server
+   would mean either failing every signup, or lowering the count until the
+   hash was worth nothing.
+
+   Signing in takes about a quarter of a second on a phone. That quarter
+   second is the point of it.
+
+   THERE IS NO PASSWORD RESET
+
+   Nothing is ever emailed, because there is no mail server here. A
+   forgotten password means the saved copy is unreachable — the work on the
+   device is untouched, and a new account can be made. Say so to anyone you
+   set this up for.
+
+   WRONG PASSWORDS
+
+   Eight in a row locks that account for fifteen minutes. Per account, not
+   per address: two students on one campus wifi must not be able to lock
+   each other out.
+
+USING IT ON A SECOND DEVICE
+
+   Signed in: sign in on the other device. That is all of it.
+
+   If the second device has its own work already, the two are merged rather
+   than one replacing the other — the card studied most recently wins, days
+   take the larger count of each, and both answer logs survive.
+
+   As a guest: Settings → Save my work online → "Use it on another device".
+   Copy the code from the first device, paste it on the second, press Join.
+
+   A guest code is not a password and there is nothing to reset. Whoever has
+   it can read the work, the same as anyone holding your unlocked phone. Do
+   not post it anywhere public.
+
+WHAT IS STORED
+
+   Your schedule, which words you have met, your daily counts, your streak,
+   your XP, your last 400 answers, and your Ask history.
+
+   With an account, also: your email, the name you chose, and the salted
+   hash described above. Never the password.
+
+   Not stored either way: your settings — a phone and a laptop want
+   different reminder times.
+
+   Your IP is counted once an hour to stop one script filling the database,
+   as a short hash that is swept when the hour turns. It is never a key and
+   never sits beside your work.
+
+   "Delete my account" removes the account, the progress and the Ask
+   history together, and frees the email to be used again. What is on the
+   device stays, and the app keeps working as a guest.
+
+COST
+
+   Free. D1's free tier is 5 GB and 5 million reads a day. A learner's
+   snapshot is a few kilobytes; you would need tens of thousands of people
+   before this costs anything.

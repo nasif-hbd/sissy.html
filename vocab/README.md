@@ -444,9 +444,32 @@ Safari, the ⋮ menu on Android, and the Windows download alongside on Windows.
 **Inside the app**, Settings carries the same offer permanently, and Home shows
 it once — dismissible, and the dismissal sticks. Nobody wants to be asked twice.
 
-`js/install.js` does the detection, and `platformOf()` is pure so every branch
-is tested against real user-agent strings. The branches matter more than they
-look: one "Install" button everywhere silently does nothing for everyone on
+**One button, named for the device holding it.** `installOffer()` turns the
+detected platform into the single thing that will actually happen there:
+*Download for Windows*, *Download for Mac*, *Download for Linux*, *Add to your
+iPhone*, *Install on your Android phone*. Every desktop has a real file; the
+phones do not, and no amount of work would change that — iOS has no route to an
+app outside the App Store, and Android would need a signed APK. On those two
+the word "Download" would promise something that cannot be delivered, so the
+label says what will happen instead.
+
+Where a platform has both a file and a browser prompt, the file leads and the
+prompt is the second, smaller option; a button that opens the browser's install
+dialog is never labelled "Download", because that is not what pressing it does.
+And where the file is on screen, the browser-install steps are not: they
+describe a different way of getting the app than the heading just offered. The
+collapsed *Installing on another device* section keeps them.
+
+Every card that carries the offer follows the same rule, so the heading, the
+button and the link can never name three different things: Home, the sidebar,
+Settings, and the landing page all render from one `installOffer()` result.
+Settings also keeps a closed *Installing on another device* section — for
+putting it on the family PC from a phone, or on a phone from the PC.
+
+`js/install.js` does the detection, and both `platformOf()` and
+`installOffer()` are pure, so every branch is tested against real user-agent
+strings. The branches matter more than they look:
+one "Install" button everywhere silently does nothing for everyone on
 Safari and Firefox, and a captured `beforeinstallprompt` is trusted over the
 user agent because the event is proof where the string is a guess. Three traps
 the tests hold shut — an iPad reports itself as a Mac and is caught by its
@@ -454,26 +477,331 @@ touch points; Chrome on iOS is Safari underneath and still cannot add to the
 Home Screen; and Safari installs through Add to Dock, so pointing a Safari user
 at Chrome's address-bar icon sends them hunting for a button that is not there.
 
-## Windows desktop build
+## Desktop builds
 
-`desktop/` holds a 43 KB native launcher. Double-clicked, it serves the app on
-loopback and opens the browser at it — one small binary rather than a second
-copy of the app that drifts out of step with the web one.
+`desktop/` holds a launcher for each desktop system. Double-clicked, it serves
+the app on loopback and opens the browser at it — one small program rather than
+a second copy of the app that drifts out of step with the web one.
 
-    cd desktop && ./build.sh          # needs mingw-w64; cross-compiles from Linux
+    cd desktop && ./build.sh          # VocabX.exe (mingw-w64) and VocabX (cc)
+    ./package.sh                      # → download/vocabx-desktop.zip
 
-It serves only the `app` folder beside it, binds only to 127.0.0.1, and
-uploads nothing. The path resolver is the security boundary: a decoded request
-is rejected if it contains a parent-directory step, a drive letter or a
-backslash, and the canonicalised result must still sit under the app root.
-Content types matter more than they look — a browser refuses to execute an ES
-module served as `text/plain`, so a wrong type there is a blank page rather
-than a slow one.
+**One archive, three launchers.** The app is 28MB of dictionary and it is the
+same 28MB on every system, so shipping a zip per platform meant hosting it
+three times for 60KB of difference — 32MB of downloads, and a deployable site
+too big to hand over in one piece. Now `VocabX.exe`, `VocabX` and `VocabX.app`
+sit in one folder around a single `app/`. Each system still gets its own button
+and its own words; only the bytes are shared, which is why `DOWNLOADS` in
+`install.js` is three entries pointing at one file rather than one entry.
 
-It is not code-signed, so SmartScreen will warn on first run. That is worth
-saying plainly rather than hiding: anyone who would rather not run an unsigned
-binary can use Edge or Chrome's "Install this site as an app" instead and get
+The cost is that the macOS bundle is no longer self-contained: its `app/` is
+beside it rather than inside `Contents/Resources`. So the bundle executable
+looks in both places, in that order — a hard-coded path breaks half the cases,
+and `tests/desktop.test.mjs` pins that it still checks each.
+
+`vocabx.c` is one file for Windows and Linux both. They differ in four small
+places — sockets, threads, "where am I", and "open this URL" — so those are
+shimmed at the top and the server below is the same code everywhere; a second
+implementation per platform would be three things to keep correct instead of
+one. The Windows binary is 43 KB, the Linux one 16 KB.
+
+macOS gets a real `.app` bundle whose executable is `vocabx.pl`, a Perl port of
+the same server. Not because Perl is nicer, but because a Mach-O binary has to
+be linked on a Mac and nothing here is one: `/usr/bin/perl` has shipped with
+macOS forever, `IO::Socket::INET` is core, and so the download needs nothing
+installed and nothing fetched. The bundle carries its own icon, packed into an
+`.icns` by `build-icns.py` — the format is a container of PNGs and Apple's own
+`iconutil` only runs on macOS, so writing the eleven-entry file directly beats
+shipping an app with no icon.
+
+There is no iOS download, and that is not an oversight: Apple allows no route
+to an app outside the App Store, for anyone.
+
+Android *can* have one, and `android/` holds the project that builds it: one
+activity holding one WebView, serving the whole app from inside the APK. Not a
+rewrite in Java — that would be a second implementation to keep in step — and
+not a shortcut to the website either, so it works on a plane and on the first
+launch after install.
+
+The detail that makes it work is that the assets are not loaded as `file://`.
+A `file://` page has no origin, so no ES modules, no `localStorage`, no service
+worker — no app. `WebViewAssetLoader` serves them over a real `https` origin
+that never touches the network.
+
+It is not built here: the Android build tools are published only on
+`dl.google.com`, which this machine gets a 403 from. `android/README.md` is the
+walkthrough for a machine that can reach it. The `android` entry in `DOWNLOADS`
+is written and commented out, to be uncommented once an APK is actually in
+`download/` — a button pointing at a missing file is worse than no button.
+Both install from the browser instead, and on both that install is a real app:
+its own icon in the drawer or on the Home Screen, its own window, and the same
+offline dictionary. They are in the same offer system as the desktops and get
+the same card in the same place — the label just names what will actually
+happen, because "Download" there would promise a file that is never coming.
+
+Every launcher serves only the `app` folder beside it, binds only to
+127.0.0.1, and uploads nothing. The path resolver is the security boundary: a
+decoded request is rejected if it contains a parent-directory step, a drive
+letter or a backslash; the canonicalised result must still sit under the app
+root *and* be followed by a separator, or a sibling folder named `app-backup`
+would pass on the prefix alone; and only regular files are served, since a
+directory opens happily on Linux and then reads as nothing, which would answer
+200 with an empty body. Content types matter more than they look — a browser
+refuses to execute an ES module served as `text/plain`, so a wrong type there
+is a blank page rather than a slow one.
+
+None of the three is code-signed, so each warns once on first run — SmartScreen
+on Windows, right-click → Open on a Mac. That is worth saying plainly rather
+than hiding, and each README inside the download says it. Anyone who would
+rather not run an unsigned binary can use the browser install instead and get
 the same desktop icon, window and offline support.
+
+## The assistance button
+
+A second button in the corner, stacked above Feedback: one is for asking the
+app for help, the other for telling us it needs some.
+
+It is the same engine as the Ask tab, asked a different way. Ask is where you
+bring a question about a word; this is where you bring a question about
+*yourself* — what to do now, why a word keeps slipping, whether the week has
+gone well. Those are unanswerable without the numbers, so `brief.js` derives a
+compact snapshot of the learner's own state and every message carries it.
+
+What rides along is counts, rates and a handful of terms — never the history
+log, never a word list, never anything typed into feedback. `tests/brief.test.mjs`
+pins that: a snapshot with `history` in it would be every word the learner has
+ever seen, leaving the device on every question, and nothing on screen would
+show it. It also pins the size, because a snapshot that grew past a few hundred
+characters would stop being free to send.
+
+Two things the panel does before any request leaves the device. It puts the
+headline on screen instantly — a panel that says "thinking…" for two seconds
+to report twelve due cards is worse than one that just says it. And where no
+engine is reachable it answers from the snapshot itself: `localAdvice()` reads
+the same numbers and says something true about them. `AIClient.ask` falls back
+to its own offline tutor rather than throwing, and that tutor knows about words
+rather than about you — asked "how am I doing" it says it needs a live engine —
+so the no-engine case is decided before the call, not in a catch block.
+
+The offered questions change with the state they are offered in. A learner with
+a backlog and one with an empty queue need different first moves, and a fixed
+list would ask someone who has never got a word wrong why they keep failing.
+
+## What the assistant can do, as opposed to say
+
+`js/actions.js` is a closed catalogue of things Gemini can call: read the
+learner's progress, list the packs, read the reminders, move a reminder, switch
+reminders on or off, change the daily goal or the new-words-per-day, and put a
+line on the lock screen. Each is something the learner could have done
+themselves through the interface. That is the boundary, and it is the point —
+an assistant that can reach anything will eventually reach something nobody
+asked for, and the person it happens to has no way to see what it touched.
+
+Three rules hold across all of them, and `tests/actions.test.mjs` pins each:
+
+- **Narrow.** Every argument has a stated range and anything outside it is
+  refused rather than clamped. A model that confidently asks for a daily goal
+  of 90,000 gets a sentence back, not a ruined schedule.
+- **Visible.** Each returns a plain sentence, and the app shows it in the
+  assistant panel in its own words rather than the model's. A model saying "I
+  moved your reminder" is a claim; that panel is the app's account.
+- **Reversible.** Anything that writes returns an `undo`, and the panel offers
+  it. Consent after the fact is worth little without a way out.
+
+The model never receives the state to modify. It names an action and its
+arguments; `runAction` refuses any name not in the catalogue, and the action
+itself runs on the device against the learner's own store. So the split is:
+the model is on Google's servers, the data is on the phone, and the only thing
+crossing between them is a function name.
+
+Two rounds per exchange, never more. A loop that lets a model call functions
+until it is satisfied is a loop that can spend somebody's afternoon and
+somebody's credit, and nothing in this catalogue needs a third.
+
+The system prompt is written as constraints rather than encouragement, because
+a model given actions and no boundary uses them to be helpful in ways nobody
+asked for — moving a reminder because the conversation drifted near it, sending
+a notification to be friendly. The rule that carries the weight is: change
+something only when the learner asked for that change in this conversation.
+
+Both live engines get this — the built-in tutor cannot, and falls back to the
+streaming answer. Gemini and Claude both do function calling and agree on
+almost nothing about how it looks, and every difference is a silent failure if
+missed: the request succeeds, the model answers, and the action never runs.
+Claude calls the schema `input_schema` where Gemini calls it `parameters`;
+Claude returns a `tool_use` content block where Gemini returns a `functionCall`
+part; Claude pairs a result to its call by id where Gemini pairs by name; and
+Claude's results must all go back in one user message, because splitting them
+is accepted and then quietly trains the model out of asking for more than one
+thing at a time. `tests/act.test.mjs` pins each of those.
+
+Claude's tools are declared `strict: true`, so arguments are validated against
+the schema before they arrive — a hallucinated shape is caught by Anthropic
+rather than by the action's own bounds check afterwards.
+
+## Several Gemini keys
+
+Gemini's free tier is metered per key, so a deployment with ten keys has ten
+times the daily quota. `geminiKeys()` reads them from one variable holding
+several (comma or newline separated) or from `GEMINI_API_KEY_2` … `_10`, since
+the Cloudflare dashboard makes the numbered form easy and a config file makes
+the list form easy, and someone will reasonably do either. Duplicates are
+dropped: the same key twice is not redundancy, it is a wasted round trip on
+every request once it is exhausted.
+
+The whole feature is one decision — which failures mean *this key is done*
+rather than *ask again* — and it is expensive in both directions. Rotate on too
+much and a single malformed request burns all ten keys, leaving nothing for the
+rest of the day. Rotate on too little and nine keys sit idle while the first
+sits at its quota. So it moves on for 429 (quota, the usual one), 403 (disabled
+or restricted), and 400 *only* when the body says `API_KEY_INVALID` — and never
+for a plain 400, a 404, or a 503, all of which fail identically on every key.
+`tests/keys.test.mjs` pins both halves of that.
+
+It stays on the key that last worked rather than rotating per request: spreading
+evenly would exhaust all of them on the same day instead of one. When every key
+is spent it says exactly that, because "Gemini is rate-limiting this key" reads
+like a bug when the real answer is "come back tomorrow, or add another key".
+
+`/api/health` reports the *count*, never a key. A key typed into a misspelled
+variable and no key at all look identical from outside, and the count is what
+tells them apart.
+
+## Saving work on a server
+
+Off by default, and the app is complete without it: everything has always
+lived in `localStorage` and still does. What `js/sync.js` and
+`server/store.mjs` add is that clearing a browser, or picking up a second
+device, no longer means starting from zero.
+
+**The key is a random per-device id, deliberately not the caller's IP.** The IP
+is the obvious choice and it fails in both directions at once. Mobile carriers
+put thousands of subscribers behind a single public address, so everyone on one
+network would read and overwrite each other's progress and each other's
+questions. And that address changes when someone moves cell or rejoins wifi, so
+their own work would vanish for reasons invisible from inside the app. Merged
+strangers and lost history, from the same choice. `tests/sync.test.mjs` pins
+the separation that the id gives and the IP could not.
+
+The id is not a login and does not pretend to be: whoever holds it holds the
+data, which is the same promise `localStorage` already makes. Copying it to a
+second device joins them; pressing forget deletes everything filed under it.
+
+An IP *is* read, once, for a write budget per network per hour — and only as a
+hash with an expiry, so what is kept is "someone wrote forty times this hour"
+rather than "this person was here".
+
+`storeOf(env)` prefers D1 and accepts KV, because the binding menu makes them
+look interchangeable and someone will pick the wrong one; working slightly
+worse beats failing with a message about the wrong noun. Both tables are made
+on demand — nobody should run a migration by hand before the app can save.
+
+What is sent is the schedule, the words met, the day ledger and the last 400
+gradings. Settings stay on the device that chose them: a phone and a laptop
+want different reminder times, and syncing those would be a bug wearing a
+feature's clothes.
+
+## Accounts
+
+Optional, and offered once — the welcome screen asks for a sign-in, a sign-up,
+or nothing at all, and "nothing at all" is the primary button. A guest keeps
+every feature; an account buys one thing, which is that the work outlives the
+browser. Whichever they pick is remembered, and the screen never asks again.
+
+**The password never reaches the server.** The browser runs 250,000 rounds of
+PBKDF2 and sends the result; the server salts that and stores the salted hash.
+This is not decoration. A Worker on the free plan gets ten milliseconds of CPU
+per request and an honest password hash costs a hundred times that, so hashing
+server-side would mean either failing every signup or lowering the count until
+the hash was worthless. Moving the rounds to the browser keeps the work factor
+exactly where it matters — a stolen database still costs 250,000 rounds per
+guess — and the Worker gains something it did not have before: it cannot log,
+leak or dump a password it never receives. The trade is that the derived value
+is password-equivalent in flight, so this leans on HTTPS, as sending the
+password itself would.
+
+Session tokens are 32 random bytes; only their SHA-256 is stored, so a leaked
+table cannot sign anyone in. A fast hash is right there and would be wrong
+above — there is nothing to stretch when the input is already uniform.
+
+`whoIs(body, env)` in `worker.mjs` is the boundary the sync routes sit behind.
+A token always wins, the uid is resolved from the session rather than read from
+the request, and a token that does not resolve is refused outright — never
+quietly demoted to whatever device id came alongside it, which would hand a
+caller any account they cared to name. `tests/authroutes.test.mjs` drives that
+one case through the real handler.
+
+Signing in on a device that has already been used is where this kind of feature
+usually eats a fortnight of work. `mergeSnapshots` in `sync.js` joins the two
+instead of choosing: the card reviewed most recently wins (not the one further
+ahead — that would promote a word the learner has since forgotten), a day takes
+the larger of each counter rather than the sum (a device's own numbers come back
+to it on the next sync, and adding would inflate every day a little more each
+round), and both answer logs survive. `tests/merge.test.mjs` pins it, including
+that a second merge changes nothing.
+
+## Profile
+
+One screen for who you are, and the same screen whether or not you signed up.
+Standing, streak, days active and time studied are the learner's, not the
+account's — hiding them behind a signup would be a lie about where the work
+lives. What an account adds is an email line, a join date that is true on every
+device, and somewhere to sign out.
+
+The name is the one field either kind of person can set. A guest's lives in
+`profile.name` on the device; an account's goes through `/api/auth/rename` so it
+follows them, and signing up hands the account whatever name the guest was
+already using rather than asking twice. `myName()` is the single place that
+decides which of the two is showing.
+
+The header avatar opens it. That badge was decoration before — a level number
+where a face would go — and it is now the one thing on screen that most looks
+like "you" doing the job it looks like it does.
+
+Accounts need D1 specifically — KV has no unique index, so it cannot promise one
+address is one account. The health route says whether this deployment has one,
+and the app hides the buttons rather than offering a form whose last step fails.
+
+## The assistant speaking first
+
+Everything else the engine does here is a reply. This is the other half: it
+watches how the study is going and says one thing on its own — a remark, a
+question, or a setting worth changing.
+
+Three rules hold it up, and the first is the whole design.
+
+**It proposes, it does not act.** A suggestion names an action from the same
+catalogue in `actions.js` and stops. Nothing runs until the learner presses
+Accept, and what runs then goes through the same `runAction` and the same undo
+as everything the assistant does when asked. This is also why a notice is one
+structured-output request rather than a tool loop: the shape it can answer in
+has no room for an action being taken, only for one being named.
+
+**It is signed.** Every note carries the engine, the model and the time, and
+says a machine wrote it. The app already refuses to let one engine's words be
+labelled as another's; unprompted words need that more, not less, because
+nobody invited them. The signature line also carries the way to switch it off.
+
+**It is rare.** `shouldLook()` says no nearly always: never mid-session, at most
+twice a day, never within five hours of the last note, never stacked on one
+still on screen, and only when something material has actually moved — a broken
+streak, accuracy shifting by more than noise, a week's work since it last
+looked. An assistant that remarks on every session is noise inside a week, and
+noise gets switched off, taking the one useful note with it.
+
+What it sees is a digest of counts, rates and at most six terms — never the
+review log, the word list, or anything typed into Ask or feedback. What comes
+back is checked twice: against the catalogue (an invented action, or a
+read-only one, becomes a plain remark) and against each argument's range,
+because the Accept button's label is built from those numbers and "Set the goal
+to 90,000" must not be rendered even attached to something that would refuse
+it. With no engine reachable the note is the app's own reading of the numbers,
+signed as the built-in tutor.
+
+`tests/notice.test.mjs` covers the restraint rather than the wording, including
+that every argument a suggestion may carry is one the action actually declares
+— which is the test that was missing when a button reading "Set the goal to 30"
+passed `undefined` to the action the moment it was pressed.
 
 ## Feedback
 
@@ -646,10 +974,25 @@ only then raises a notification through the service worker, with **Review now**
 and **In 1 hour** actions. Each slot fires at most once per day. Clicking the
 notification focuses the existing tab and routes it to the right view.
 
-**Web Push** (optional, needs the proxy). With VAPID keys set, the browser
-subscription is stored server-side along with the learner's reminder times and
-timezone offset, and `server/proxy.mjs` pushes on schedule — so reminders arrive
-with every tab closed.
+**Web Push** (optional, and only from the Node proxy). With VAPID keys set, the
+browser subscription is stored server-side along with the learner's reminder
+times and timezone offset, and `server/proxy.mjs` pushes on schedule — so
+reminders arrive with every tab closed.
+
+`worker.mjs` implements none of the four push routes and reports `push: false`
+on `/api/health`. The app asks before offering the switch: on a Worker
+deployment the toggle disables itself and says which half of the pair is
+missing, rather than being a box that can only fail when ticked — which is what
+it was, and worse, because `notify.js` used `proxyBase()` without importing it,
+so the failure was a `ReferenceError` shown to the learner as a toast reading
+"proxyBase is not defined". `tests/imports.test.mjs` now fails on any module
+that uses another's export without importing it, which is the only kind of test
+that could have caught it: nothing loads wrong, and the broken line sits inside
+a function nobody calls until someone ticks the box.
+
+The installed Android app needs none of this — its WebView has no Notifications
+API at all, so `notify.js` routes through the `AndroidHost` bridge and the app
+raises reminders itself, open or closed.
 
 ```bash
 cd vocab/server

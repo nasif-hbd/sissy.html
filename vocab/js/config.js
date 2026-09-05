@@ -16,7 +16,7 @@ export const APP = {
    * by hunting for a changed sentence somewhere in the interface is how an
    * afternoon disappears. Bumped with the service worker's cache name.
    */
-  build: 'v30',
+  build: 'v41',
   /**
    * Where feedback goes when there is no proxy to post it to.
    *
@@ -174,9 +174,15 @@ export const AI = {
     report: '/api/ai/report',
     assess: '/api/ai/assess',
     ask: '/api/ai/ask',
+    notice: '/api/ai/notice',
     health: '/api/health',
   },
   timeoutMs: 45_000,
+  /* Streams are held to silence rather than to total time — see stall() in
+     ai.js. Comfortably above the proxy's own 25-second budget for working
+     through its Gemini keys, so a deployment that is merely slow gets to
+     explain itself instead of being cut off mid-sentence. */
+  stallMs: 40_000,
 };
 
 /** Push endpoints on the same proxy. */

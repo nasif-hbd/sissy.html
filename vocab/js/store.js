@@ -28,7 +28,9 @@ function freshState() {
   return {
     version: APP.schemaVersion,
     createdAt: Date.now(),
-    profile: { level: DEFAULTS.level },
+    /* `name` is what the app calls you. A guest picks one and it stays here;
+       signing in replaces it with the account's, so the two never disagree. */
+    profile: { level: DEFAULTS.level, name: '' },
     settings: {
       theme: DEFAULTS.theme,
       language: 'off',
@@ -41,6 +43,13 @@ function freshState() {
       railOpen: null,
       reminders: { enabled: false, routine: DEFAULT_ROUTINE.map((s, i) => ({ ...s, id: `default-${i}` })), lastFired: {} },
       push: { enabled: false, endpoint: null },
+      /* Off until asked for. The app is complete without it, and sending a
+         learner's work to a server nobody agreed to is not a default. */
+      sync: { enabled: false, lastAt: null },
+      /* The assistant speaking without being asked. On by default, because a
+         feature nobody discovers is a feature nobody has — and it is rare,
+         signed, and one switch away from silence. */
+      notices: { enabled: true },
       ai: {
         provider: 'built-in',
         mode: AI.defaultMode,
@@ -53,6 +62,9 @@ function freshState() {
     history: [], // recent reviews, newest last, capped at 2000
     streak: { current: 0, longest: 0, lastActive: null },
     placement: null,  // the last level check, or null if never sat
+    /* What the assistant has said unprompted, newest last. Capped in
+       notice.js — this is a short log, not a history. */
+    notices: [],
   };
 }
 
@@ -171,6 +183,9 @@ function migrate(s) {
   if (!s.settings?.ai) s.settings = { ...freshState().settings, ...(s.settings || {}) };
   // The level check arrived after the first release; older saves have no field.
   if (s.placement === undefined) s.placement = null;
+  // The watching assistant arrived after the first release.
+  if (!Array.isArray(s.notices)) s.notices = [];
+  if (!s.settings.notices) s.settings.notices = { enabled: true };
   // The default model moved to the cheapest tier. Anyone still carrying the old
   // default never chose it, so move them; a deliberate pick is left alone.
   if (s.settings?.ai?.model === 'claude-opus-5') s.settings.ai.model = AI.defaultModel;
@@ -178,6 +193,8 @@ function migrate(s) {
   const ai = s.settings?.ai;
   if (ai && !ai.provider) ai.provider = ai.mode === 'proxy' ? 'anthropic' : 'built-in';
   if (ai && !ai.geminiModel) ai.geminiModel = AI.geminiModels[0].id;
+  // Added after the first releases; an install from before it has no key.
+  if (s.settings && !s.settings.sync) s.settings.sync = { enabled: false, lastAt: null };
   /* The address is the build's, not the reader's — a published app must not
      let a visitor point it at another server. Any saved one is dropped rather
      than left sitting in storage looking like it still means something. */

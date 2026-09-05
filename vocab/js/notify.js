@@ -12,6 +12,11 @@
  *     even with every tab closed. Optional: needs VAPID keys on the server.
  */
 import { NOTIFY, PUSH } from './config.js';
+/* Where the proxy is. Push is the one part of this file that talks to a
+   server, and it called this without importing it — so both enable() and
+   disable() threw "proxyBase is not defined" the moment anyone ticked the
+   box, and the toast showed that sentence to the learner. */
+import { proxyBase, serverInfo, diagnose } from './ai.js';
 import { Store, dayKey } from './store.js';
 import { queueCounts } from './srs.js';
 import { dueStep, cardFor, quoteFor } from './routine.js';
@@ -19,9 +24,30 @@ import { dueStep, cardFor, quoteFor } from './routine.js';
 let swReg = null;
 let ticker = null;
 
+/**
+ * The Android app's way of raising a notification.
+ *
+ * Android's WebView implements no part of the Web Notifications API — the
+ * whole reminder feature would silently do nothing inside the installed app,
+ * which is the one place people most expect it to work. The app injects
+ * `AndroidHost`, and everything below routes through it when it is there.
+ *
+ * Read through a getter rather than captured at load: the bridge is attached
+ * to the window by the host and may not exist when this module is evaluated.
+ */
+const host = () => (typeof window !== 'undefined' && window.AndroidHost) || null;
+
 export const Notifier = {
-  get supported() { return 'Notification' in window && 'serviceWorker' in navigator; },
-  get permission() { return this.supported ? Notification.permission : 'unsupported'; },
+  get supported() {
+    if (host()) return true;
+    return 'Notification' in window && 'serviceWorker' in navigator;
+  },
+  get permission() {
+    // Android decides this, and on 13+ it can be revoked from system settings
+    // at any time, so it is asked every time rather than remembered.
+    if (host()) return host().permission();
+    return this.supported ? Notification.permission : 'unsupported';
+  },
 
   async registerServiceWorker() {
     if (!('serviceWorker' in navigator)) return null;
@@ -37,6 +63,15 @@ export const Notifier = {
   /** Ask for permission. Must be called from a user gesture on iOS/Safari. */
   async request() {
     if (!this.supported) return 'unsupported';
+    if (host()) {
+      // Android shows its own system dialog; the answer comes back through
+      // the same permission getter once the person has tapped it.
+      host().requestPermission();
+      const result = host().permission();
+      Store.set('settings.reminders.enabled', result === 'granted');
+      if (result === 'granted') this.start();
+      return result;
+    }
     const result = await Notification.requestPermission();
     Store.set('settings.reminders.enabled', result === 'granted');
     if (result === 'granted') this.start();
@@ -62,6 +97,14 @@ export const Notifier = {
         { action: 'snooze', title: 'In 1 hour' },
       ] : [],
     };
+    if (host()) {
+      // No action buttons: Android's notification is built on the other side
+      // of the bridge, and a tap opens the app, which is what both buttons
+      // did anyway.
+      host().notify(String(title), String(body || ''), String(tag));
+      return true;
+    }
+
     const reg = swReg || (await navigator.serviceWorker?.getRegistration());
     if (reg) { await reg.showNotification(title, options); return true; }
     new Notification(title, options);
@@ -175,17 +218,49 @@ function nextModule(state) {
 
 // ── Web Push (optional) ─────────────────────────────────────────────────────
 
+/**
+ * A request that says why it failed in the app's own words.
+ *
+ * A browser reports every network failure as "Failed to fetch" — wrong scheme,
+ * wrong host, server down, origin not allowed — and that sentence was reaching
+ * the learner as a toast. diagnose() knows which page it is on and which
+ * address it was given, so it can nearly always say which one it was.
+ */
+async function reach(url, options) {
+  try {
+    return await fetch(url, options);
+  } catch (err) {
+    throw new Error(diagnose(err));
+  }
+}
+
 export const Push = {
   get supported() { return 'PushManager' in window && 'serviceWorker' in navigator; },
 
+  /**
+   * Whether the server on the other end can actually push.
+   *
+   * The browser supporting Push says nothing about the deployment. The Node
+   * proxy implements the four push routes; the Cloudflare Worker implements
+   * none of them and says so on /api/health. Without this the toggle is a box
+   * that can only ever fail when ticked — which is how it behaved.
+   */
+  async offered() {
+    if (!this.supported) return false;
+    return (await serverInfo())?.push === true;
+  },
+
   async enable() {
     if (!this.supported) throw new Error('This browser has no Push support.');
+    if (!(await this.offered())) {
+      throw new Error('This deployment\u2019s proxy does not do server push.');
+    }
     if (Notifier.permission !== 'granted') {
       const result = await Notifier.request();
       if (result !== 'granted') throw new Error('Notification permission denied.');
     }
     const base = proxyBase();
-    const keyRes = await fetch(`${base}${PUSH.routes.publicKey}`);
+    const keyRes = await reach(`${base}${PUSH.routes.publicKey}`);
     if (!keyRes.ok) throw new Error('Proxy has no VAPID key configured.');
     const { publicKey } = await keyRes.json();
     if (!publicKey) throw new Error('Proxy has no VAPID key configured.');
@@ -195,7 +270,7 @@ export const Push = {
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(publicKey),
     });
-    const res = await fetch(`${base}${PUSH.routes.subscribe}`, {
+    const res = await reach(`${base}${PUSH.routes.subscribe}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The app's own ground, taken from the logo, so the status bar and the
+     launch screen match the page rather than flashing white before it. -->
+<resources>
+    <color name="colorPrimary">#02030E</color>
+    <color name="backgroundColor">#02030E</color>
+</resources>
