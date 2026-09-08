@@ -1,0 +1,79 @@
+USING SEVERAL GEMINI KEYS
+
+Gemini's free tier is metered PER KEY. Ten keys is ten times the daily quota,
+and when one runs out the Worker moves to the next by itself.
+
+MAKE THE KEYS
+
+  aistudio.google.com/apikey  ->  Create API key
+
+  You can make several keys in one Google account, but they may share that
+  account's quota. Keys from SEPARATE Google accounts have separate quotas,
+  which is the point of doing this. Use accounts you actually own.
+
+PUT THEM IN THE WORKER
+
+  Two ways. Pick either.
+
+  A) ONE VARIABLE, ALL THE KEYS  (fewer clicks)
+
+     dash.cloudflare.com -> Workers & Pages -> vocabx-proxy
+     -> Settings -> Variables and Secrets -> + Add
+
+       Type:   Secret
+       Name:   GEMINI_API_KEYS          <- note the S on the end
+       Value:  AIzaKey1,AIzaKey2,AIzaKey3
+
+     Separate them with commas or line breaks; spaces around them are fine.
+
+  B) ONE VARIABLE EACH  (easier to change one later)
+
+       GEMINI_API_KEY      <- the one you already have
+       GEMINI_API_KEY_2
+       GEMINI_API_KEY_3
+       ...  up to  GEMINI_API_KEY_10
+
+     All Secret type. The numbering starts at 2; there is no _1.
+
+  Then click Deploy.
+
+CHECK IT
+
+  https://vocabx-proxy.mdmukul666343.workers.dev/api/health
+
+  Look for:   "gemini": { "ready": true, "keys": 10, ... }
+
+  The number is how many keys the Worker can actually see. If you added five
+  and it says one, a name is misspelled — that is exactly what this number is
+  there to show you. It never shows the keys themselves.
+
+HOW IT CHOOSES
+
+  It stays on one key until that key fails, then moves to the next and stays
+  there. It does NOT rotate every request — spreading requests across keys
+  evenly would just exhaust all of them on the same day instead of one.
+
+  It moves on when a key is genuinely finished:
+
+      429   quota or rate limit  (the usual one — the daily free cap)
+      403   key disabled, restricted, or the API not enabled
+      400   only when Google says API_KEY_INVALID
+
+  It does NOT move on for anything that would fail on every key anyway — a
+  malformed request, a retired model id, or Gemini being overloaded. Those get
+  one retry on the same key instead. Burning ten keys on one bad request would
+  leave you with nothing for the rest of the day.
+
+  When every key is spent you get one clear message saying so, rather than a
+  rate-limit error that reads like a bug.
+
+  The whole search is capped at 25 seconds, and any one key at 12. Without
+  that, ten keys that each fail slowly add up to longer than the browser is
+  willing to wait, and the app reports a broken connection for a deployment
+  that is merely working through its list.
+
+ORDER
+
+  The key in GEMINI_API_KEY is tried first, then GEMINI_API_KEYS, then the
+  numbered ones. Duplicates are dropped — the same key listed twice is not
+  redundancy, it is a wasted request every time.

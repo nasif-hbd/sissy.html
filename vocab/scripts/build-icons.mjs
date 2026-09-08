@@ -20,8 +20,18 @@ import { chromium } from 'playwright';
 
 /* The source lives outside icons/ because everything in icons/ is served and
    packaged, and a megabyte of artwork nothing requests has no business there. */
-const SRC = process.argv[2] || 'brand/vocabx.png';
-const OUT = 'icons';
+const args = process.argv.slice(2);
+/* The desktop downloads need the same mark at the sizes macOS and Linux ask
+   for. Same source, same crop, same ground — an app whose Dock icon does not
+   match its favicon looks like two different programs. */
+const DESKTOP = args.includes('--desktop');
+/* Android wants the launcher icon at one size per screen density, under names
+   the build system matches on. Same source and same crop as everywhere else —
+   an app whose launcher icon does not match its favicon looks like two
+   different programs. */
+const ANDROID = args.includes('--android');
+const SRC = args.find((a) => !a.startsWith('--')) || 'brand/vocabx.png';
+const OUT = ANDROID ? '../android/app/src/main/res' : DESKTOP ? 'desktop/icon' : 'icons';
 
 /** How much of an icon the mark should fill. Maskable icons are cropped to a
  *  circle by some launchers, and 80% is the safe zone every platform agrees on. */
@@ -33,7 +43,20 @@ const FILL = 0.74;
  * WebP, and the app's whole first load is 133 KB. PNG stays for the two places
  * with a reason — the iOS home-screen icon, and a favicon fallback.
  */
-const jobs = [
+const jobs = ANDROID ? [
+  // The density buckets Android looks in, and the Play listing icon.
+  ['mipmap-mdpi', 48], ['mipmap-hdpi', 72], ['mipmap-xhdpi', 96],
+  ['mipmap-xxhdpi', 144], ['mipmap-xxxhdpi', 192], ['', 512],
+].map(([dir, size]) => ({
+  /* Everything under res/ must sit inside a resource directory — a loose file
+     there fails the Android build. The Play listing icon is not a resource, so
+     it goes beside the project instead. */
+  name: dir ? `${dir}/ic_launcher.png` : '../../../../play-store-icon.png',
+  size, type: 'image/png',
+})) : DESKTOP ? [
+  // The set macOS packs into an .icns, and Linux hangs in its launcher.
+  1024, 512, 256, 128, 64, 32, 16,
+].map((size) => ({ name: `icon-${size}.png`, size, type: 'image/png' })) : [
   { name: 'mark-512.webp', size: 512, type: 'image/webp', q: 0.9 },
   { name: 'mark-192.webp', size: 192, type: 'image/webp', q: 0.9 },
   { name: 'mark-64.webp', size: 64, type: 'image/webp', q: 0.92 },
@@ -117,9 +140,10 @@ const result = await page.evaluate(async ({ uri, jobs, lockup, fill }) => {
 
   return {
     split, mark, ground,
-    files: [...jobs, lockup].map((j) => ({ ...j, uri: draw(j.size, j.mode || 'mark', j.type, j.q) })),
+    files: (lockup ? [...jobs, lockup] : jobs)
+      .map((j) => ({ ...j, uri: draw(j.size, j.mode || 'mark', j.type, j.q) })),
   };
-}, { uri, jobs, lockup: LOCKUP, fill: FILL });
+}, { uri, jobs, lockup: DESKTOP || ANDROID ? null : LOCKUP, fill: FILL });
 
 await browser.close();
 
@@ -129,6 +153,8 @@ console.log(`  mark found at x ${result.mark.minX}–${result.mark.maxX}, y ${re
 console.log(`  wordmark starts at y ${result.split}; ground ${result.ground}\n`);
 for (const f of result.files) {
   const bytes = Buffer.from(f.uri.split(',')[1], 'base64');
+  // Android's names carry their own directory; make it rather than fail on it.
+  fs.mkdirSync(path.dirname(path.join(OUT, f.name)), { recursive: true });
   fs.writeFileSync(path.join(OUT, f.name), bytes);
   const got = f.uri.slice(5, f.uri.indexOf(';'));
   if (got !== f.type) throw new Error(`${f.name}: this browser produced ${got}, not ${f.type}`);

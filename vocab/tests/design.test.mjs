@@ -98,6 +98,9 @@ test('every theme restates every colour the default palette sets', () => {
 });
 
 test('every var() referenced in the stylesheet resolves to a declared token', () => {
+  /* `--sw-` is the swatch preview's own and never resolves from :root.
+     Everything else must come from a palette, which is the point — a renamed
+     colour token paints nothing at all and throws no error. */
   const referenced = new Set([...css.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]));
   const unresolved = [...referenced].filter((t) => !baseTokens.has(t) && !t.startsWith('--sw-'));
   assert.deepEqual(unresolved, [], `styles.css uses undeclared tokens: ${unresolved}`);
@@ -169,4 +172,34 @@ test('the build marker matches the service worker cache it ships with', () => {
   assert.ok(declared, 'APP.build is missing');
   assert.equal(declared, cache,
     `Settings would report ${declared} while the cache is ${cache} — bump both`);
+});
+
+test('a class modifier is declared after the class it modifies', () => {
+  /* CSS resolves equal specificity by source order, so `.x--y` written above
+     `.x` loses every property the two both set. Nothing warns, and the page
+     still renders — it just renders as though the modifier were not there.
+     That is what had happened to .sheet__panel--form: it set a gap and a
+     padding-bottom that the base rule, further down the file, silently took
+     back. Only a shared property is a conflict: a modifier that sets something
+     its base never mentions can sit anywhere. */
+  /* Column zero only. A rule indented inside @media is nested, and overriding
+     the modifier from there is the whole point of a media query. */
+  const rules = [...css.matchAll(/(^|\n)([^\s{}][^\n{}]*)\{([^}]*)\}/g)].map((m) => ({
+    selector: m[2].trim(),
+    props: new Set([...m[3].matchAll(/(?:^|;)\s*([a-z-]+)\s*:/g)].map((d) => d[1])),
+    at: m.index,
+  }));
+  // A bare single-class selector — the only shape where a modifier and its
+  // base describe the same element at the same specificity.
+  const bare = (r) => /^\.[a-z0-9_-]+$/.test(r.selector);
+
+  for (const mod of rules.filter((r) => bare(r) && r.selector.includes('--'))) {
+    const base = mod.selector.slice(0, mod.selector.indexOf('--'));
+    for (const rule of rules.filter((r) => r.selector === base && r.at > mod.at)) {
+      const shared = [...mod.props].filter((prop) => rule.props.has(prop));
+      assert.equal(shared.length, 0,
+        `${base} is declared after ${mod.selector} and sets ${shared.join(', ')} too, `
+        + `so the modifier is overridden — move ${mod.selector} below ${base}`);
+    }
+  }
 });

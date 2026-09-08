@@ -8,6 +8,19 @@
  */
 const MODULES_URL = 'data/modules';
 const DICT_URL = 'data/dict';
+
+/**
+ * A shard's filename, which is not always its key.
+ *
+ * MS-DOS device names are still reserved on Windows: a file called `con.json`
+ * cannot be created in any folder on any Windows machine, forty years on. The
+ * failure is silent and total — an unzip drops the file and reports two
+ * warnings nobody reads, and every word starting with those letters is simply
+ * gone from the app. So those keys are stored under a suffixed name, and the
+ * key itself is left alone because it is derived from the word being looked up.
+ */
+const RESERVED = /^(con|prn|aux|nul|com[0-9]|lpt[0-9])$/i;
+export const shardFile = (key) => (RESERVED.test(key) ? `${key}-dict` : key);
 const GRAMMAR_URL = 'data/grammar/bank.json';
 
 const packs = new Map();     // id  -> pack
@@ -63,7 +76,7 @@ export const Catalog = {
     const key = dictIndex.deep?.includes(two) ? prefix(3) : two;
 
     if (!shards.has(key)) {
-      try { shards.set(key, await getJson(`${DICT_URL}/${key}.json`)); }
+      try { shards.set(key, await getJson(`${DICT_URL}/${shardFile(key)}.json`)); }
       catch { shards.set(key, {}); }
     }
     const hit = shards.get(key)[w];

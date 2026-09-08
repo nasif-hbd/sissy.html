@@ -1,0 +1,126 @@
+/*
+ * VocabX for Android — the app, not a shortcut to it.
+ *
+ * Everything the app needs is packed into the APK: 117,000 words, fourteen
+ * packs, the grammar bank, the fonts. It works on a plane, on a dead SIM, and
+ * on the very first launch after install. The only thing that ever reaches the
+ * network is the AI assistant, and the app is complete without it.
+ *
+ * The web files are copied in by the task at the bottom of this file, so there
+ * is no step anybody has to remember: build, and the current app is inside.
+ */
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'online.ylarena.vocabx'
+    compileSdk 35
+
+    defaultConfig {
+        applicationId 'online.ylarena.vocabx'
+        // 21 is Android 5.0. Below that WebView is too old to run ES modules.
+        minSdk 21
+        targetSdk 35
+
+        // Bump both for every release. Play rejects a versionCode it has seen
+        // before, and the name is what people read.
+        versionCode 1
+        versionName '1.0'
+    }
+
+    /*
+     * Signing. The same key must sign every future update — losing it means
+     * never being able to update this app again.
+     *
+     * The key lives outside the repo. Put its details in keystore.properties
+     * beside this file (it is gitignored) and this picks them up; without it,
+     * debug builds still work, so a fresh checkout is never blocked.
+     */
+    signingConfigs {
+        release {
+            def secrets = rootProject.file('keystore.properties')
+            if (secrets.exists()) {
+                def props = new Properties()
+                secrets.withInputStream { props.load(it) }
+                storeFile rootProject.file(props['storeFile'])
+                storePassword props['storePassword']
+                keyAlias props['keyAlias']
+                keyPassword props['keyPassword']
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            // There is one small class to shrink and a lot of assets R8 cannot
+            // touch, so shrinking only adds a step that can fail.
+            minifyEnabled false
+            // Written as an if rather than a ternary argument: `signingConfig a
+            // ? b : c` without parentheses is ambiguous to the Groovy parser,
+            // and the error it gives points nowhere near this line.
+            if (rootProject.file('keystore.properties').exists()) {
+                signingConfig signingConfigs.release
+            }
+        }
+        debug {
+            // So a debug build can sit on the phone beside a real one.
+            applicationIdSuffix '.debug'
+        }
+    }
+
+    androidResources {
+        // The dictionary is JSON and compresses to about a third. Leaving these
+        // uncompressed would triple the download for no gain — WebView reads
+        // them through the asset loader either way.
+        noCompress 'woff2'
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    // WebViewAssetLoader, which serves the bundled app from a real https origin
+    // rather than file://. Without a real origin there are no ES modules and no
+    // localStorage, which is to say no app at all.
+    implementation 'androidx.webkit:webkit:1.11.0'
+    // NotificationManagerCompat, for the one question the framework answers
+    // differently on every Android version: are notifications allowed at all.
+    implementation 'androidx.core:core:1.13.1'
+}
+
+/*
+ * Put the web app inside the APK.
+ *
+ * A Sync rather than a Copy: the destination is made to match the source
+ * exactly, so a file deleted from the site is deleted from the app too. A Copy
+ * would leave it behind, and the APK would ship a page nobody can reach and
+ * nobody remembers writing.
+ *
+ * Wired into preBuild so it cannot be forgotten — the alternative is a build
+ * that silently ships whatever was in assets last time.
+ */
+tasks.register('bundleWebApp', Sync) {
+    description = 'Copies the VocabX web app into the APK assets'
+    from(rootProject.file('../vocab')) {
+        include 'index.html', 'styles.css', 'sw.js', 'manifest.webmanifest'
+        include 'js/**', 'data/**', 'fonts/**', 'icons/**'
+    }
+    into file('src/main/assets')
+
+    doLast {
+        // A silent empty copy would build an APK that opens to a blank screen,
+        // which is a confusing hour to spend on a phone.
+        def entry = file('src/main/assets/index.html')
+        if (!entry.exists()) {
+            throw new GradleException(
+                "The web app was not found. Expected it at ${rootProject.file('../vocab')} — " +
+                "keep the android folder inside the project it came from.")
+        }
+    }
+}
+
+tasks.named('preBuild') { dependsOn 'bundleWebApp' }

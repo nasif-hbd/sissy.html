@@ -1,0 +1,5 @@
+// Nothing to configure at the top level: one module, one plugin, declared here
+// so the version lives in a single place.
+plugins {
+    id 'com.android.application' version '8.5.2' apply false
+}

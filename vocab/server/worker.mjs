@@ -22,9 +22,50 @@
 import {
   wordPrompt, wordSchema, quizPrompt, quizSchema,
   suggestPrompt, suggestSchema, coachPrompt, reportPrompt, assessPrompt, askPrompt,
+  noticePrompt, noticeSchema,
 } from './prompts.mjs';
 import { geminiJson, geminiStream, configure as configureGemini,
-         geminiDefaultModel, hasGeminiKey } from './gemini.mjs';
+         geminiDefaultModel, hasGeminiKey, geminiAct, toolResult,
+         geminiKeyCount } from './gemini.mjs';
+import { storeOf, withinRate, ID, LIMITS } from './store.mjs';
+import { accountsOf, cleanEmail, cleanName, isVerifier, isToken, matches,
+         CLIENT_ROUNDS, MAX_TRIES } from './accounts.mjs';
+
+/* Said in three places, and it has to be the same sentence each time: the app
+   shows it verbatim and "no database" is a setup step, not a fault. */
+const NO_ACCOUNTS = 'This deployment has no database, so it cannot hold accounts. '
+  + 'Everything still works as a guest.';
+const WRONG = 'That email and password do not match an account.';
+/* A real stored value, for an account that does not exist — see the login
+   route. Its own verifier is not a secret and could not be one: anyone can
+   make an account and hash their own password. */
+const DECOY = '00000000000000000000000000000000$'
+  + '0000000000000000000000000000000000000000000000000000000000000000';
+const NO_DB = 'No database is bound to this Worker.';
+/* One sentence for a guest id that is malformed and for a session that has
+   expired. They are the same thing from here — nothing names data this caller
+   may read — and the app knows which of its two it sent. */
+const NOT_YOU = 'This request does not name an account or a device this Worker can read.';
+const BAD_VERIFIER = 'This app sent a malformed sign-in. Reload the page and try again.';
+
+/**
+ * Whose data a request is about.
+ *
+ * A token wins over anything in the body, always, and an unusable token is
+ * refused rather than quietly demoted to whatever uid came with it. The device
+ * id is a bearer secret by design — whoever holds it can read that device's
+ * work, which is the promise localStorage already makes — but an account is
+ * not, and accepting a uid alongside a token would hand a caller exactly that.
+ */
+export async function whoIs(body, env) {
+  if (body?.token !== undefined && body?.token !== null && body?.token !== '') {
+    if (!isToken(body.token)) return null;
+    const account = await accountsOf(env)?.whose(body.token);
+    return account ? { uid: account.id, account } : null;
+  }
+  if (ID.test(body?.uid || '')) return { uid: body.uid, account: null };
+  return null;
+}
 
 const CLAUDE_MODEL = 'claude-haiku-4-5';
 const CLAUDE_MODELS = new Set([CLAUDE_MODEL, 'claude-sonnet-5', 'claude-opus-5']);
@@ -55,6 +96,21 @@ function binding(env, ...names) {
 }
 
 const geminiKeyOf = (env) => binding(env, 'GEMINI_API_KEY', 'GOOGLE_API_KEY');
+
+/**
+ * Every Gemini key this Worker was given, as one string for the client.
+ *
+ * The free tier is metered per key, so several keys is several times the daily
+ * quota. Cloudflare has no list type, so they arrive either as one variable
+ * holding many or as GEMINI_API_KEY_2 … _10 — both are read, because the
+ * dashboard makes numbered variables easy and a wrangler file makes a list
+ * easy, and someone will reasonably do either.
+ */
+const geminiKeysOf = (env) => [
+  binding(env, 'GEMINI_API_KEYS'),
+  binding(env, 'GEMINI_API_KEY', 'GOOGLE_API_KEY'),
+  ...Array.from({ length: 9 }, (_, i) => binding(env, `GEMINI_API_KEY_${i + 2}`)),
+].filter(Boolean).join(',');
 const claudeKeyOf = (env) => binding(env, 'ANTHROPIC_API_KEY', 'CLAUDE_API_KEY');
 
 /**
@@ -190,6 +246,58 @@ async function claude({ system, user, messages }, env, model, stream = false) {
   return res;
 }
 
+/**
+ * One turn with the app's actions available, Claude's way.
+ *
+ * Three things differ from Gemini and each is a silent failure if missed. The
+ * schema field is `input_schema`, not `parameters`. A call comes back as a
+ * `tool_use` content block rather than a `functionCall` part. And results go
+ * back as `tool_result` blocks in a single user message — splitting them
+ * across several messages quietly teaches the model to stop asking for more
+ * than one thing at a time.
+ *
+ * `strict: true` is worth the two lines: it guarantees the arguments validate
+ * against the schema, so a hallucinated shape is caught by Anthropic before it
+ * reaches an action rather than by the action's own bounds check afterwards.
+ */
+async function claudeAct({ system, tools = [], messages = [] }, env, model) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'x-api-key': claudeKeyOf(env),
+      'anthropic-version': '2023-06-01',
+    },
+    body: JSON.stringify({
+      model: claudeModel(model),
+      max_tokens: 2000,
+      ...(system ? { system } : {}),
+      tools: tools.map((t) => ({
+        name: t.name,
+        description: t.description,
+        input_schema: { additionalProperties: false, required: [], ...t.parameters },
+        strict: true,
+      })),
+      messages,
+    }),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => '');
+    throw new HttpError(res.status === 401 ? 401 : 502,
+      `Claude responded ${res.status}. ${detail.slice(0, 200)}`);
+  }
+
+  const json = await res.json();
+  const blocks = json?.content || [];
+  return {
+    text: blocks.filter((b) => b.type === 'text').map((b) => b.text).join('').trim(),
+    // The id travels with the call: a result must name the call it answers.
+    calls: blocks.filter((b) => b.type === 'tool_use')
+      .map((b) => ({ id: b.id, name: b.name, args: b.input || {} })),
+    turn: { role: 'assistant', content: blocks },
+  };
+}
+
 /** Structured output from whichever engine was named. */
 async function askJson(who, prompt, schema, body, env) {
   if (who === 'gemini') return geminiJson(prompt, schema, body?.model);
@@ -276,7 +384,9 @@ const routes = {
     service: 'VocabX AI proxy',
     ready: Boolean(geminiKeyOf(env) || claudeKeyOf(env)),
     engines: {
-      gemini: geminiKeyOf(env) ? 'key set' : 'no GEMINI_API_KEY',
+      gemini: geminiKeyOf(env)
+        ? `${geminiKeyCount()} key${geminiKeyCount() === 1 ? '' : 's'} set`
+        : 'no GEMINI_API_KEY',
       claude: claudeKeyOf(env) ? 'key set' : 'no ANTHROPIC_API_KEY',
     },
     // Unset means this Worker answers any site that finds it, and they spend
@@ -286,15 +396,289 @@ const routes = {
     next: 'Full status at /api/health. Put this Worker\'s address into the app: Settings → AI help → Your server.',
   }),
 
+  /**
+   * A turn of the assistant, with the app's own actions available to it.
+   *
+   * The model runs nothing. It answers in words, or it names one of the
+   * actions the app declared and the arguments it wants — and the app, on the
+   * learner's device, decides whether to honour that. Keeping the decision on
+   * the device is the point: the state never leaves it, and an action the
+   * catalogue does not contain cannot be invented into existence here.
+   *
+   * Called twice per exchange in the usual case. First with the question, and
+   * again with the results, so the reply can talk about what actually
+   * happened rather than what was requested.
+   */
+  'POST /api/act': async (body, env) => {
+    const who = body?.provider === 'gemini' ? 'gemini' : 'anthropic';
+    const tools = Array.isArray(body?.tools) ? body.tools.slice(0, 24) : [];
+    const history = Array.isArray(body?.history) ? body.history.slice(-12) : [];
+    const question = String(body?.question || '').slice(0, 4000);
+
+    if (who === 'gemini') {
+      if (!geminiKeyOf(env)) return { ok: false, error: 'No GEMINI_API_KEY on this Worker.' };
+      const out = await geminiAct({ system: body?.system || '', user: question, history, tools },
+        body?.model);
+      return { ok: true, text: out.text, calls: out.calls, turn: out.raw };
+    }
+
+    if (!claudeKeyOf(env)) return { ok: false, error: 'No ANTHROPIC_API_KEY on this Worker.' };
+    const out = await claudeAct({
+      system: body?.system || '',
+      tools,
+      messages: [...history, { role: 'user', content: question }],
+    }, env, body?.model);
+    return { ok: true, text: out.text, calls: out.calls, turn: out.turn };
+  },
+
+  /** The second half: hand back what the actions returned, get the reply. */
+  'POST /api/act/result': async (body, env) => {
+    const who = body?.provider === 'gemini' ? 'gemini' : 'anthropic';
+    const history = Array.isArray(body?.history) ? body.history.slice(-12) : [];
+    const results = Array.isArray(body?.results) ? body.results.slice(0, 8) : [];
+    const tools = Array.isArray(body?.tools) ? body.tools.slice(0, 24) : [];
+
+    if (who === 'gemini') {
+      if (!geminiKeyOf(env)) return { ok: false, error: 'No GEMINI_API_KEY on this Worker.' };
+      const out = await geminiAct({
+        system: body?.system || '',
+        history: [...history, ...results.map((r) => toolResult(r.name, r.result))],
+        tools,
+      }, body?.model);
+      return { ok: true, text: out.text, calls: out.calls, turn: out.raw };
+    }
+
+    if (!claudeKeyOf(env)) return { ok: false, error: 'No ANTHROPIC_API_KEY on this Worker.' };
+    /* Every result in one user message. Splitting them across several is
+       accepted and then quietly trains the model out of asking for more than
+       one thing at a time. */
+    const out = await claudeAct({
+      system: body?.system || '',
+      tools,
+      messages: [...history, {
+        role: 'user',
+        content: results.map((r) => ({
+          type: 'tool_result',
+          tool_use_id: r.id,
+          content: typeof r.result === 'string' ? r.result : JSON.stringify(r.result ?? null),
+          ...(r.failed ? { is_error: true } : {}),
+        })),
+      }],
+    }, env, body?.model);
+    return { ok: true, text: out.text, calls: out.calls, turn: out.turn };
+  },
+
+  /* ── accounts ────────────────────────────────────────────────────────
+   *
+   * Optional, like everything below it. A guest gets the whole app; an
+   * account only means the work outlives this browser.
+   *
+   * The password never arrives here — the browser stretches it first and
+   * sends the result. accounts.mjs explains why, and what that does and does
+   * not buy. These routes deal only in verifiers and tokens.
+   */
+
+  'POST /api/auth/signup': async (body, env, request) => {
+    const users = accountsOf(env);
+    if (!users) return { ok: false, error: NO_ACCOUNTS };
+
+    const email = cleanEmail(body?.email);
+    if (!email) return { ok: false, error: 'That does not look like an email address.' };
+    if (!isVerifier(body?.verifier)) return { ok: false, error: BAD_VERIFIER };
+    if (!(await withinRate(env, request?.headers?.get('cf-connecting-ip'), { perHour: 20 }))) {
+      return { ok: false, error: 'Too many accounts from this network this hour.' };
+    }
+
+    /* Null means the unique index rejected it, which is also the only
+       race-free way to ask. Saying so names an address that has an account
+       here — unavoidable for a signup form, and the alternative is telling
+       someone their new account works when it does not. */
+    const made = await users.create({ email, name: cleanName(body?.name, email), verifier: body.verifier });
+    if (!made) return { ok: false, error: 'That email already has an account. Sign in instead.' };
+
+    return { ok: true, token: await users.open(made.id), user: made };
+  },
+
+  'POST /api/auth/login': async (body, env) => {
+    const users = accountsOf(env);
+    if (!users) return { ok: false, error: NO_ACCOUNTS };
+
+    const email = cleanEmail(body?.email);
+    if (!email || !isVerifier(body?.verifier)) return { ok: false, error: WRONG };
+
+    /* Per account rather than per address: two students on one campus wifi
+       must not be able to lock each other out, which is exactly what an
+       address-keyed counter would let them do. */
+    const locked = await users.lockedFor(email);
+    if (locked) {
+      return { ok: false, error: `Too many wrong attempts. Try again in ${locked} minute${locked === 1 ? '' : 's'}.` };
+    }
+
+    const row = await users.byEmail(email);
+    /* One sentence for "no such account" and for "wrong password" alike. Two
+       would turn this route into a way to ask whether someone has an account,
+       which is not ours to answer.
+     *
+     * And one shape of work, too: skipping the comparison when there is no
+     * row would answer measurably faster, which says the same thing the
+     * message refuses to. So a miss is compared against a decoy. */
+    const stored = row?.pass || DECOY;
+    const good = await matches(body.verifier, stored);
+    if (!row || !good) {
+      await users.noteFailure(email);
+      return { ok: false, error: WRONG };
+    }
+
+    await users.clearFailures(email);
+    const user = { id: row.id, email: row.email, name: row.name, made: row.made };
+    return { ok: true, token: await users.open(user.id), user };
+  },
+
+  /** Resume: the app asks on every start whether the token it kept still works. */
+  'POST /api/auth/session': async (body, env) => {
+    const users = accountsOf(env);
+    if (!users) return { ok: false, error: NO_ACCOUNTS };
+    if (!isToken(body?.token)) return { ok: false, error: 'Signed out.' };
+    const user = await users.whose(body.token);
+    return user ? { ok: true, user } : { ok: false, error: 'Signed out.' };
+  },
+
+  'POST /api/auth/logout': async (body, env) => {
+    const users = accountsOf(env);
+    if (!users || !isToken(body?.token)) return { ok: true };
+    /* Everywhere is the one that matters after a lost phone, so it does not
+       hide behind a second screen — but it needs a live session to name the
+       account, which is why it resolves the token before ending it. */
+    if (body?.everywhere) {
+      const user = await users.whose(body.token);
+      if (user) await users.closeAll(user.id);
+    } else {
+      await users.close(body.token);
+    }
+    return { ok: true };
+  },
+
+  /** The display name, which is the only field an account holder can change. */
+  'POST /api/auth/rename': async (body, env) => {
+    const users = accountsOf(env);
+    if (!users) return { ok: false, error: NO_ACCOUNTS };
+    const who = await whoIs(body, env);
+    if (!who?.account) return { ok: false, error: 'Signed out.' };
+
+    const name = cleanName(body?.name, who.account.email);
+    await users.rename(who.account.id, name);
+    return { ok: true, user: { ...who.account, name } };
+  },
+
+  /** Deleting has to be as easy as signing up, or "your data is yours" is a slogan. */
+  'POST /api/auth/delete': async (body, env) => {
+    const users = accountsOf(env);
+    if (!users) return { ok: false, error: NO_ACCOUNTS };
+    const who = await whoIs(body, env);
+    if (!who?.account) return { ok: false, error: 'Signed out.' };
+    await users.erase(who.account.id);
+    return { ok: true, erased: true };
+  },
+
+  /* ── sync ────────────────────────────────────────────────────────────
+   *
+   * Optional. The app is complete without any of this; these routes exist so
+   * progress and Ask history survive a cleared browser and follow someone to a
+   * second device.
+   *
+   * Two ways to say who you are, and they are not equally strong. A signed-in
+   * app sends its session token and the uid is resolved here, from the
+   * session, never from the request. A guest sends the random id their device
+   * made for itself — a bearer secret, exactly as strong as the localStorage
+   * it replaces, and never the caller's IP. store.mjs says why not the IP.
+   */
+  'POST /api/sync/progress': async (body, env, request) => {
+    const store = storeOf(env);
+    if (!store) return { ok: false, error: NO_DB };
+    const who = await whoIs(body, env);
+    if (!who) return { ok: false, error: NOT_YOU };
+
+    const snapshot = body?.snapshot;
+    if (!snapshot || typeof snapshot !== 'object') {
+      return { ok: false, error: 'No snapshot.' };
+    }
+    // A snapshot is counts and schedules; anything this large is not one.
+    if (JSON.stringify(snapshot).length > LIMITS.snapshotBytes) {
+      return { ok: false, error: 'Snapshot too large.' };
+    }
+    if (!(await withinRate(env, request?.headers?.get('cf-connecting-ip')))) {
+      return { ok: false, error: 'Too many writes from this network this hour.' };
+    }
+
+    await store.saveProgress(who.uid, snapshot, new Date().toISOString());
+    return { ok: true, at: new Date().toISOString() };
+  },
+
+  'POST /api/sync/progress/get': async (body, env) => {
+    const store = storeOf(env);
+    if (!store) return { ok: false, error: NO_DB };
+    const who = await whoIs(body, env);
+    if (!who) return { ok: false, error: NOT_YOU };
+    const found = await store.loadProgress(who.uid);
+    return { ok: true, found: Boolean(found), ...(found || {}) };
+  },
+
+  'POST /api/sync/chat': async (body, env, request) => {
+    const store = storeOf(env);
+    if (!store) return { ok: false, error: NO_DB };
+    const who = await whoIs(body, env);
+    if (!who) return { ok: false, error: NOT_YOU };
+    const question = String(body?.question || '').slice(0, 4000);
+    const answer = String(body?.answer || '').slice(0, 20000);
+    if (!question || !answer) return { ok: false, error: 'Nothing to save.' };
+    if (!(await withinRate(env, request?.headers?.get('cf-connecting-ip')))) {
+      return { ok: false, error: 'Too many writes from this network this hour.' };
+    }
+
+    await store.addChat(who.uid, {
+      at: new Date().toISOString(), question, answer, engine: body?.engine || null,
+    });
+    return { ok: true };
+  },
+
+  'POST /api/sync/chat/list': async (body, env) => {
+    const store = storeOf(env);
+    if (!store) return { ok: false, error: NO_DB };
+    const who = await whoIs(body, env);
+    if (!who) return { ok: false, error: NOT_YOU };
+    return { ok: true, chats: await store.listChats(who.uid, Math.min(body?.limit || 50, 200)) };
+  },
+
+  /* Deleting has to be as easy as saving, or "your data is yours" is a slogan
+     rather than a fact. This clears the work; /api/auth/delete clears the
+     account itself along with it. */
+  'POST /api/sync/forget': async (body, env) => {
+    const store = storeOf(env);
+    if (!store) return { ok: false, error: NO_DB };
+    const who = await whoIs(body, env);
+    if (!who) return { ok: false, error: NOT_YOU };
+    await store.forget(who.uid);
+    return { ok: true, forgotten: true };
+  },
+
   'GET /api/health': (body, env) => ({
     ok: true,
     hasKey: Boolean(claudeKeyOf(env)),
+    /* Accounts need D1 specifically — KV has no unique index, so it cannot
+       promise one address is one account. The app reads this to decide
+       whether to offer signing in at all, rather than offering it and
+       failing at the last step. `rounds` must match what the browser does;
+       publishing it is what makes a mismatch visible instead of looking
+       like every password being wrong. */
+    accounts: accountsOf(env) ? { rounds: CLIENT_ROUNDS, tries: MAX_TRIES } : false,
     model: CLAUDE_MODEL,
     push: false,
     runtime: 'cloudflare-worker',
     providers: {
       anthropic: { ready: Boolean(claudeKeyOf(env)), model: CLAUDE_MODEL },
-      gemini: { ready: hasGeminiKey(), model: geminiDefaultModel() },
+      /* The count, never a key. A key in the wrong variable and no key at all
+         look identical from outside, and this is what tells them apart. */
+      gemini: { ready: hasGeminiKey(), model: geminiDefaultModel(), keys: geminiKeyCount() },
     },
     /* Names only, never values. A key in the wrong field, the wrong
        environment or the wrong Worker all look identical from outside —
@@ -319,6 +703,22 @@ const routes = {
     }
     data.answerIndex = Math.max(0, Math.min(data.options.length - 1, data.answerIndex | 0));
     return { ok: true, data };
+  },
+
+  /**
+   * One unprompted note about how the learner is doing.
+   *
+   * Structured output rather than a tool loop, on purpose: the shape it can
+   * answer in has no room for an action being taken, only for one being
+   * named. Nothing this route returns can change anything by itself.
+   */
+  'POST /api/ai/notice': async (body, env) => {
+    const note = await askJson(provider(body, env), noticePrompt({
+      digest: body?.digest || {},
+      actions: Array.isArray(body?.actions) ? body.actions.slice(0, 12) : [],
+      level: body?.level,
+    }), noticeSchema, body, env);
+    return { ok: true, data: note };
   },
 
   'POST /api/ai/suggest': async (body, env) => {
@@ -441,15 +841,40 @@ const routes = {
 // ── the Worker ─────────────────────────────────────────────────────────────
 
 /**
+ * The origin the Android app runs on.
+ *
+ * The installed app serves itself from inside the APK over this origin — it is
+ * fixed by Android, identical on every phone, and unreachable from the
+ * internet. Allowed by default, because otherwise pinning ALLOWED_ORIGIN to
+ * your website silently turns the AI off in the app and the only symptom is a
+ * CORS error nobody sees.
+ */
+export const APP_ORIGIN = 'https://appassets.androidplatform.net';
+
+/**
  * CORS.
  *
  * ALLOWED_ORIGIN unset means `*`, which is right for a scratch deployment and
  * wrong for a real one: it lets any page on the internet spend your API
  * credit. The health route says which you have.
+ *
+ * It takes a comma-separated list, and the reply echoes whichever entry the
+ * request actually came from — a browser rejects a list in that header, so a
+ * site with two origins (the www and the bare domain, say) needs the echo
+ * rather than a longer string.
  */
-function cors(env) {
+export function cors(env, request) {
+  const allowed = String(env.ALLOWED_ORIGIN || '').split(',')
+    .map((o) => o.trim()).filter(Boolean);
+  const from = request?.headers?.get('origin') || '';
+
+  let origin;
+  if (!allowed.length) origin = '*';
+  else if (allowed.includes(from) || from === APP_ORIGIN) origin = from;
+  else origin = allowed[0];
+
   return {
-    'access-control-allow-origin': env.ALLOWED_ORIGIN || '*',
+    'access-control-allow-origin': origin,
     'access-control-allow-headers': 'content-type',
     'access-control-allow-methods': 'GET, POST, OPTIONS',
     'access-control-max-age': '86400',
@@ -459,12 +884,16 @@ function cors(env) {
 
 export default {
   async fetch(request, env) {
-    const headers = cors(env);
+    const headers = cors(env, request);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers });
 
     // The Gemini client reads its key from here rather than from process.env,
     // which a Worker does not have.
-    configureGemini({ apiKey: geminiKeyOf(env), model: binding(env, 'GEMINI_MODEL') });
+    configureGemini({
+      apiKey: geminiKeyOf(env),
+      apiKeys: geminiKeysOf(env),
+      model: binding(env, 'GEMINI_MODEL'),
+    });
 
     const url = new URL(request.url);
     const handler = routes[`${request.method} ${url.pathname}`];
@@ -474,7 +903,9 @@ export default {
 
     try {
       const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
-      const out = await handler(body, env);
+      // The request is passed too: the sync routes read the caller's address
+      // to rate-limit writes, which is the one thing an IP is good for here.
+      const out = await handler(body, env, request);
       // A stream is an answer being written; anything else is one JSON reply.
       if (out instanceof ReadableStream) {
         return new Response(out, {
