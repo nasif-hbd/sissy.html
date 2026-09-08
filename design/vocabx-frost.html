@@ -1,0 +1,897 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>VocabX Frost</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Instrument+Sans:ital,wght@0,400..700;1,400..700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   VOCABX · FROST
+
+   A vocabulary trainer is a dictionary you are inside of, so the design is
+   built from a dictionary's own materials: the headword set in a high-contrast
+   serif, the respelling in mono the way a lexicographer sets IPA, the sense
+   numbers, the CEFR bands. The chrome is glass over a field of shards that
+   tilts as you move — depth, not decoration: it puts the page on a surface
+   rather than on a background.
+
+   Colour is spent in two places and nowhere else. The navigation icons carry a
+   spectrum, because that is what makes a rail scannable at a glance. Amber is
+   reserved: it means heat — a streak, a word going cold — and never means
+   "another category". Everything between those is porcelain and ink.
+═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Tokens ─────────────────────────────────────────────────────────────────
+   Four skins, one set of names. The bare :root is Frost, the light default.
+   A viewer's system preference is honoured only while nobody has picked a
+   skin — the moment they do, [data-skin] wins in both directions.
+─────────────────────────────────────────────────────────────────────────── */
+:root {
+  --ground:      #eef2f3;
+  --ground-2:    #e2e9eb;
+  --panel:       255 255 255;
+  --panel-a:     .74;
+  --sunk:        #e7edee;
+  --edge:        rgba(12 26 30 / .085);
+  --edge-firm:   rgba(12 26 30 / .16);
+  --ink:         #0c1a1e;
+  --ink-2:       #46595f;
+  --ink-3:       #7d9096;
+  --accent:      #0e6b78;
+  --accent-ink:  #ffffff;
+  --accent-soft: #d5e9ec;
+  --amber:       #b9631d;
+  --amber-soft:  #f7e4d2;
+  --good:        #14705a;
+  --good-soft:   #d7ece5;
+  --shard-face:  rgba(255 255 255 / .58);
+  --shard-edge:  rgba(255 255 255 / .85);
+  --shard-tint:  rgba(14 107 120 / .09);
+  --glow-1:      #a9d9e0;
+  --glow-2:      #f4dcc4;
+  --glow-3:      #cdd4ef;
+  --grain:       .035;
+  --lift:  0 1px 2px rgb(12 26 30 / .04), 0 12px 28px -12px rgb(12 26 30 / .16);
+  --lift-2: 0 2px 4px rgb(12 26 30 / .05), 0 28px 60px -22px rgb(12 26 30 / .26);
+  --ring:  inset 0 1px 0 rgb(255 255 255 / .7);
+}
+
+/* System dark, but only while no skin has been chosen. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-skin]) {
+    --ground: #0a1417; --ground-2: #060e10; --panel: 148 178 186; --panel-a: .09;
+    --sunk: #0e1c20; --edge: rgba(255 255 255 / .1); --edge-firm: rgba(255 255 255 / .2);
+    --ink: #eaf2f3; --ink-2: #9db2b7; --ink-3: #6c8087;
+    --accent: #4fd0e0; --accent-ink: #04201f; --accent-soft: rgba(79 208 224 / .16);
+    --amber: #e9a562; --amber-soft: rgba(233 165 98 / .16);
+    --good: #5bd6ac; --good-soft: rgba(91 214 172 / .15);
+    --shard-face: rgba(120 190 200 / .07); --shard-edge: rgba(150 220 232 / .22);
+    --shard-tint: rgba(79 208 224 / .08);
+    --glow-1: #0d4c56; --glow-2: #4a3320; --glow-3: #23294d; --grain: .05;
+    --lift: 0 1px 2px rgb(0 0 0 / .4), 0 14px 32px -14px rgb(0 0 0 / .7);
+    --lift-2: 0 2px 6px rgb(0 0 0 / .5), 0 34px 70px -24px rgb(0 0 0 / .85);
+    --ring: inset 0 1px 0 rgb(255 255 255 / .07);
+  }
+}
+:root[data-theme="dark"]:not([data-skin]) {
+  --ground: #0a1417; --ground-2: #060e10; --panel: 148 178 186; --panel-a: .09;
+  --sunk: #0e1c20; --edge: rgba(255 255 255 / .1); --edge-firm: rgba(255 255 255 / .2);
+  --ink: #eaf2f3; --ink-2: #9db2b7; --ink-3: #6c8087;
+  --accent: #4fd0e0; --accent-ink: #04201f; --accent-soft: rgba(79 208 224 / .16);
+  --amber: #e9a562; --amber-soft: rgba(233 165 98 / .16);
+  --good: #5bd6ac; --good-soft: rgba(91 214 172 / .15);
+  --shard-face: rgba(120 190 200 / .07); --shard-edge: rgba(150 220 232 / .22);
+  --shard-tint: rgba(79 208 224 / .08);
+  --glow-1: #0d4c56; --glow-2: #4a3320; --glow-3: #23294d; --grain: .05;
+  --lift: 0 1px 2px rgb(0 0 0 / .4), 0 14px 32px -14px rgb(0 0 0 / .7);
+  --lift-2: 0 2px 6px rgb(0 0 0 / .5), 0 34px 70px -24px rgb(0 0 0 / .85);
+  --ring: inset 0 1px 0 rgb(255 255 255 / .07);
+}
+
+/* ── The four skins, chosen in the app ───────────────────────────────────── */
+:root[data-skin="frost"] {
+  --ground: #eef2f3; --ground-2: #e2e9eb; --panel: 255 255 255; --panel-a: .74;
+  --sunk: #e7edee; --edge: rgba(12 26 30 / .085); --edge-firm: rgba(12 26 30 / .16);
+  --ink: #0c1a1e; --ink-2: #46595f; --ink-3: #7d9096;
+  --accent: #0e6b78; --accent-ink: #fff; --accent-soft: #d5e9ec;
+  --amber: #b9631d; --amber-soft: #f7e4d2; --good: #14705a; --good-soft: #d7ece5;
+  --shard-face: rgba(255 255 255 / .58); --shard-edge: rgba(255 255 255 / .85);
+  --shard-tint: rgba(14 107 120 / .09);
+  --glow-1: #a9d9e0; --glow-2: #f4dcc4; --glow-3: #cdd4ef; --grain: .035;
+  --lift: 0 1px 2px rgb(12 26 30 / .04), 0 12px 28px -12px rgb(12 26 30 / .16);
+  --lift-2: 0 2px 4px rgb(12 26 30 / .05), 0 28px 60px -22px rgb(12 26 30 / .26);
+  --ring: inset 0 1px 0 rgb(255 255 255 / .7);
+}
+/* Iris — the violet the app ships today, kept so the two can be compared. */
+:root[data-skin="iris"] {
+  --ground: #f6f6fb; --ground-2: #eceaf7; --panel: 255 255 255; --panel-a: .78;
+  --sunk: #f0eff8; --edge: rgba(24 20 44 / .08); --edge-firm: rgba(24 20 44 / .15);
+  --ink: #16142a; --ink-2: #565175; --ink-3: #8a86a5;
+  --accent: #5b4bd6; --accent-ink: #fff; --accent-soft: #e6e2fb;
+  --amber: #a8600f; --amber-soft: #f8e7cf; --good: #197053; --good-soft: #d9eee6;
+  --shard-face: rgba(255 255 255 / .6); --shard-edge: rgba(255 255 255 / .9);
+  --shard-tint: rgba(91 75 214 / .1);
+  --glow-1: #cfc6f7; --glow-2: #f6d9e6; --glow-3: #c9dcf7; --grain: .03;
+}
+/* Ember — warm, low-light, for reading at night without going fully dark. */
+:root[data-skin="ember"] {
+  --ground: #191310; --ground-2: #0f0b09; --panel: 255 214 178; --panel-a: .08;
+  --sunk: #221a15; --edge: rgba(255 226 200 / .12); --edge-firm: rgba(255 226 200 / .24);
+  --ink: #fbeee2; --ink-2: #c4ac98; --ink-3: #927e6d;
+  --accent: #ffab5e; --accent-ink: #241408; --accent-soft: rgba(255 171 94 / .16);
+  --amber: #ff9a4a; --amber-soft: rgba(255 154 74 / .18);
+  --good: #9ed08a; --good-soft: rgba(158 208 138 / .16);
+  --shard-face: rgba(255 190 130 / .07); --shard-edge: rgba(255 205 160 / .2);
+  --shard-tint: rgba(255 154 74 / .08);
+  --glow-1: #5c2f14; --glow-2: #3d2410; --glow-3: #4a1f2a; --grain: .06;
+  --lift: 0 1px 2px rgb(0 0 0 / .45), 0 14px 32px -14px rgb(0 0 0 / .7);
+  --lift-2: 0 2px 6px rgb(0 0 0 / .5), 0 34px 70px -24px rgb(0 0 0 / .85);
+  --ring: inset 0 1px 0 rgb(255 255 255 / .06);
+}
+:root[data-skin="ink"] {
+  --ground: #0a1417; --ground-2: #060e10; --panel: 148 178 186; --panel-a: .09;
+  --sunk: #0e1c20; --edge: rgba(255 255 255 / .1); --edge-firm: rgba(255 255 255 / .2);
+  --ink: #eaf2f3; --ink-2: #9db2b7; --ink-3: #6c8087;
+  --accent: #4fd0e0; --accent-ink: #04201f; --accent-soft: rgba(79 208 224 / .16);
+  --amber: #e9a562; --amber-soft: rgba(233 165 98 / .16);
+  --good: #5bd6ac; --good-soft: rgba(91 214 172 / .15);
+  --shard-face: rgba(120 190 200 / .07); --shard-edge: rgba(150 220 232 / .22);
+  --shard-tint: rgba(79 208 224 / .08);
+  --glow-1: #0d4c56; --glow-2: #4a3320; --glow-3: #23294d; --grain: .05;
+  --lift: 0 1px 2px rgb(0 0 0 / .4), 0 14px 32px -14px rgb(0 0 0 / .7);
+  --lift-2: 0 2px 6px rgb(0 0 0 / .5), 0 34px 70px -24px rgb(0 0 0 / .85);
+  --ring: inset 0 1px 0 rgb(255 255 255 / .07);
+}
+
+/* ── Frame ──────────────────────────────────────────────────────────────── */
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--ground);
+  color: var(--ink);
+  font-family: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+}
+h1, h2, h3, h4, p { margin: 0; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 6px; }
+
+.tnum  { font-variant-numeric: tabular-nums; }
+
+/* Uppercase micro-labels. Every one of them names a real thing. */
+.eyebrow {
+  font-size: 10.5px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* ── The field ──────────────────────────────────────────────────────────────
+   Twelve panes of glass at different depths, seen in perspective. It tilts
+   toward the pointer, and drifts on its own when nothing is moving. Under
+   prefers-reduced-motion the depth stays and the movement stops — the effect
+   is the arrangement, not the animation.
+─────────────────────────────────────────────────────────────────────────── */
+.field {
+  position: fixed; inset: 0; z-index: 0; overflow: hidden;
+  perspective: 1100px; perspective-origin: 50% 42%;
+  background:
+    radial-gradient(58% 44% at 14% 8%,  var(--glow-1) 0%, transparent 62%),
+    radial-gradient(52% 40% at 88% 18%, var(--glow-2) 0%, transparent 60%),
+    radial-gradient(64% 52% at 62% 96%, var(--glow-3) 0%, transparent 64%),
+    linear-gradient(168deg, var(--ground) 0%, var(--ground-2) 100%);
+}
+.stage {
+  position: absolute; inset: -12%;
+  transform-style: preserve-3d;
+  transform: rotateX(var(--tx, 0deg)) rotateY(var(--ty, 0deg));
+  transition: transform .55s cubic-bezier(.22,.8,.3,1);
+  will-change: transform;
+}
+.shard {
+  position: absolute;
+  left: var(--x); top: var(--y);
+  width: var(--w); aspect-ratio: var(--ar, 1.35);
+  border: 1px solid var(--shard-edge);
+  border-radius: 18px;
+  background:
+    linear-gradient(145deg, var(--shard-face), var(--shard-tint) 62%, transparent);
+  box-shadow: 0 30px 70px -30px rgb(8 20 24 / .45);
+  transform: translateZ(var(--z)) rotate(var(--r, 0deg));
+  animation: drift var(--dur, 26s) var(--delay, 0s) ease-in-out infinite alternate;
+}
+@keyframes drift {
+  from { translate: 0 0; }
+  to   { translate: var(--dx, 2%) var(--dy, -3%); }
+}
+/* A film of noise over the whole field. Without it the gradients band on a
+   wide screen, which is the one thing that makes glass look like a JPEG. */
+.grain {
+  position: fixed; inset: 0; z-index: 1; pointer-events: none; opacity: var(--grain);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ── Shell ──────────────────────────────────────────────────────────────── */
+.shell {
+  position: relative; z-index: 2;
+  display: grid;
+  grid-template-columns: 78px minmax(0, 1fr) 336px;
+  gap: 20px;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 20px 22px 40px;
+}
+
+/* Glass: one recipe, used by the rail, the panels and the bar. */
+.glass {
+  background: rgb(var(--panel) / var(--panel-a));
+  border: 1px solid var(--edge);
+  border-radius: 20px;
+  box-shadow: var(--lift), var(--ring);
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+}
+
+/* ── Rail ───────────────────────────────────────────────────────────────── */
+.rail {
+  position: sticky; top: 20px; align-self: start;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 14px 0 12px;
+}
+.mark {
+  display: grid; place-items: center;
+  width: 42px; height: 42px; margin-bottom: 10px;
+  border-radius: 13px;
+  background: linear-gradient(150deg, var(--accent), color-mix(in oklab, var(--accent) 45%, #7ad3c4));
+  color: var(--accent-ink);
+  font-family: "Instrument Serif", serif; font-size: 23px; line-height: 1;
+  box-shadow: 0 8px 20px -8px color-mix(in oklab, var(--accent) 70%, transparent);
+}
+.nav { display: flex; flex-direction: column; gap: 4px; width: 100%; align-items: center; }
+.nav__btn {
+  position: relative;
+  display: grid; place-items: center;
+  width: 46px; height: 42px;
+  border: 0; border-radius: 13px; background: transparent;
+  transition: background .18s ease, transform .18s ease;
+}
+.nav__btn:hover { background: rgb(var(--panel) / calc(var(--panel-a) * .8)); transform: translateY(-1px); }
+.nav__btn[aria-current="page"] { background: var(--accent-soft); }
+.nav__btn[aria-current="page"]::before {
+  content: ""; position: absolute; left: -14px; top: 50%; translate: 0 -50%;
+  width: 3px; height: 20px; border-radius: 3px; background: var(--accent);
+}
+.nav__btn .ico { width: 21px; height: 21px; }
+/* The label appears beside the rail rather than under the icon: the rail is
+   38px of width and a legible word does not fit inside it. */
+.nav__btn::after {
+  content: attr(data-label);
+  position: absolute; left: calc(100% + 10px); top: 50%; translate: 0 -50%;
+  padding: 5px 10px; border-radius: 9px;
+  background: var(--ink); color: var(--ground);
+  font-size: 12px; font-weight: 500; white-space: nowrap;
+  opacity: 0; pointer-events: none; transition: opacity .15s ease;
+  box-shadow: var(--lift);
+}
+.nav__btn:hover::after, .nav__btn:focus-visible::after { opacity: 1; }
+
+.ico { display: block; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.ico--sm { width: 15px; height: 15px; }
+.sprite { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* ── Work column ────────────────────────────────────────────────────────── */
+.work { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+
+.bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 10px 9px 16px;
+}
+.search {
+  display: flex; align-items: center; gap: 9px; flex: 1; min-width: 0;
+  padding: 8px 14px;
+  border: 1px solid var(--edge); border-radius: 12px;
+  background: rgb(var(--panel) / calc(var(--panel-a) * .7));
+  color: var(--ink-2); font-size: 13.5px;
+}
+.search kbd {
+  margin-left: auto; padding: 2px 6px;
+  border: 1px solid var(--edge-firm); border-radius: 5px;
+  font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--ink-3);
+}
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 11px; border-radius: 999px;
+  border: 1px solid var(--edge);
+  font-size: 13px; font-weight: 600;
+  white-space: nowrap;
+}
+.chip--heat { background: var(--amber-soft); color: var(--amber); border-color: transparent; }
+.face {
+  display: grid; place-items: center;
+  width: 34px; height: 34px; border-radius: 50%;
+  background: linear-gradient(150deg, var(--accent), color-mix(in oklab, var(--accent) 40%, #8a6bd0));
+  color: var(--accent-ink); font-weight: 600; font-size: 14px;
+  border: 0;
+}
+
+/* Skin switcher — four swatches, each painted in its own palette. */
+.skins { display: flex; gap: 5px; padding: 4px; border-radius: 12px; background: rgb(var(--panel) / calc(var(--panel-a) * .7)); border: 1px solid var(--edge); }
+.skin {
+  width: 26px; height: 26px; padding: 0;
+  border: 1px solid var(--edge-firm); border-radius: 8px;
+  transition: transform .16s ease, box-shadow .16s ease;
+}
+.skin:hover { transform: translateY(-1px); }
+.skin[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--ground), 0 0 0 3.5px var(--accent); }
+.skin--frost { background: linear-gradient(140deg, #f4f7f8 46%, #0e6b78 46%); }
+.skin--iris  { background: linear-gradient(140deg, #f7f6fc 46%, #5b4bd6 46%); }
+.skin--ember { background: linear-gradient(140deg, #241a14 46%, #ffab5e 46%); }
+.skin--ink   { background: linear-gradient(140deg, #0a1417 46%, #4fd0e0 46%); }
+
+/* ── Hero ───────────────────────────────────────────────────────────────── */
+.hero { padding: 4px 4px 0; }
+.hero__row { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.hero h1 {
+  font-family: "Instrument Serif", ui-serif, Georgia, serif;
+  font-size: clamp(34px, 5vw, 52px); line-height: 1.02; letter-spacing: -.015em;
+  text-wrap: balance; margin: 6px 0 6px;
+}
+.hero h1 em { font-style: italic; color: var(--accent); }
+.hero__sub { color: var(--ink-2); max-width: 46ch; }
+.hero__aside { text-align: right; color: var(--ink-3); font-size: 12.5px; line-height: 1.7; }
+.hero__aside b { display: block; color: var(--ink); font-size: 15px; font-weight: 600; }
+
+/* ── The signed note ────────────────────────────────────────────────────────
+   Deliberately not one of the app's own cards. Nobody asked for it, so it
+   reads as something placed on the page: its own tint, its own edge, and a
+   signature that names the machine that wrote it.
+─────────────────────────────────────────────────────────────────────────── */
+.note {
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 16px 18px;
+  border: 1px solid var(--edge);
+  border-left: 3px solid var(--accent);
+  border-radius: 16px;
+  background:
+    linear-gradient(100deg, var(--accent-soft), transparent 72%),
+    rgb(var(--panel) / calc(var(--panel-a) * .8));
+  backdrop-filter: blur(18px) saturate(150%);
+  -webkit-backdrop-filter: blur(18px) saturate(150%);
+}
+.note__text { font-size: 15.5px; line-height: 1.55; }
+.note__text b { font-weight: 600; }
+.note__acts { display: flex; flex-wrap: wrap; gap: 8px; }
+.note__sign {
+  display: flex; align-items: center; gap: 7px; flex-wrap: wrap;
+  padding-top: 10px; border-top: 1px solid var(--edge);
+  font-size: 11.5px; color: var(--ink-2);
+}
+.note__sign .ico { opacity: .8; }
+.note__off { margin-left: auto; background: none; border: 0; padding: 0; color: var(--ink-3); font-size: 11.5px; text-decoration: underline; text-underline-offset: 3px; }
+
+.btn {
+  display: inline-flex; align-items: center; gap: 7px;
+  min-height: 34px; padding: 0 14px;
+  border: 1px solid var(--edge-firm); border-radius: 10px;
+  background: rgb(var(--panel) / calc(var(--panel-a) * .85));
+  font-size: 13.5px; font-weight: 600;
+  transition: transform .15s ease, box-shadow .15s ease, background .15s ease;
+}
+.btn:hover { transform: translateY(-1px); box-shadow: var(--lift); }
+.btn:active { transform: translateY(0); }
+.btn--go {
+  background: var(--accent); color: var(--accent-ink); border-color: transparent;
+  box-shadow: 0 8px 20px -10px color-mix(in oklab, var(--accent) 80%, transparent);
+}
+
+/* ── Stat tiles ─────────────────────────────────────────────────────────────
+   Four figures, and they are the point of this row, so they lead. Each carries
+   one line of context underneath rather than a sparkline: at this size a
+   28-day trend would be four pixels tall and would say nothing true.
+─────────────────────────────────────────────────────────────────────────── */
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.tile { padding: 15px 16px 14px; display: flex; flex-direction: column; gap: 3px; }
+.tile__top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.tile__num {
+  font-family: "Instrument Serif", ui-serif, Georgia, serif;
+  font-size: 34px; line-height: 1.05; letter-spacing: -.01em;
+  font-variant-numeric: tabular-nums;
+}
+.tile__num small { font-size: 17px; color: var(--ink-3); }
+.tile__label { font-size: 12.5px; color: var(--ink-2); }
+.tile__note { font-size: 11.5px; color: var(--ink-3); }
+.tile__note--up { color: var(--good); font-weight: 600; }
+
+/* ── Review card ────────────────────────────────────────────────────────────
+   The centre of the whole app, so it is the one thing on the page allowed to
+   be large and quiet. Set as a dictionary entry, because that is what it is.
+─────────────────────────────────────────────────────────────────────────── */
+.review { padding: 22px 24px 20px; box-shadow: var(--lift-2), var(--ring); }
+.review__head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.review__word {
+  font-family: "Instrument Serif", ui-serif, Georgia, serif;
+  font-size: clamp(40px, 6vw, 58px); line-height: 1; letter-spacing: -.02em;
+}
+.review__ipa { font-family: "IBM Plex Mono", monospace; font-size: 14px; color: var(--ink-2); }
+.review__pos { font-family: "Instrument Serif", serif; font-style: italic; font-size: 17px; color: var(--ink-3); }
+.band {
+  padding: 3px 8px; border-radius: 6px;
+  background: var(--accent-soft); color: var(--accent);
+  font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600; letter-spacing: .04em;
+}
+.senses { list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 11px; counter-reset: sense; }
+.senses li { display: grid; grid-template-columns: 22px 1fr; gap: 10px; }
+.senses li::before {
+  counter-increment: sense; content: counter(sense);
+  font-family: "IBM Plex Mono", monospace; font-size: 12px; font-weight: 600;
+  color: var(--accent); padding-top: 3px;
+}
+.senses p { max-width: 62ch; }
+.senses cite { display: block; margin-top: 3px; font-style: italic; color: var(--ink-2); font-size: 14px; }
+.senses cite b { font-style: normal; font-weight: 600; color: var(--ink); }
+
+.review__foot { display: flex; align-items: center; justify-content: space-between; gap: 14px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--edge); flex-wrap: wrap; }
+/* The four SM-2 answers. The interval under each is the real thing this app
+   computes, and it is why the buttons cannot just say "easy" and "hard". */
+.grades { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; flex: 1; min-width: 280px; }
+.grade {
+  display: flex; flex-direction: column; align-items: center; gap: 1px;
+  padding: 9px 6px;
+  border: 1px solid var(--edge-firm); border-radius: 12px;
+  background: rgb(var(--panel) / calc(var(--panel-a) * .6));
+  transition: transform .15s ease, border-color .15s ease, background .15s ease;
+}
+.grade:hover { transform: translateY(-2px); border-color: currentColor; }
+.grade b { font-size: 13.5px; font-weight: 600; }
+.grade span { font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--ink-3); }
+.grade[data-g="again"] { color: #a8342f; }
+.grade[data-g="hard"]  { color: var(--amber); }
+.grade[data-g="good"]  { color: var(--good); }
+.grade[data-g="easy"]  { color: var(--accent); }
+:root[data-skin="ink"] .grade[data-g="again"],
+:root[data-skin="ember"] .grade[data-g="again"] { color: #ff8f88; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-skin]) .grade[data-g="again"] { color: #ff8f88; }
+}
+:root[data-theme="dark"]:not([data-skin]) .grade[data-g="again"] { color: #ff8f88; }
+
+/* ── Modules ────────────────────────────────────────────────────────────── */
+.section__head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; padding: 0 4px; }
+.section__head h2 { font-family: "Instrument Serif", serif; font-size: 24px; letter-spacing: -.01em; }
+.link { background: none; border: 0; padding: 0; color: var(--accent); font-size: 13px; font-weight: 600; }
+.mods { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
+.mod {
+  display: grid; grid-template-columns: 46px 1fr auto; align-items: center; gap: 14px;
+  padding: 12px 14px;
+}
+.mod__badge {
+  display: grid; place-items: center; height: 40px; border-radius: 11px;
+  background: var(--sunk);
+  font-family: "IBM Plex Mono", monospace; font-size: 11px; font-weight: 600; color: var(--ink-2);
+}
+.mod__name { font-weight: 600; font-size: 14.5px; }
+.mod__meta { font-size: 12px; color: var(--ink-3); font-variant-numeric: tabular-nums; }
+/* One scale: the track is the whole module, the fill is what is done, and the
+   number beside it names the same value. */
+.meter { height: 5px; border-radius: 3px; background: var(--sunk); overflow: hidden; margin-top: 7px; }
+.meter i { display: block; height: 100%; border-radius: 3px; background: var(--accent); }
+.mod__pct { font-family: "IBM Plex Mono", monospace; font-size: 12.5px; font-weight: 600; font-variant-numeric: tabular-nums; }
+
+/* ── Right panel ────────────────────────────────────────────────────────── */
+.side { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.card { padding: 16px 17px; display: flex; flex-direction: column; gap: 12px; }
+.card__head { display: flex; align-items: center; gap: 8px; }
+.card__head h3 { font-size: 13.5px; font-weight: 600; }
+
+/* CEFR: six bands on one axis, the learner's own placed on it. */
+.bands { display: flex; gap: 3px; }
+.bands div {
+  flex: 1; height: 30px; border-radius: 5px; background: var(--sunk);
+  display: grid; place-items: center;
+  font-family: "IBM Plex Mono", monospace; font-size: 10.5px; color: var(--ink-3);
+}
+.bands div[data-on] { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.bands div[data-here] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+.xp__row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.xp__level { font-family: "Instrument Serif", serif; font-size: 26px; }
+.xp__title { font-size: 12.5px; color: var(--ink-2); }
+
+/* Fourteen days. A dot is a day; filled means studied. Not a chart — there is
+   one value per day and it is yes or no. */
+.days { display: flex; gap: 4px; }
+.days i {
+  flex: 1; height: 26px; border-radius: 4px; background: var(--sunk);
+  display: block;
+}
+.days i[data-done] { background: color-mix(in oklab, var(--accent) 55%, var(--sunk)); }
+.days i[data-done="full"] { background: var(--accent); }
+.days i[data-today] { box-shadow: 0 0 0 2px var(--ground), 0 0 0 3.5px var(--amber); }
+
+.status { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--ink-2); }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--good); flex: none; }
+.keys { display: flex; flex-direction: column; gap: 6px; }
+.key { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 12.5px; color: var(--ink-2); }
+.key kbd {
+  padding: 2px 7px; border: 1px solid var(--edge-firm); border-radius: 5px;
+  background: rgb(var(--panel) / calc(var(--panel-a) * .8));
+  font-family: "IBM Plex Mono", monospace; font-size: 11px; color: var(--ink);
+}
+
+/* ── Responsive ─────────────────────────────────────────────────────────── */
+@media (max-width: 1080px) {
+  .shell { grid-template-columns: 78px minmax(0, 1fr); }
+  .side { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, 1fr); align-items: start; }
+}
+@media (max-width: 760px) {
+  .shell { grid-template-columns: minmax(0, 1fr); padding: 14px 14px 32px; gap: 14px; }
+  .rail { position: static; flex-direction: row; justify-content: flex-start; overflow-x: auto; padding: 10px 12px; }
+  .mark { margin: 0 8px 0 0; }
+  .nav { flex-direction: row; width: auto; }
+  .nav__btn[aria-current="page"]::before { left: 50%; top: auto; bottom: -8px; translate: -50% 0; width: 18px; height: 3px; }
+  .nav__btn::after { display: none; }
+  .tiles { grid-template-columns: repeat(2, 1fr); }
+  .side { grid-template-columns: minmax(0, 1fr); }
+  .hero__aside { text-align: left; }
+}
+@media (max-width: 420px) {
+  .grades { grid-template-columns: repeat(2, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shard { animation: none; }
+  .stage { transition: none; }
+  .btn:hover, .grade:hover, .nav__btn:hover, .skin:hover { transform: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- The 3D field: twelve panes of glass at twelve depths. -->
+<div class="field" aria-hidden="true">
+  <div class="stage" id="stage">
+    <span class="shard" style="--x:6%;  --y:12%; --w:30vw; --z:-560px; --r:-14deg; --dur:31s; --dx:3%;  --dy:-2%;"></span>
+    <span class="shard" style="--x:62%; --y:4%;  --w:26vw; --z:-460px; --r:9deg;   --dur:27s; --dx:-2%; --dy:3%;  --delay:-6s;"></span>
+    <span class="shard" style="--x:38%; --y:56%; --w:34vw; --z:-620px; --r:-6deg;  --dur:35s; --dx:2%;  --dy:-3%; --delay:-12s;"></span>
+    <span class="shard" style="--x:80%; --y:62%; --w:22vw; --z:-340px; --r:16deg;  --dur:24s; --dx:-3%; --dy:-2%; --delay:-3s;"></span>
+    <span class="shard" style="--x:-4%; --y:64%; --w:24vw; --z:-280px; --r:11deg;  --dur:29s; --dx:3%;  --dy:2%;  --delay:-9s;"></span>
+    <span class="shard" style="--x:24%; --y:-8%; --w:18vw; --z:-200px; --r:-22deg; --dur:22s; --dx:-2%; --dy:3%;  --delay:-15s;"></span>
+    <span class="shard" style="--x:88%; --y:26%; --w:16vw; --z:-150px; --r:-9deg;  --dur:26s; --dx:2%;  --dy:2%;  --delay:-5s;"></span>
+    <span class="shard" style="--x:52%; --y:88%; --w:20vw; --z:-120px; --r:5deg;   --dur:33s; --dx:-3%; --dy:-2%; --delay:-18s;"></span>
+    <span class="shard" style="--x:14%; --y:38%; --w:13vw; --z:-60px;  --r:19deg;  --dur:21s; --dx:2%;  --dy:-3%; --delay:-2s;"></span>
+    <span class="shard" style="--x:70%; --y:44%; --w:11vw; --z:-30px;  --r:-16deg; --dur:25s; --dx:-2%; --dy:2%;  --delay:-11s;"></span>
+    <span class="shard" style="--x:34%; --y:22%; --w:9vw;  --z:40px;   --r:24deg;  --dur:19s; --dx:3%;  --dy:3%;  --delay:-7s;"></span>
+    <span class="shard" style="--x:92%; --y:82%; --w:10vw; --z:80px;   --r:-11deg; --dur:23s; --dx:-2%; --dy:-3%; --delay:-14s;"></span>
+  </div>
+</div>
+<div class="grain" aria-hidden="true"></div>
+
+<!-- Icons. Stroke-only line work, each taking one gradient from a single
+     spectrum, so the rail is scannable without any of them shouting. -->
+<svg class="sprite" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="g-teal" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#12a2b4"/><stop offset="1" stop-color="#0c5f6b"/></linearGradient>
+    <linearGradient id="g-blue" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4f8ff0"/><stop offset="1" stop-color="#2c53b8"/></linearGradient>
+    <linearGradient id="g-violet" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9a72f0"/><stop offset="1" stop-color="#5b3fc4"/></linearGradient>
+    <linearGradient id="g-rose" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f4708f"/><stop offset="1" stop-color="#c23b6b"/></linearGradient>
+    <linearGradient id="g-amber" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#f5a544"/><stop offset="1" stop-color="#d1691c"/></linearGradient>
+    <linearGradient id="g-lime" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#5fc76e"/><stop offset="1" stop-color="#1e8a5a"/></linearGradient>
+    <linearGradient id="g-cyan" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3fd0d8"/><stop offset="1" stop-color="#1f8fa8"/></linearGradient>
+    <linearGradient id="g-plum" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#c46ad4"/><stop offset="1" stop-color="#7d3a9c"/></linearGradient>
+  </defs>
+  <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.6 10.4 12 4l8.4 6.4"/><path d="M5.6 9.4V20h12.8V9.4"/><path d="M9.6 20v-5.6h4.8V20"/></symbol>
+  <symbol id="i-learn" viewBox="0 0 24 24"><rect x="3.4" y="6.2" width="13.4" height="12.6" rx="2.4"/><path d="M7.4 3.6h11a2.4 2.4 0 0 1 2.4 2.4v10.2"/><path d="M6.8 10.6h6.6M6.8 14h4.2"/></symbol>
+  <symbol id="i-modules" viewBox="0 0 24 24"><path d="M12 3.4 20.6 7.7 12 12 3.4 7.7z"/><path d="M3.4 12.3 12 16.6l8.6-4.3"/><path d="M3.4 16.6 12 20.9l8.6-4.3"/></symbol>
+  <symbol id="i-test" viewBox="0 0 24 24"><rect x="4.4" y="3.6" width="15.2" height="16.8" rx="2.6"/><path d="M8.4 11.4l2.4 2.4 4.8-4.8"/></symbol>
+  <symbol id="i-ask" viewBox="0 0 24 24"><path d="M12 3.2l1.9 4.9 4.9 1.9-4.9 1.9L12 16.8l-1.9-4.9-4.9-1.9 4.9-1.9z"/><path d="M18.4 15.6l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z"/></symbol>
+  <symbol id="i-words" viewBox="0 0 24 24"><path d="M4 6.4h1.6M4 12h1.6M4 17.6h1.6"/><path d="M9 6.4h11M9 12h11M9 17.6h7"/></symbol>
+  <symbol id="i-progress" viewBox="0 0 24 24"><path d="M4 19.4h16"/><path d="M7.4 19.4v-6.2M12 19.4V6.6M16.6 19.4v-8.8"/></symbol>
+  <symbol id="i-profile" viewBox="0 0 24 24"><circle cx="12" cy="8.4" r="3.7"/><path d="M4.6 20c0-3.6 3.3-5.7 7.4-5.7s7.4 2.1 7.4 5.7"/></symbol>
+  <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 8.4h16M4 15.6h16"/><rect x="7" y="5.9" width="3.4" height="5" rx="1.1"/><rect x="14" y="13.1" width="3.4" height="5" rx="1.1"/></symbol>
+  <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.6" cy="10.6" r="5.6"/><path d="M14.7 14.7 19.6 19.6"/></symbol>
+  <symbol id="i-flame" viewBox="0 0 24 24"><path d="M13.2 2.8c.5 3.2-1.6 4.7-3.2 6.3S6.8 12.2 6.8 14.7a5.2 5.2 0 0 0 10.4.4c0-2.6-1.6-4.2-2.6-5.7 1 .5 2.6 1.6 3.1 3.6 1-3.1.5-7.2-4.5-10.2z"/></symbol>
+  <symbol id="i-bot" viewBox="0 0 24 24"><rect x="4" y="8" width="16" height="11" rx="3.2"/><path d="M12 4.6V8"/><circle cx="12" cy="3.4" r="1.3"/><path d="M9.2 13h.02M14.8 13h.02"/></symbol>
+  <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M12 7.4V12l3 2"/></symbol>
+  <symbol id="i-trend" viewBox="0 0 24 24"><path d="M4 16.4l5-5 3.5 3.5L20 7.4"/><path d="M15 7.4h5v5"/></symbol>
+  <symbol id="i-index" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="3"/><path d="M8 9h8M8 12.6h8M8 16.2h5"/></symbol>
+  <symbol id="i-speak" viewBox="0 0 24 24"><path d="M4.6 9.4h3L11.6 6v12L7.6 14.6h-3z"/><path d="M15 9.4a4 4 0 0 1 0 5.2"/><path d="M17.6 7a7.6 7.6 0 0 1 0 10"/></symbol>
+  <symbol id="i-compass" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4"/><path d="M15.6 8.4l-2.1 5.1-5.1 2.1 2.1-5.1z"/></symbol>
+</svg>
+
+<div class="shell">
+
+  <!-- ── Rail ─────────────────────────────────────────────────────────── -->
+  <nav class="rail glass" aria-label="Sections">
+    <span class="mark" aria-hidden="true">V</span>
+    <div class="nav">
+      <button class="nav__btn" type="button" data-label="Home" aria-current="page" aria-label="Home"><svg class="ico" stroke="url(#g-teal)"><use href="#i-home"/></svg></button>
+      <button class="nav__btn" type="button" data-label="Learn" aria-label="Learn"><svg class="ico" stroke="url(#g-blue)"><use href="#i-learn"/></svg></button>
+      <button class="nav__btn" type="button" data-label="Modules" aria-label="Modules"><svg class="ico" stroke="url(#g-violet)"><use href="#i-modules"/></svg></button>
+      <button class="nav__btn" type="button" data-label="Test" aria-label="Test"><svg class="ico" stroke="url(#g-lime)"><use href="#i-test"/></svg></button>
+      <button class="nav__btn" type="button" data-label="Ask" aria-label="Ask"><svg class="ico" stroke="url(#g-amber)"><use href="#i-ask"/></svg></button>
+      <button class="nav__btn" type="button" data-label="Words" aria-label="Words"><svg class="ico" stroke="url(#g-cyan)"><use href="#i-words"/></svg></button>
+      <button class="nav__btn" type="button" data-label="Progress" aria-label="Progress"><svg class="ico" stroke="url(#g-rose)"><use href="#i-progress"/></svg></button>
+      <button class="nav__btn" type="button" data-label="Profile" aria-label="Profile"><svg class="ico" stroke="url(#g-plum)"><use href="#i-profile"/></svg></button>
+      <button class="nav__btn" type="button" data-label="Settings" aria-label="Settings"><svg class="ico" stroke="url(#g-teal)"><use href="#i-settings"/></svg></button>
+    </div>
+  </nav>
+
+  <!-- ── Work ─────────────────────────────────────────────────────────── -->
+  <main class="work">
+
+    <header class="bar glass">
+      <span class="search">
+        <svg class="ico ico--sm" stroke="url(#g-teal)" aria-hidden="true"><use href="#i-search"/></svg>
+        Search 117,845 words
+        <kbd>⌘K</kbd>
+      </span>
+      <span class="chip chip--heat" title="Twelve days in a row">
+        <svg class="ico ico--sm" stroke="currentColor" aria-hidden="true"><use href="#i-flame"/></svg>
+        <span class="tnum">12</span>
+      </span>
+      <div class="skins" role="group" aria-label="Theme">
+        <button class="skin skin--frost" type="button" data-skin="frost" aria-pressed="true" aria-label="Frost theme" title="Frost"></button>
+        <button class="skin skin--iris"  type="button" data-skin="iris"  aria-pressed="false" aria-label="Iris theme" title="Iris"></button>
+        <button class="skin skin--ember" type="button" data-skin="ember" aria-pressed="false" aria-label="Ember theme" title="Ember"></button>
+        <button class="skin skin--ink"   type="button" data-skin="ink"   aria-pressed="false" aria-label="Ink theme" title="Ink"></button>
+      </div>
+      <button class="face" type="button" aria-label="Nasif — your profile">N</button>
+    </header>
+
+    <section class="hero">
+      <div class="hero__row">
+        <div>
+          <p class="eyebrow">Friday, 5 September · day 41</p>
+          <h1>Nine words are<br><em>ready to slip.</em></h1>
+          <p class="hero__sub">Clearing them takes about eight minutes. Reviews first, new words after —
+             a word you already half-know is cheaper to keep than a new one is to learn.</p>
+        </div>
+        <p class="hero__aside">
+          <b class="tnum">B2 · Upper intermediate</b>
+          measured 2 September<br>
+          <span class="tnum">31 of 40</span> right, across four bands
+        </p>
+      </div>
+    </section>
+
+    <article class="note">
+      <p class="note__text">Your accuracy has sat at <b>87%</b> for eleven days while you have been
+         holding at ten new words a day. That is comfortably above the range where the schedule
+         starts to strain — you have room for more.</p>
+      <div class="note__acts">
+        <button class="btn btn--go" type="button">Make it 14 new a day</button>
+        <button class="btn" type="button">No thanks</button>
+      </div>
+      <p class="note__sign">
+        <svg class="ico ico--sm" stroke="url(#g-violet)" aria-hidden="true"><use href="#i-bot"/></svg>
+        Written by Gemini · gemini-flash-lite-latest · today, 6:40 pm
+        <button class="note__off" type="button">Turn these off</button>
+      </p>
+    </article>
+
+    <div class="tiles">
+      <div class="tile glass">
+        <div class="tile__top">
+          <span class="tile__label">Words learned</span>
+          <svg class="ico ico--sm" stroke="url(#g-cyan)" aria-hidden="true"><use href="#i-index"/></svg>
+        </div>
+        <b class="tile__num">412</b>
+        <span class="tile__note tile__note--up">+38 this week</span>
+      </div>
+      <div class="tile glass">
+        <div class="tile__top">
+          <span class="tile__label">Mastery</span>
+          <svg class="ico ico--sm" stroke="url(#g-lime)" aria-hidden="true"><use href="#i-trend"/></svg>
+        </div>
+        <b class="tile__num">68<small>%</small></b>
+        <span class="tile__note">281 in long-term review</span>
+      </div>
+      <div class="tile glass">
+        <div class="tile__top">
+          <span class="tile__label">Day streak</span>
+          <svg class="ico ico--sm" stroke="url(#g-amber)" aria-hidden="true"><use href="#i-flame"/></svg>
+        </div>
+        <b class="tile__num">12</b>
+        <span class="tile__note">best is 19</span>
+      </div>
+      <div class="tile glass">
+        <div class="tile__top">
+          <span class="tile__label">Today</span>
+          <svg class="ico ico--sm" stroke="url(#g-blue)" aria-hidden="true"><use href="#i-clock"/></svg>
+        </div>
+        <b class="tile__num">24<small> min</small></b>
+        <span class="tile__note">goal met at 20</span>
+      </div>
+    </div>
+
+    <section class="review glass" aria-label="Review card">
+      <div class="review__head">
+        <h2 class="review__word">ephemeral</h2>
+        <span class="review__ipa">/ɪˈfem(ə)rəl/</span>
+        <span class="review__pos">adjective</span>
+        <span class="band">B2</span>
+        <button class="btn" type="button" style="margin-left:auto">
+          <svg class="ico ico--sm" stroke="url(#g-teal)" aria-hidden="true"><use href="#i-speak"/></svg>
+          Hear it
+        </button>
+      </div>
+
+      <ol class="senses">
+        <li><p>Lasting for a very short time; over almost as soon as it has begun.
+          <cite>The <b>ephemeral</b> pleasure of a headline.</cite></p></li>
+        <li><p><span class="review__pos" style="font-size:15px">Botany.</span>
+          Of a plant, completing its whole life cycle within a single season.
+          <cite>Desert <b>ephemerals</b> flower within days of rain.</cite></p></li>
+      </ol>
+
+      <div class="review__foot">
+        <div class="grades" role="group" aria-label="How well did you know it?">
+          <button class="grade" type="button" data-g="again"><b>Again</b><span>&lt; 1 m</span></button>
+          <button class="grade" type="button" data-g="hard"><b>Hard</b><span>6 m</span></button>
+          <button class="grade" type="button" data-g="good"><b>Good</b><span>1 d</span></button>
+          <button class="grade" type="button" data-g="easy"><b>Easy</b><span>4 d</span></button>
+        </div>
+        <p class="eyebrow">Seen 4 times · ease 2.50</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="section__head">
+        <h2>Keep going</h2>
+        <button class="link" type="button">All 14 modules</button>
+      </div>
+      <div class="mods">
+        <div class="mod glass">
+          <span class="mod__badge">B1–B2</span>
+          <div>
+            <p class="mod__name">IELTS Academic</p>
+            <p class="mod__meta">40 sets · 23 done · 12 words due</p>
+            <div class="meter"><i style="width:58%"></i></div>
+          </div>
+          <span class="mod__pct">58%</span>
+        </div>
+        <div class="mod glass">
+          <span class="mod__badge">A2–B1</span>
+          <div>
+            <p class="mod__name">Grade 9–10</p>
+            <p class="mod__meta">40 sets · 31 done · nothing due</p>
+            <div class="meter"><i style="width:78%"></i></div>
+          </div>
+          <span class="mod__pct">78%</span>
+        </div>
+        <div class="mod glass">
+          <span class="mod__badge">B2–C1</span>
+          <div>
+            <p class="mod__name">Business English</p>
+            <p class="mod__meta">36 sets · 4 done · 6 words due</p>
+            <div class="meter"><i style="width:11%"></i></div>
+          </div>
+          <span class="mod__pct">11%</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ── Side ─────────────────────────────────────────────────────────── -->
+  <aside class="side">
+
+    <section class="card glass">
+      <div class="card__head">
+        <svg class="ico ico--sm" stroke="url(#g-rose)" aria-hidden="true"><use href="#i-compass"/></svg>
+        <h3>Measured level</h3>
+      </div>
+      <div class="bands" role="img" aria-label="Placed at B2, on a scale from A1 to C2">
+        <div data-on>A1</div><div data-on>A2</div><div data-on>B1</div>
+        <div data-here>B2</div><div>C1</div><div>C2</div>
+      </div>
+      <p class="tile__note">You place at <b>B2</b>. Roughly 4,800 of the words this app holds are
+         already yours; the next band is where the returns are.</p>
+      <button class="btn" type="button">Take it again</button>
+    </section>
+
+    <section class="card glass">
+      <div class="card__head">
+        <svg class="ico ico--sm" stroke="url(#g-violet)" aria-hidden="true"><use href="#i-progress"/></svg>
+        <h3>Standing</h3>
+      </div>
+      <div class="xp__row">
+        <span class="xp__level">Level 9</span>
+        <span class="xp__title">Scholar</span>
+      </div>
+      <div class="meter"><i style="width:64%"></i></div>
+      <p class="tile__note tnum">1,420 of 2,200 XP towards Level 10</p>
+    </section>
+
+    <section class="card glass">
+      <div class="card__head">
+        <svg class="ico ico--sm" stroke="url(#g-amber)" aria-hidden="true"><use href="#i-clock"/></svg>
+        <h3>Last fourteen days</h3>
+      </div>
+      <div class="days" role="img" aria-label="Studied on twelve of the last fourteen days">
+        <i data-done="full"></i><i data-done="full"></i><i></i><i data-done></i>
+        <i data-done="full"></i><i data-done="full"></i><i data-done></i><i data-done="full"></i>
+        <i></i><i data-done="full"></i><i data-done="full"></i><i data-done></i>
+        <i data-done="full"></i><i data-done="full" data-today></i>
+      </div>
+      <p class="tile__note">Twelve of fourteen. The two gaps were a weekend.</p>
+    </section>
+
+    <section class="card glass">
+      <div class="card__head">
+        <svg class="ico ico--sm" stroke="url(#g-lime)" aria-hidden="true"><use href="#i-bot"/></svg>
+        <h3>Engine</h3>
+      </div>
+      <p class="status"><span class="dot"></span> Gemini ready · 10 keys · flash-lite</p>
+      <div class="keys">
+        <div class="key"><span>Reveal the answer</span><kbd>Space</kbd></div>
+        <div class="key"><span>Grade Again → Easy</span><kbd>1 – 4</kbd></div>
+        <div class="key"><span>Hear the word</span><kbd>S</kbd></div>
+        <div class="key"><span>Undo the last grade</span><kbd>Z</kbd></div>
+      </div>
+    </section>
+  </aside>
+</div>
+
+<script>
+(() => {
+  const root = document.documentElement;
+  const still = matchMedia("(prefers-reduced-motion: reduce)");
+
+  /* ── Skins ──────────────────────────────────────────────────────────────
+     Stamped on <html> so one attribute repaints the chrome, the glass and
+     the field together. Storage is wrapped: a browser in private mode throws
+     on access rather than returning null, and a design that cannot remember
+     a preference should still open. */
+  const skins = [...document.querySelectorAll(".skin")];
+  const wear = (name) => {
+    root.setAttribute("data-skin", name);
+    for (const b of skins) b.setAttribute("aria-pressed", String(b.dataset.skin === name));
+    try { localStorage.setItem("vocabx.skin", name); } catch { /* nothing to do */ }
+  };
+  for (const b of skins) b.addEventListener("click", () => wear(b.dataset.skin));
+  try {
+    const kept = localStorage.getItem("vocabx.skin");
+    if (kept && skins.some((b) => b.dataset.skin === kept)) wear(kept);
+  } catch { /* first visit, or storage is off */ }
+
+  /* ── The tilt ───────────────────────────────────────────────────────────
+     Two degrees each way, no more: the field is meant to sit behind glass,
+     and anything larger reads as a gimmick rather than as depth. One rAF per
+     frame at most, and none at all when the viewer has asked for stillness. */
+  const stage = document.getElementById("stage");
+  let queued = false, mx = 0, my = 0;
+
+  const settle = () => {
+    queued = false;
+    stage.style.setProperty("--ty", (mx * 2.4).toFixed(2) + "deg");
+    stage.style.setProperty("--tx", (my * -1.8).toFixed(2) + "deg");
+  };
+
+  if (!still.matches) {
+    addEventListener("pointermove", (e) => {
+      mx = (e.clientX / innerWidth) * 2 - 1;
+      my = (e.clientY / innerHeight) * 2 - 1;
+      if (!queued) { queued = true; requestAnimationFrame(settle); }
+    }, { passive: true });
+  }
+
+  /* ── The rail ───────────────────────────────────────────────────────────
+     A mockup, so nothing navigates — but the current section has to move, or
+     the rail looks painted on. */
+  const tabs = [...document.querySelectorAll(".nav__btn")];
+  for (const tab of tabs) {
+    tab.addEventListener("click", () => {
+      for (const t of tabs) t.removeAttribute("aria-current");
+      tab.setAttribute("aria-current", "page");
+    });
+  }
+})();
+</script>
+
+</body>
+</html>
