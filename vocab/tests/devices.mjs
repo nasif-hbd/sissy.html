@@ -240,6 +240,66 @@ for (const device of DEVICES) {
     problems.push(`${device.name}: <use> points at nothing — ${icons.broken.join(', ')}`);
   }
 
+  /* The card is revealed; grade it and check it stays. A graded card holds its
+     place, shows where it is going, and moves on only when Next word is
+     pressed — so the meaning is still readable, and the Undo bar below names
+     the word that is actually on screen rather than the one after it. */
+  const before = await page.textContent('#cardTerm');
+  await page.click('#grades .btn--grade[data-grade="2"]');
+  await page.waitForTimeout(200);
+  const held = await page.evaluate(() => ({
+    term: document.querySelector('#cardTerm').textContent,
+    waiting: !document.querySelector('#cardDone').hidden,
+    graded: document.querySelector('#grades').hidden,
+    meaning: !document.querySelector('#cardBack').hidden,
+    undo: document.querySelector('#undoWhat').textContent,
+  }));
+  if (held.term !== before) problems.push(`${device.name}: the card turned before Next word`);
+  if (!held.waiting) problems.push(`${device.name}: no Next word after a grade`);
+  if (!held.graded) problems.push(`${device.name}: the grade buttons stayed after grading`);
+  if (!held.meaning) problems.push(`${device.name}: the meaning was hidden while the graded card waited`);
+  if (held.undo !== before) problems.push(`${device.name}: Undo names ${held.undo}, the card shows ${before}`);
+  await measure('learn-graded');
+  await page.click('#nextWordBtn');
+  await page.waitForTimeout(200);
+  if (await page.evaluate(() => document.querySelector('#cardTerm').textContent) === before) {
+    problems.push(`${device.name}: Next word did not advance`);
+  }
+
+  /* The assistant's sheet, holding an answer the length Gemini actually
+     returns — the one panel that carries prose, and the one that would show a
+     reply area too short to read in or a panel wider than the screen. */
+  await page.click('#assistBtn');
+  await page.waitForTimeout(220);
+  await page.evaluate(() => {
+    const reply = document.querySelector('#assistReply');
+    reply.hidden = false;
+    reply.textContent = Array.from({ length: 16 }, (_, i) =>
+      `Line ${i + 1}: an answer about the word, of the length one actually comes back.`).join('\n');
+  });
+  await measure('assist');
+  const sheet = await page.evaluate(() => {
+    const panel = document.querySelector('#assistSheet .sheet__panel');
+    return {
+      width: Math.round(panel.getBoundingClientRect().width),
+      reply: Math.round(document.querySelector('#assistReply').getBoundingClientRect().height),
+      ask: Math.round(document.querySelector('#assistSend').getBoundingClientRect().height),
+      want: Math.min(680, window.innerWidth),
+      /* On a screen too short to hold a long answer and the Ask box at once
+         the reply sits on its floor and the panel scrolls, which is right.
+         Only where there is room to spend is the roomier answer area owed. */
+      owed: window.innerHeight >= 700 ? 220 : 100,
+    };
+  });
+  if (Math.abs(sheet.width - sheet.want) > 2) {
+    problems.push(`${device.name}: assist panel ${sheet.width}px, wanted ${sheet.want}px`);
+  }
+  if (sheet.reply < sheet.owed) {
+    problems.push(`${device.name}: assist reply ${sheet.reply}px, wanted at least ${sheet.owed}px`);
+  }
+  if (sheet.ask < 30) problems.push(`${device.name}: the Ask box was squeezed off the assist sheet`);
+  await page.click('#assistClose');
+
   await context.close();
 }
 
@@ -249,4 +309,5 @@ if (problems.length) {
   console.error(`\n${problems.length} problem(s):\n - ${problems.join('\n - ')}\n`);
   process.exit(1);
 }
-console.log(`clean across ${DEVICES.length} device shapes × ${VIEWS.length + DEEP_VIEWS.length + 2} views`);
+// +4: the welcome, its form, a graded card, and the assistant's sheet.
+console.log(`clean across ${DEVICES.length} device shapes × ${VIEWS.length + DEEP_VIEWS.length + 4} views`);

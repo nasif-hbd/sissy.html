@@ -61,32 +61,6 @@
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
 </svg>
 
-<!-- ═══ The field ═════════════════════════════════════════════════════════
-     Depth behind everything: a perspective floor and ceiling of grid lines
-     meeting at a lit horizon, with nine slabs between them. Decoration, and
-     it behaves like it — fixed, behind, and pointer-events: none, so nothing
-     here can ever swallow a tap meant for the app. Every colour is a theme
-     token, so the four older palettes tint it too rather than sitting on
-     somebody else's atmosphere.
-============================================================================ -->
-<div class="field" aria-hidden="true">
-  <div class="field__stage" id="fieldStage">
-    <div class="field__plane field__plane--roof"></div>
-    <div class="field__plane field__plane--floor"></div>
-    <div class="field__horizon"></div>
-    <span class="field__slab" style="--f-x:4%;  --f-y:8%;  --f-w:30vw; --f-z:-1100px; --f-par:.04; --f-r:-11deg;"></span>
-    <span class="field__slab" style="--f-x:66%; --f-y:2%;  --f-w:26vw; --f-z:-900px;  --f-par:.07; --f-r:8deg;"></span>
-    <span class="field__slab" style="--f-x:30%; --f-y:62%; --f-w:34vw; --f-z:-780px;  --f-par:.1;  --f-r:-5deg;"></span>
-    <span class="field__slab" style="--f-x:80%; --f-y:56%; --f-w:22vw; --f-z:-560px;  --f-par:.16; --f-r:14deg;"></span>
-    <span class="field__slab" style="--f-x:-6%; --f-y:44%; --f-w:24vw; --f-z:-420px;  --f-par:.22; --f-r:10deg;"></span>
-    <span class="field__slab" style="--f-x:52%; --f-y:80%; --f-w:20vw; --f-z:-260px;  --f-par:.34; --f-r:-7deg;"></span>
-    <span class="field__slab" style="--f-x:16%; --f-y:22%; --f-w:14vw; --f-z:-120px;  --f-par:.48; --f-r:18deg;"></span>
-    <span class="field__slab" style="--f-x:88%; --f-y:26%; --f-w:12vw; --f-z:20px;    --f-par:.62; --f-r:-14deg;"></span>
-    <span class="field__slab" style="--f-x:38%; --f-y:-6%; --f-w:10vw; --f-z:120px;   --f-par:.8;  --f-r:22deg;"></span>
-  </div>
-</div>
-<div class="field__grain" aria-hidden="true"></div>
-
 <!-- ═══ The welcome ════════════════════════════════════════════════════════
      Shown once, before the app, and never again after an answer. Three ways
      through it and all three are real: an account keeps your work when this
@@ -455,8 +429,18 @@
             <!-- The shortcuts have always worked; nothing said so. Hidden on
                  touch, where there is no keyboard to press. -->
             <p class="keyhint" id="keyHint">
-              <kbd>Space</kbd> show or answer Good · <kbd>1</kbd>–<kbd>4</kbd> grade · <kbd>S</kbd> hear it · <kbd>Z</kbd> undo
+              <kbd>Space</kbd> show, then Good, then on · <kbd>1</kbd>–<kbd>4</kbd> grade · <kbd>S</kbd> hear it · <kbd>Z</kbd> undo
             </p>
+          </div>
+
+          <!-- The pause after a grade. The card used to turn the instant it was
+               answered, so the meaning you had just been shown was gone before
+               you had finished reading it, and the undo bar underneath named a
+               word that was no longer on screen. Now the card waits here, says
+               where it is going, and moves on when you say so. -->
+          <div class="card__done" id="cardDone" hidden>
+            <p class="feedback" id="cardVerdict"></p>
+            <button class="btn btn--primary btn--wide" id="nextWordBtn" type="button">Next word</button>
           </div>
 
           <!-- Pressing Easy on a card you did not know is the commonest mistake
@@ -1350,7 +1334,7 @@
   </button>
 
   <div class="sheet" id="assistSheet" hidden>
-    <div class="sheet__panel sheet__panel--form">
+    <div class="sheet__panel sheet__panel--form sheet__panel--wide">
       <div class="row row--between">
         <p class="sheet__title">Assistance</p>
         <span class="pill" id="assistEngine">Built in</span>

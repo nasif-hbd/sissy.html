@@ -233,14 +233,14 @@
 :root[data-theme="volt"] {
   color-scheme: dark;
   --paper:       #080a0f;
-  --paper-sunk:  #04060a;
-  --card:        rgb(255 255 255 / .055);
+  --paper-sunk:  #0d1117;
+  --card:        #12161d;
   --ink:         #f5f7fb;
   --ink-2:       #8e96a8;
   --ink-3:       #626b7d;
-  --rule:        rgb(255 255 255 / .09);
-  --rule-firm:   rgb(255 255 255 / .17);
-  --edge:        rgb(255 255 255 / .09);
+  --rule:        #202630;
+  --rule-firm:   #333c48;
+  --edge:        #202630;
 
   --accent:      #b8ff5a;
   --accent-fill: #b8ff5a;
@@ -274,13 +274,13 @@
   color-scheme: light;
   --paper:       #f4f6f9;
   --paper-sunk:  #e8ecf2;
-  --card:        rgb(255 255 255 / .82);
+  --card:        #ffffff;
   --ink:         #0b1119;
   --ink-2:       #5c6779;
   --ink-3:       #8892a3;
-  --rule:        rgb(10 16 26 / .09);
-  --rule-firm:   rgb(10 16 26 / .18);
-  --edge:        rgb(10 16 26 / .09);
+  --rule:        #e3e8ee;
+  --rule-firm:   #cbd3dd;
+  --edge:        #e3e8ee;
 
   --accent:      #3f6b06;
   --accent-fill: #b8ff5a;
@@ -349,88 +349,6 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
   padding-bottom: 36px;
 }
 
-/* ═══ The field ════════════════════════════════════════════════════════════
-   A perspective floor and ceiling of grid lines meeting at a lit horizon,
-   with nine slabs suspended between them. Every colour in it is a token, so a
-   theme tints the depth along with the chrome rather than sitting on somebody
-   else's atmosphere.
-
-   It is decoration and behaves like it: fixed, behind everything, and
-   pointer-events: none, so nothing on it can ever swallow a tap. Under
-   prefers-reduced-motion the arrangement stays and the movement stops — the
-   depth is the geometry, not the animation.
-========================================================================== */
-.field {
-  position: fixed; inset: 0; z-index: 0;
-  overflow: hidden; pointer-events: none;
-  perspective: 1150px; perspective-origin: 50% 46%;
-  background:
-    radial-gradient(52% 40% at 84% 2%, color-mix(in srgb, var(--accent-fill) 14%, transparent) 0%, transparent 62%),
-    radial-gradient(48% 38% at 6% 20%, color-mix(in srgb, var(--info) 12%, transparent) 0%, transparent 60%),
-    linear-gradient(178deg, var(--paper) 0%, var(--paper-sunk) 100%);
-}
-.field__stage {
-  position: absolute; inset: 0;
-  transform-style: preserve-3d;
-  transform: rotateX(var(--f-tilt-x, 0deg)) rotateY(var(--f-tilt-y, 0deg));
-  transition: transform .6s cubic-bezier(.2, .8, .25, 1);
-  will-change: transform;
-}
-/* One plane each, laid flat and pushed away. The grid is drawn with gradients
-   rather than an image, so there is nothing to fetch and nothing to alias. */
-.field__plane {
-  position: absolute; left: 50%; width: 340vw; height: 240vh; margin-left: -170vw;
-  --f-line: color-mix(in srgb, var(--accent-fill) 15%, transparent);
-  background-image:
-    repeating-linear-gradient(90deg, var(--f-line) 0 1px, transparent 1px 96px),
-    repeating-linear-gradient(0deg,  var(--f-line) 0 1px, transparent 1px 96px);
-  mask-image: linear-gradient(to top, #000 2%, transparent 72%);
-  -webkit-mask-image: linear-gradient(to top, #000 2%, transparent 72%);
-}
-.field__plane--floor { top: 52%; transform: rotateX(80deg) translateZ(-40px); transform-origin: top center; }
-.field__plane--roof {
-  bottom: 52%; transform: rotateX(-80deg) translateZ(-40px); transform-origin: bottom center;
-  mask-image: linear-gradient(to bottom, #000 2%, transparent 72%);
-  -webkit-mask-image: linear-gradient(to bottom, #000 2%, transparent 72%);
-}
-.field__horizon {
-  position: absolute; left: 0; right: 0; top: 50%; height: 1px;
-  --f-lit: color-mix(in srgb, var(--accent-fill) 13%, transparent);
-  background: linear-gradient(90deg, transparent, var(--f-lit) 22%, var(--f-lit) 78%, transparent);
-  box-shadow: 0 0 90px 26px var(--f-lit);
-}
-.field__slab {
-  position: absolute; left: var(--f-x); top: var(--f-y);
-  width: var(--f-w); aspect-ratio: 1.4;
-  border: 1px solid color-mix(in srgb, var(--ink) 13%, transparent);
-  border-radius: 20px;
-  background: linear-gradient(150deg, color-mix(in srgb, var(--ink) 4%, transparent), transparent 78%);
-  /* --par is how much of the scroll this depth carries. Near slabs slide, far
-     ones barely move; that difference is what reads as travelling through the
-     field rather than over a picture of one. */
-  transform:
-    translateZ(var(--f-z))
-    translateY(calc(var(--f-scroll, 0px) * var(--f-par, .2)))
-    rotate(var(--f-r, 0deg));
-}
-/* A film of noise, or wide gradients band into visible steps. */
-.field__grain {
-  position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: .04;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
-}
-
-/* Glass only where the palette asks for it. The other four themes paint their
-   cards solid, and a blur behind an opaque colour is pure cost on a phone. */
-:root[data-theme="volt"] .card,
-:root[data-theme="volt-light"] .card,
-:root[data-theme="volt"] .topbar,
-:root[data-theme="volt-light"] .topbar,
-:root[data-theme="volt"] .tabbar,
-:root[data-theme="volt-light"] .tabbar {
-  backdrop-filter: blur(20px) saturate(150%);
-  -webkit-backdrop-filter: blur(20px) saturate(150%);
-}
-
 /* ── header ─────────────────────────────────────────────────────────────── */
 .topbar {
   position: sticky; top: 0; z-index: 20;
@@ -455,10 +373,7 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 }
 .undobar b { color: var(--ink); font-weight: 600; }
 @keyframes undo-in { from { opacity: 0; transform: translateY(-3px); } }
-@media (prefers-reduced-motion: reduce) {
-  .undobar { animation: none; }
-  .field__stage { transition: none; }
-}
+@media (prefers-reduced-motion: reduce) { .undobar { animation: none; } }
 
 /* Keyboard shortcuts, named where they are used. A pointer-only device has no
    keys to press, so the hint would be noise there. */
@@ -639,6 +554,12 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 
 .card__actions { margin-top: auto; display: flex; flex-direction: column; gap: 8px; }
 .card__tools { display: flex; flex-wrap: wrap; gap: 6px; }
+/* Where the grade buttons were a moment ago. `margin-top: auto` for the
+   same reason .card__actions has it: the button stays pinned to the foot
+   of the card, so it does not jump up when a short definition is shown. */
+.card__done { margin-top: auto; display: flex; flex-direction: column; gap: 9px; }
+/* The gap already spaces this; the shared rule's own margin would double it. */
+.card__done .feedback { margin-bottom: 0; }
 
 /* ── buttons ────────────────────────────────────────────────────────────── */
 .btn {
@@ -736,7 +657,7 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
 /* The answer area grows to what it holds and then scrolls, so a long reply
    cannot push the input box off the bottom of the sheet. */
 .assist__reply {
-  max-height: 40vh; overflow-y: auto;
+  max-height: 58vh; min-height: 108px; overflow-y: auto;
   padding: 12px 13px; border-radius: var(--radius-sm);
   background: var(--paper-sunk); border: 1px solid var(--edge);
   font-size: 14px; line-height: 1.6; color: var(--ink-2);
@@ -786,8 +707,6 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
   .fab { padding: 0; width: var(--tap); justify-content: center; }
   .fab__label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
 }
-.sheet__panel--form { gap: 11px; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
-.sheet__panel--form .input--area { width: 100%; }
 
 /* ── the test lab ───────────────────────────────────────────────────────── */
 .pack-group + .pack-group { margin-top: 18px; }
@@ -1404,6 +1323,17 @@ code { font-family: var(--mono); font-size: .85em; background: var(--paper-sunk)
   background: var(--card); border-radius: var(--radius) var(--radius) 0 0;
   box-shadow: var(--shadow-lift);
 }
+/* Both modifiers are declared after .sheet__panel, not before it: they carry
+   the same specificity, so only the later rule wins. Declared above it — where
+   these lived until now — the base panel quietly took the gap and the padding
+   back, and the modifier did nothing at all. */
+.sheet__panel--form { gap: 11px; padding-bottom: calc(20px + env(safe-area-inset-bottom)); }
+.sheet__panel--form .input--area { width: 100%; }
+/* The assistant's sheet is the only one that holds prose rather than a list of
+   buttons, so it is given the room an answer needs: wider on anything but a
+   phone, and taller before the panel itself starts to scroll. */
+.sheet__panel--wide { width: min(680px, 100%); max-height: 88vh; }
+
 .sheet__title {
   font-family: var(--sans); font-size: 12px; font-weight: 600;
   letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3);

@@ -42,7 +42,6 @@ import { SUBJECTS, modesFor, buildRound, markOne, markRound } from './testlab.js
 import { createInstaller, downloadFor } from './install.js';
 import { Auth, serverAccounts } from './auth.js';
 import { openGate, initialOf } from './gate.js';
-import { startDepth } from './depth.js';
 import { shouldLook, digest, suggestable, validate, localNotice, remember, settle,
          open as openNotice } from './notice.js';
 
@@ -51,6 +50,7 @@ const session = {
   queue: [],
   currentId: null,
   revealed: false,
+  graded: null,   // { grade, back, last } while a graded card waits to be let go
   ahead: false,
   shownAt: 0,
   practiceMode: 'quiz',
@@ -102,7 +102,6 @@ async function boot() {
   wireProgress();
   wireSettings();
   wireKeyboard();
-  startDepth();
 
   Store.on(() => renderHeader(Store.state));
   render();
@@ -325,6 +324,7 @@ function wireLearn() {
   $('#studyAheadBtn').addEventListener('click', () => { session.ahead = true; nextCard(); });
   $('#speakBtn').addEventListener('click', () => speak(currentWord()?.term));
   $('#burySkipBtn').addEventListener('click', () => { session.queue.shift(); nextCard(); });
+  $('#nextWordBtn').addEventListener('click', nextCard);
 
   for (const btn of $$('#grades .btn--grade')) {
     btn.addEventListener('click', () => gradeCard(Number(btn.dataset.grade)));
@@ -341,19 +341,29 @@ function wireLearn() {
   });
 }
 
-function refillQueue() {
+/**
+ * The queue this session would refill with, without taking it.
+ *
+ * Pure, so it can also be asked the cheaper question — is there anything after
+ * this card at all? — which is what decides whether the button under a graded
+ * card offers the next word or an end to the session.
+ */
+function queueAhead() {
   const state = Store.state;
   const usedToday = state.days[dayKey()]?.learned || 0;
-  session.queue = buildQueue(state, {
+  return buildQueue(state, {
     newAllowance: Math.max(0, state.settings.newPerDay - usedToday),
     ahead: session.ahead,
   });
 }
 
+function refillQueue() { session.queue = queueAhead(); }
+
 function nextCard() {
   if (!session.queue.length) refillQueue();
   session.currentId = session.queue[0] || null;
   session.revealed = false;
+  session.graded = null;
   session.shownAt = Date.now();
   drawCurrentCard();
   renderQueueSummary(Store.state);
@@ -386,7 +396,7 @@ function drawCurrentCard() {
   }
   const word = currentWord();
   if (!word) { renderEmptyQueue(state); return; }
-  renderCard(word, state.srs[word.id], { revealed: session.revealed });
+  renderCard(word, state.srs[word.id], { revealed: session.revealed, graded: session.graded });
   if (session.revealed) showTranslation(word);
 }
 
@@ -430,7 +440,7 @@ function undoGrade() {
 
 function gradeCard(grade) {
   const word = currentWord();
-  if (!word || !session.revealed) return;
+  if (!word || !session.revealed || session.graded) return;
 
   const rec = Store.state.srs[word.id] || makeSrs();
   const wasNew = rec.state === 'new';
@@ -463,8 +473,8 @@ function gradeCard(grade) {
     session.queue.shift();
   }
 
-  /* Nothing is written to the screen when a card is graded — it just turns —
-     so this is the only account of it anyone not watching the animation gets. */
+  /* The card says the same thing in the verdict line below, but a screen reader
+     is not looking at the card, and this reaches it the moment the grade lands. */
   announce(`${['Again', 'Hard', 'Good', 'Easy'][grade]}. ${word.term} returns in ${spokenDelta(next.due - Date.now())}. ${session.queue.length} left.`);
 
   const s = summary(Store.state);
@@ -473,7 +483,17 @@ function gradeCard(grade) {
     Notifier.show('Quota met', `${s.today.reviews} reviews today. Streak: ${s.streak} days.`, { actions: false });
   }
 
-  nextCard();
+  /* The card does not turn here. It stays where it is, says where it is going,
+     and waits for Next word — a beat to read the meaning you were just shown,
+     and a moment in which Undo below refers to the word still on the screen
+     rather than to one that has already gone. */
+  session.graded = {
+    grade,
+    back: spokenDelta(next.due - Date.now()),
+    last: session.queue.length === 0 && queueAhead().length === 0,
+  };
+  drawCurrentCard();
+  renderQueueSummary(Store.state);
   renderHeader(Store.state);
   showUndo(word.term);
 }
@@ -3248,6 +3268,14 @@ function wireKeyboard() {
     const digit = ['1', '2', '3', '4'].indexOf(e.key);
 
     if (!$('#view-learn').hidden) {
+      // A graded card is waiting to be let go of: the keys that would have
+      // graded it take the next one instead, as they do in the test lab.
+      if (session.graded) {
+        if (e.code === 'Space' || e.key === 'Enter' || digit >= 0) { e.preventDefault(); nextCard(); }
+        else if (e.key === 's') speak(currentWord()?.term);
+        else if (e.key === 'z') undoGrade();
+        return;
+      }
       if (e.code === 'Space') { e.preventDefault(); session.revealed ? gradeCard(2) : reveal(); }
       else if (digit >= 0 && session.revealed) gradeCard(digit);
       else if (e.key === 's') speak(currentWord()?.term);

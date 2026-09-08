@@ -587,6 +587,13 @@ The offered questions change with the state they are offered in. A learner with
 a backlog and one with an empty queue need different first moves, and a fixed
 list would ask someone who has never got a word wrong why they keep failing.
 
+The panel is wider than the app's other sheets — 680px against 420px — because
+it is the only one that holds prose rather than a list of buttons, and the
+answer area is given most of the height it needs before it starts to scroll.
+On a screen too short to hold a long answer and the Ask box at once the answer
+sits on its floor and the panel scrolls instead; the device sweep asks for the
+roomier version only where there is room to spend.
+
 ## What the assistant can do, as opposed to say
 
 `js/actions.js` is a closed catalogue of things Gemini can call: read the
@@ -803,14 +810,13 @@ that every argument a suggestion may carry is one the action actually declares
 — which is the test that was missing when a button reading "Set the goal to 30"
 passed `undefined` to the action the moment it was pressed.
 
-## Volt, and the field behind it
+## Volt
 
-The app's own look is Volt: acid lime on near-black, glass cards, and a 3D
-field behind everything. Volt Light is the same design on white, and the four
-older palettes — Iris, Paper, Linen, Ink — are all still there and all still
-work.
+The app's own look is Volt: acid lime on near-black, glass cards and solid
+edges. Volt Light is the same design on white, and the four older palettes —
+Iris, Paper, Linen, Ink — are all still there and all still work.
 
-Two things had to change in the token system for it.
+One thing had to change in the token system for it.
 
 `--accent` split into `--accent` and `--accent-fill`. One token was doing both
 jobs, which is fine until a palette needs a vivid button and readable accent
@@ -819,24 +825,21 @@ type at once: acid lime passes as a fill on white and fails as text on it. Now
 is the one that has to read. Every palette declares both, and the design test
 enforces that as it does every other colour.
 
-The field is `.field` in the markup and `depth.js` in the app: a perspective
-floor and ceiling of grid lines meeting at a lit horizon, nine slabs between
-them from -1100px to +120px. It tilts three degrees toward the pointer, and
-each slab carries a fraction of the scroll set by its own depth — that
-difference is what reads as travelling through a space rather than over a
-picture of one. Every colour in it is a theme token, so the four older
-palettes tint it too.
+There was briefly a 3D field behind everything — a perspective floor and
+ceiling meeting at a lit horizon, slabs between them carrying a fraction of
+the scroll each. It looked the part and it is gone: it was asked for and then
+asked to go, and what it left behind is worth keeping a note of.
 
-It is decoration and it behaves like it: fixed, behind, `pointer-events: none`
-so nothing on it can swallow a tap, one `requestAnimationFrame` per frame
-however many events arrive, and under `prefers-reduced-motion` no listeners
-are attached at all — the geometry stays and the movement never starts.
-
-Its own custom properties are namespaced `--f-`, alongside the swatch
-preview's `--sw-`, because they are set per element in the markup and per
-frame from JS rather than resolving from a palette. `tests/design.test.mjs`
-knows about both prefixes and still fails on anything else that does not
-resolve.
+It was called `.field`, and the app already had a `.field` — the class on every
+form label, seventeen of them, sitting in the stylesheet since the first
+version. The new rule made each of those `position: fixed; inset: 0`, so every
+label in Settings, in the account forms and in the routine builder became a
+full-viewport element stacked on the last. That shipped. Nothing in the tests
+caught it, and neither did the device sweep, because the sweep measures
+horizontal overflow and a fixed element does not overflow; it only stops
+looking like a label. Naming a new component after a class that already exists
+is the whole bug, and grepping the stylesheet for the name first is the whole
+fix.
 
 Glass is applied only under the two Volt palettes. The others paint their
 cards solid, and a `backdrop-filter` behind an opaque colour is pure cost on
@@ -1205,6 +1208,29 @@ Grading writes to six places — schedule, day counters, streak, XP, log, queue 
 so undo copies the four parts of state they touch and puts them back rather
 than reversing each write; the streak in particular cannot be recomputed from
 what survives. Twelve seconds to take it back, by button or `Z`.
+
+**The card turned before you had read it.** Grading advanced to the next word
+in the same tick, so the definition, the examples and whatever the assistant
+had just written were gone at the moment you decided you knew the word — the
+one moment they are worth reading. Worse, the Undo bar underneath then named a
+word that was no longer on screen, which is a confusing thing to offer. A
+graded card now stays where it is, says where it is going (*Good — back in 10
+minutes*), and moves on when **Next word** is pressed; on the last card of a
+sitting the button says *Finish* instead, which it can only know by asking
+`queueAhead()` whether a refill would find anything. The grade row leaves at
+the same moment, so the same card cannot be graded twice. `Space` still drives
+the whole loop — show, grade, on — and `1`–`4` take the next card once a grade
+is in, the way the Test tab already worked.
+
+**A CSS modifier that did nothing.** `.sheet__panel--form` set a gap and a
+padding-bottom, and `.sheet__panel` set both again three hundred lines further
+down the file. Equal specificity, so source order decides, so the base rule won
+and the modifier had been inert since the day it was written. Nothing renders
+wrong enough to notice — the sheet just uses the gap it was told not to.
+`tests/design.test.mjs` now walks every top-level `.x--y` rule and fails if a
+`.x` below it sets any of the same properties; rules indented inside `@media`
+are skipped, because overriding from there is the point of a media query. It
+found the one bug it was written for and no false ones.
 
 **A fortnight away meant a wall of four hundred.** `buildQueue` returned every
 due card, so the Today card promised twenty reviews and the next screen handed

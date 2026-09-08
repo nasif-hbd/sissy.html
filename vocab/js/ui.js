@@ -147,7 +147,10 @@ export function renderQueueSummary(state) {
   return c;
 }
 
-export function renderCard(word, rec, { revealed = false } = {}) {
+/** What the four grade buttons say, in the order the grades are numbered. */
+const GRADE_NAMES = ['Again', 'Hard', 'Good', 'Easy'];
+
+export function renderCard(word, rec, { revealed = false, graded = null } = {}) {
   $('#flashcard').hidden = false;
   $('#learnEmpty').hidden = true;
 
@@ -174,10 +177,19 @@ export function renderCard(word, rec, { revealed = false } = {}) {
   $('#aiSlot').hidden = true;
   $('#aiSlotBody').textContent = '';
 
+  /* Three states, not two: face down, face up and waiting to be graded, and
+     graded and waiting to be let go of. The grade buttons leave once they have
+     been used so the same card cannot be answered twice. */
   $('#cardBack').hidden = !revealed;
   $('#revealBtn').hidden = revealed;
-  $('#grades').hidden = !revealed;
-  $('#cardTools').hidden = !revealed;
+  $('#grades').hidden = !revealed || Boolean(graded);
+  $('#cardTools').hidden = !revealed || Boolean(graded);
+  $('#cardDone').hidden = !graded;
+  if (graded) {
+    $('#cardVerdict').className = `feedback ${graded.grade > 0 ? 'is-ok' : 'is-bad'}`;
+    $('#cardVerdict').textContent = `${GRADE_NAMES[graded.grade]} — back in ${graded.back}.`;
+    $('#nextWordBtn').textContent = graded.last ? 'Finish' : 'Next word';
+  }
 
   if (revealed) {
     const p = previewIntervals(rec);
