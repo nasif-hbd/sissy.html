@@ -18,17 +18,22 @@ import assert from 'node:assert/strict';
 import { shouldLook, worthSaying, validate, digest, suggestable, COOLDOWN_HOURS, PER_DAY }
   from '../js/notice.js';
 import { ACTIONS } from '../js/actions.js';
+import { dayKey } from '../js/store.js';
 
 const HOUR = 3_600_000;
-const now = Date.parse('2026-09-05T12:00:00Z');
-const today = '2026-09-05';
+/* Relative to now, not pinned to a date. worthSaying() asks dayKey() what day
+   it is, so a fixture stamped with a literal starts reporting "a day rolled
+   over" the morning after it was written — which is exactly what this suite
+   did three days later. */
+const now = Date.now();
+const today = dayKey(new Date(now));
+const yesterday = dayKey(new Date(now - 86_400_000));
 
 /** A learner with a fortnight behind them. */
 function learner(over = {}) {
   const days = {};
   for (let i = 0; i < 14; i += 1) {
-    const d = new Date(now - i * 86_400_000).toISOString().slice(0, 10);
-    days[d] = { reviews: 20, correct: 17, learned: 3, seconds: 600 };
+    days[dayKey(new Date(now - i * 86_400_000))] = { reviews: 20, correct: 17, learned: 3, seconds: 600 };
   }
   return {
     settings: { notices: { enabled: true }, dailyGoal: 20, newPerDay: 10,
@@ -79,13 +84,13 @@ test('one note at a time, and a wait between them', () => {
   const fresh = learner({ notices: [note({ at: now - 1 * HOUR })] });
   assert.equal(shouldLook(fresh, { now }), false, `spoke inside ${COOLDOWN_HOURS}h`);
 
-  const cold = learner({ notices: [note({ at: now - (COOLDOWN_HOURS + 1) * HOUR, day: '2026-09-04' })] });
+  const cold = learner({ notices: [note({ at: now - (COOLDOWN_HOURS + 1) * HOUR, day: yesterday })] });
   assert.equal(shouldLook(cold, { now }), true);
 });
 
 test('a note still on screen stops the next one', () => {
   for (const state of ['open', 'done']) {
-    const s = learner({ notices: [note({ at: now - 20 * HOUR, day: '2026-09-04', state })] });
+    const s = learner({ notices: [note({ at: now - 20 * HOUR, day: yesterday, state })] });
     assert.equal(shouldLook(s, { now }), false, `stacked on top of a ${state} note`);
   }
 });

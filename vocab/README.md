@@ -803,6 +803,45 @@ that every argument a suggestion may carry is one the action actually declares
 — which is the test that was missing when a button reading "Set the goal to 30"
 passed `undefined` to the action the moment it was pressed.
 
+## Volt, and the field behind it
+
+The app's own look is Volt: acid lime on near-black, glass cards, and a 3D
+field behind everything. Volt Light is the same design on white, and the four
+older palettes — Iris, Paper, Linen, Ink — are all still there and all still
+work.
+
+Two things had to change in the token system for it.
+
+`--accent` split into `--accent` and `--accent-fill`. One token was doing both
+jobs, which is fine until a palette needs a vivid button and readable accent
+type at once: acid lime passes as a fill on white and fails as text on it. Now
+`--accent-fill` paints the seventeen places that fill with it, and `--accent`
+is the one that has to read. Every palette declares both, and the design test
+enforces that as it does every other colour.
+
+The field is `.field` in the markup and `depth.js` in the app: a perspective
+floor and ceiling of grid lines meeting at a lit horizon, nine slabs between
+them from -1100px to +120px. It tilts three degrees toward the pointer, and
+each slab carries a fraction of the scroll set by its own depth — that
+difference is what reads as travelling through a space rather than over a
+picture of one. Every colour in it is a theme token, so the four older
+palettes tint it too.
+
+It is decoration and it behaves like it: fixed, behind, `pointer-events: none`
+so nothing on it can swallow a tap, one `requestAnimationFrame` per frame
+however many events arrive, and under `prefers-reduced-motion` no listeners
+are attached at all — the geometry stays and the movement never starts.
+
+Its own custom properties are namespaced `--f-`, alongside the swatch
+preview's `--sw-`, because they are set per element in the markup and per
+frame from JS rather than resolving from a palette. `tests/design.test.mjs`
+knows about both prefixes and still fails on anything else that does not
+resolve.
+
+Glass is applied only under the two Volt palettes. The others paint their
+cards solid, and a `backdrop-filter` behind an opaque colour is pure cost on
+a phone.
+
 ## Feedback
 
 A floating button on every screen. Each report carries the screen, the engine,

@@ -18,6 +18,17 @@
 <body>
 
 <svg class="sprite" aria-hidden="true" hidden>
+    <!-- One spectrum, seven stops. The rail is navigated by colour, so the
+         icons carry their own rather than inheriting one flat ink. -->
+    <defs>
+      <linearGradient id="g-lime" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#d6ff86"/><stop offset="1" stop-color="#8fdb2c"/></linearGradient>
+      <linearGradient id="g-cyan" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#9ff3ff"/><stop offset="1" stop-color="#37c2dd"/></linearGradient>
+      <linearGradient id="g-violet" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#b79bff"/><stop offset="1" stop-color="#8560ec"/></linearGradient>
+      <linearGradient id="g-amber" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffcf7a"/><stop offset="1" stop-color="#f09838"/></linearGradient>
+      <linearGradient id="g-rose" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ff9db6"/><stop offset="1" stop-color="#ef5c85"/></linearGradient>
+      <linearGradient id="g-mint" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#8ef2c8"/><stop offset="1" stop-color="#2fbb90"/></linearGradient>
+      <linearGradient id="g-sky" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#93c5ff"/><stop offset="1" stop-color="#5586ef"/></linearGradient>
+    </defs>
     <symbol id="i-home" viewBox="0 0 24 24"><path d="M3.5 10.5L12 4l8.5 6.5"/><path d="M5.5 9.5V20h13V9.5"/><path d="M9.5 20v-6h5v6"/></symbol>
     <symbol id="i-back" viewBox="0 0 24 24"><path d="M14.5 5.5L8 12l6.5 6.5"/></symbol>
     <symbol id="i-study" viewBox="0 0 24 24"><rect x="3.5" y="5" width="17" height="14"/><path d="M7 10h8M7 13.5h5"/></symbol>
@@ -49,6 +60,32 @@
     <symbol id="i-face" viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.75"/><path d="M4.5 20c0-3.6 3.4-5.75 7.5-5.75s7.5 2.15 7.5 5.75"/></symbol>
     <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></symbol>
 </svg>
+
+<!-- ═══ The field ═════════════════════════════════════════════════════════
+     Depth behind everything: a perspective floor and ceiling of grid lines
+     meeting at a lit horizon, with nine slabs between them. Decoration, and
+     it behaves like it — fixed, behind, and pointer-events: none, so nothing
+     here can ever swallow a tap meant for the app. Every colour is a theme
+     token, so the four older palettes tint it too rather than sitting on
+     somebody else's atmosphere.
+============================================================================ -->
+<div class="field" aria-hidden="true">
+  <div class="field__stage" id="fieldStage">
+    <div class="field__plane field__plane--roof"></div>
+    <div class="field__plane field__plane--floor"></div>
+    <div class="field__horizon"></div>
+    <span class="field__slab" style="--f-x:4%;  --f-y:8%;  --f-w:30vw; --f-z:-1100px; --f-par:.04; --f-r:-11deg;"></span>
+    <span class="field__slab" style="--f-x:66%; --f-y:2%;  --f-w:26vw; --f-z:-900px;  --f-par:.07; --f-r:8deg;"></span>
+    <span class="field__slab" style="--f-x:30%; --f-y:62%; --f-w:34vw; --f-z:-780px;  --f-par:.1;  --f-r:-5deg;"></span>
+    <span class="field__slab" style="--f-x:80%; --f-y:56%; --f-w:22vw; --f-z:-560px;  --f-par:.16; --f-r:14deg;"></span>
+    <span class="field__slab" style="--f-x:-6%; --f-y:44%; --f-w:24vw; --f-z:-420px;  --f-par:.22; --f-r:10deg;"></span>
+    <span class="field__slab" style="--f-x:52%; --f-y:80%; --f-w:20vw; --f-z:-260px;  --f-par:.34; --f-r:-7deg;"></span>
+    <span class="field__slab" style="--f-x:16%; --f-y:22%; --f-w:14vw; --f-z:-120px;  --f-par:.48; --f-r:18deg;"></span>
+    <span class="field__slab" style="--f-x:88%; --f-y:26%; --f-w:12vw; --f-z:20px;    --f-par:.62; --f-r:-14deg;"></span>
+    <span class="field__slab" style="--f-x:38%; --f-y:-6%; --f-w:10vw; --f-z:120px;   --f-par:.8;  --f-r:22deg;"></span>
+  </div>
+</div>
+<div class="field__grain" aria-hidden="true"></div>
 
 <!-- ═══ The welcome ════════════════════════════════════════════════════════
      Shown once, before the app, and never again after an answer. Three ways
@@ -1281,15 +1318,15 @@
       <img src="./icons/mark-64.webp" alt="" width="35" height="35"><b>Vocab<span>X</span></b>
     </p>
     <p class="nav-label">Workspace</p>
-    <button class="tab is-active" data-tab="home" aria-current="page"><svg class="ico" aria-hidden="true"><use href="#i-home"/></svg><span class="tab__label">Home</span></button>
-    <button class="tab" data-tab="learn"><svg class="ico" aria-hidden="true"><use href="#i-study"/></svg><span class="tab__label">Learn</span></button>
-    <button class="tab" data-tab="modules"><svg class="ico" aria-hidden="true"><use href="#i-modules"/></svg><span class="tab__label">Modules</span></button>
-    <button class="tab" data-tab="test"><svg class="ico" aria-hidden="true"><use href="#i-check"/></svg><span class="tab__label">Test</span></button>
-    <button class="tab" data-tab="ask"><svg class="ico" aria-hidden="true"><use href="#i-bulb"/></svg><span class="tab__label">Ask</span></button>
-    <button class="tab" data-tab="words"><svg class="ico" aria-hidden="true"><use href="#i-index"/></svg><span class="tab__label">Words</span></button>
-    <button class="tab" data-tab="progress"><svg class="ico" aria-hidden="true"><use href="#i-ledger"/></svg><span class="tab__label">Progress</span></button>
-    <button class="tab" data-tab="profile"><svg class="ico" aria-hidden="true"><use href="#i-face"/></svg><span class="tab__label">Profile</span></button>
-    <button class="tab" data-tab="settings"><svg class="ico" aria-hidden="true"><use href="#i-setup"/></svg><span class="tab__label">Settings</span></button>
+    <button class="tab is-active" data-tab="home" aria-current="page"><svg class="ico" aria-hidden="true" stroke="url(#g-lime)"><use href="#i-home"/></svg><span class="tab__label">Home</span></button>
+    <button class="tab" data-tab="learn"><svg class="ico" aria-hidden="true" stroke="url(#g-cyan)"><use href="#i-study"/></svg><span class="tab__label">Learn</span></button>
+    <button class="tab" data-tab="modules"><svg class="ico" aria-hidden="true" stroke="url(#g-violet)"><use href="#i-modules"/></svg><span class="tab__label">Modules</span></button>
+    <button class="tab" data-tab="test"><svg class="ico" aria-hidden="true" stroke="url(#g-mint)"><use href="#i-check"/></svg><span class="tab__label">Test</span></button>
+    <button class="tab" data-tab="ask"><svg class="ico" aria-hidden="true" stroke="url(#g-amber)"><use href="#i-bulb"/></svg><span class="tab__label">Ask</span></button>
+    <button class="tab" data-tab="words"><svg class="ico" aria-hidden="true" stroke="url(#g-sky)"><use href="#i-index"/></svg><span class="tab__label">Words</span></button>
+    <button class="tab" data-tab="progress"><svg class="ico" aria-hidden="true" stroke="url(#g-rose)"><use href="#i-ledger"/></svg><span class="tab__label">Progress</span></button>
+    <button class="tab" data-tab="profile"><svg class="ico" aria-hidden="true" stroke="url(#g-violet)"><use href="#i-face"/></svg><span class="tab__label">Profile</span></button>
+    <button class="tab" data-tab="settings"><svg class="ico" aria-hidden="true" stroke="url(#g-cyan)"><use href="#i-setup"/></svg><span class="tab__label">Settings</span></button>
 
     <div class="nav-foot">
       <div class="nav-card" id="navInstall" hidden>

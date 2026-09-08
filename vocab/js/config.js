@@ -16,7 +16,7 @@ export const APP = {
    * by hunting for a changed sentence somewhere in the interface is how an
    * afternoon disappears. Bumped with the service worker's cache name.
    */
-  build: 'v41',
+  build: 'v42',
   /**
    * Where feedback goes when there is no proxy to post it to.
    *
@@ -65,7 +65,9 @@ export const DEFAULTS = {
   dailyGoal: 20,
   newPerDay: 10,
   level: 'B1',
-  theme: 'auto',
+  /* Volt is the app's own look now. Someone who has already chosen a theme
+     keeps it — this is only what a fresh install opens on. */
+  theme: 'volt',
   reminderTimes: ['09:00', '20:00'],
 };
 
@@ -83,6 +85,8 @@ export const DEFAULTS = {
  * the one this app shipped with, and Linen and Ink are the warm and dark ends.
  */
 export const THEMES = [
+  { id: 'volt',       label: 'Volt',  paper: '#080a0f', accent: '#b8ff5a', note: 'near-black, acid lime' },
+  { id: 'volt-light', label: 'Day',   paper: '#f4f6f9', accent: '#b8ff5a', note: 'white, acid lime' },
   { id: 'auto',  label: 'Auto',  paper: '#f7f8fa', accent: '#6c5ce7', note: 'follows the device' },
   { id: 'iris',  label: 'Iris',  paper: '#f7f8fa', accent: '#6c5ce7', note: 'light, violet' },
   { id: 'paper', label: 'Paper', paper: '#ffffff', accent: '#e2620a', note: 'white, orange' },

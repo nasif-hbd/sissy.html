@@ -42,6 +42,7 @@ import { SUBJECTS, modesFor, buildRound, markOne, markRound } from './testlab.js
 import { createInstaller, downloadFor } from './install.js';
 import { Auth, serverAccounts } from './auth.js';
 import { openGate, initialOf } from './gate.js';
+import { startDepth } from './depth.js';
 import { shouldLook, digest, suggestable, validate, localNotice, remember, settle,
          open as openNotice } from './notice.js';
 
@@ -101,6 +102,7 @@ async function boot() {
   wireProgress();
   wireSettings();
   wireKeyboard();
+  startDepth();
 
   Store.on(() => renderHeader(Store.state));
   render();

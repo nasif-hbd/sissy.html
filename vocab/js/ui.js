@@ -47,7 +47,7 @@ export function toast(message, kind = '') {
 export function applyTheme(theme) {
   const root = document.documentElement;
   root.dataset.theme = theme;
-  const dark = theme === 'ink' ||
+  const dark = theme === 'ink' || theme === 'volt' ||
     (theme === 'auto' && matchMedia('(prefers-color-scheme: dark)').matches);
   root.classList.toggle('is-dark', dark);
   // Read the browser chrome colour back out of the palette that just applied,

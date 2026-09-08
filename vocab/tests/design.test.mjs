@@ -98,8 +98,14 @@ test('every theme restates every colour the default palette sets', () => {
 });
 
 test('every var() referenced in the stylesheet resolves to a declared token', () => {
+  /* Two prefixes are not palette tokens and never resolve from :root: `--sw-`
+     is the swatch preview's, and `--f-` belongs to the 3D field, whose
+     geometry is set per element in the markup and per frame from JS. Everything
+     else must come from a palette, which is the point — a renamed colour token
+     paints nothing at all and throws no error. */
   const referenced = new Set([...css.matchAll(/var\((--[\w-]+)/g)].map((m) => m[1]));
-  const unresolved = [...referenced].filter((t) => !baseTokens.has(t) && !t.startsWith('--sw-'));
+  const local = (t) => t.startsWith('--sw-') || t.startsWith('--f-');
+  const unresolved = [...referenced].filter((t) => !baseTokens.has(t) && !local(t));
   assert.deepEqual(unresolved, [], `styles.css uses undeclared tokens: ${unresolved}`);
 });
 
@@ -107,7 +113,7 @@ test('every var() injected from JS resolves to a declared token', () => {
   const unresolved = [];
   for (const { file, source } of js) {
     for (const [, token] of source.matchAll(/var\((--[\w-]+)/g)) {
-      if (!baseTokens.has(token)) unresolved.push(`${file} → ${token}`);
+      if (!baseTokens.has(token) && !token.startsWith('--f-')) unresolved.push(`${file} → ${token}`);
     }
   }
   assert.deepEqual(unresolved, [], `JS paints with undeclared tokens: ${unresolved}`);
