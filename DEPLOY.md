@@ -1,204 +1,304 @@
-# Publishing VocabX on Cloudflare Pages
+# Deploying VocabX
 
-The app is static — HTML, CSS, ES modules and JSON. There is nothing to build,
-so Cloudflare serves the repository as it stands.
+Everything here happens in the Cloudflare dashboard. No terminal, no CLI, no
+build step — the app is HTML, CSS, ES modules and JSON, and Cloudflare serves
+files.
 
-Two things are worth knowing before you start:
-
-- **The app itself needs no server.** The 117,845-word dictionary, all fourteen
-  packs, the grammar bank, spaced repetition, the Test tab and offline support
-  are files. Pages serves files.
-- **The AI features need one.** Ask, the writing coach, the weekly summary and
-  emailed feedback go through `vocab/server/proxy.mjs`, which holds your API
-  key. Pages does not run it. Part 4 covers where to put it, and the app works
-  without it — the built-in tutor answers from the shipped dictionary.
+Read Part 0 first. It is one decision, and every other part depends on it.
 
 ---
 
-## Part 1 — Put the domain on Cloudflare
+## Part 0 — Which shape
 
-Skip this if `ylarena.online` is already in your Cloudflare account.
+VocabX is two things: an app, and an AI proxy that holds your API keys. They
+can be one deployment or two, and that choice decides everything below.
 
-1. Sign in at [dash.cloudflare.com](https://dash.cloudflare.com) → **Add a
-   domain** → type `ylarena.online` → **Continue**.
-2. Choose the **Free** plan.
-3. Cloudflare scans your existing DNS records. Check the list against whatever
-   the domain does today — **if email is set up on this domain, make sure the
-   MX and TXT records came across**, because a missing MX record is how a
-   domain move quietly stops mail.
-4. Cloudflare shows you **two nameservers**, something like
-   `ana.ns.cloudflare.com` and `bob.ns.cloudflare.com`.
-5. Sign in wherever you bought `ylarena.online`, find **Nameservers** (often
-   under DNS or Domain settings), and replace what is there with those two.
-6. Back in Cloudflare, press **Check nameservers**. It usually takes a few
-   minutes to a few hours. You get an email when the domain is active.
+### Shape A — one upload
 
-You cannot attach a custom domain to Pages until this shows **Active**.
+`vocabx-pages-with-ai.zip`. Pages serves the app **and** runs the AI, on one
+address.
+
+- One thing to deploy, one thing to configure, one URL.
+- No CORS, no `ALLOWED_ORIGIN`, no proxy address to paste into Settings — the
+  app in this archive talks to whatever origin it was served from.
+- The D1 database binds to the Pages project.
+
+### Shape B — two pieces
+
+`vocabx-web.zip` on Pages, `worker.js` as a Worker of its own.
+
+- **This is what is live today.** The app in `vocabx-web.zip` is built pointing
+  at `https://vocabx-proxy.mdmukul666343.workers.dev`.
+- Needs `ALLOWED_ORIGIN` on the Worker, matching your site's address exactly.
+- The D1 database binds to the **Worker**, not to Pages.
+
+**Which to pick.** Shape B if the Worker already exists and works — you are
+one paste from being current. Shape A if you are setting this up again from
+scratch, or if the two addresses have ever got out of step, because it removes
+the whole class of problem.
+
+You cannot half-do this. Two origins need `ALLOWED_ORIGIN`; one origin must not
+have it. Pick one and follow that column.
 
 ---
 
-## Part 2 — Create the Pages project
+## Part 1 — Get the files onto Pages
 
-1. In the Cloudflare dashboard: **Compute (Workers & Pages)** → **Create** →
-   **Pages** tab → **Connect to Git**.
-2. Authorise GitHub if you have not already, and pick **`nasif-hbd/sissy.html`**.
-   If the repository is not listed, use **Configure GitHub App** and grant
-   access to it.
-3. Set up the build. This is the part people get wrong, so take it literally:
+### If your Pages project is connected to GitHub
+
+Then there is no upload. Cloudflare deploys whatever is on the **production
+branch**, which is `main`.
+
+The current work is on `claude/english-vocab-learning-app-ub3m1v`. Nothing
+deploys until that reaches `main`:
+
+```
+git checkout main
+git merge claude/english-vocab-learning-app-ub3m1v
+git push origin main
+```
+
+A deploy takes about a minute. Skip to Part 2.
+
+> A Git-connected project cannot take a zip. If you want to drag files in
+> instead, you need a direct-upload project — see below — and then to move the
+> custom domain across.
+
+### If you are uploading the zip
+
+1. **Compute (Workers & Pages) → Create → Pages → Upload assets.**
+2. Project name: `vocabx`. **Create project.**
+3. Drag in **`vocabx-pages-with-ai.zip`** (Shape A) or **`vocabx-web.zip`**
+   (Shape B). Cloudflare unpacks it; the archive's root is the site root, which
+   is why `index.html` is at the top level of it and not inside a folder.
+4. **Deploy site.**
+
+To update later: same project → **Create deployment** → drag the new zip in.
+Every previous deployment stays in the list, and **Rollback** on one of them
+undoes a bad release immediately.
+
+You get `vocabx.pages.dev`. Open it before touching DNS, so that if something
+is wrong you know it is the deploy and not the domain.
+
+---
+
+## Part 2 — The domain
+
+Skip if `vocabx.ylarena.online` already points here.
+
+1. The domain must be on Cloudflare first: **Add a domain** → `ylarena.online`
+   → Free plan → check the scanned DNS records against what the domain does
+   today. **If email runs on this domain, confirm the MX and TXT records came
+   across** — a missing MX record is how a domain move quietly stops mail.
+2. Replace the nameservers at your registrar with the two Cloudflare gives you.
+   Wait for **Active**.
+3. Pages project → **Custom domains** → **Set up a custom domain** →
+   `vocabx.ylarena.online` → **Activate domain**. The DNS record is made for
+   you.
+4. Wait for *Initializing* → **Active**. Usually a minute; up to fifteen while
+   the certificate issues.
+
+HTTPS is automatic. Nothing else to configure.
+
+---
+
+## Part 3 — The AI proxy
+
+### Shape A — nothing to deploy
+
+`_worker.js` is already inside the archive you uploaded. Pages found it and is
+running it. Go to Part 4.
+
+### Shape B — paste the Worker
+
+1. **Workers & Pages → Create → Start with Hello World → Deploy.**
+   Name it `vocabx-proxy` (the name is in the URL, and the app is built
+   pointing at `vocabx-proxy.mdmukul666343.workers.dev`).
+2. **Edit code.** Select all, delete, paste the whole of **`worker.js`**.
+   **Deploy.**
+3. **Settings → Variables and Secrets → Add:**
+
+   | Type | Name | Value |
+   |---|---|---|
+   | Variable | `ALLOWED_ORIGIN` | `https://vocabx.ylarena.online` |
+
+   No path, no trailing slash, and it must match the address in the browser bar
+   exactly. Without it the Worker answers anyone who finds the URL, and they
+   spend your API credit.
+
+To update the Worker later: **Edit code**, select all, paste the new
+`worker.js`, Deploy. That is the whole update.
+
+---
+
+## Part 4 — The Gemini keys
+
+Where they go depends on the shape:
+
+- **Shape A:** Pages project → **Settings → Variables and secrets** → the
+  **Production** environment.
+- **Shape B:** the Worker → **Settings → Variables and Secrets**.
+
+Two ways to add them. Either works; do not do both.
+
+**One secret, all the keys** — fewer clicks:
+
+| Type | Name | Value |
+|---|---|---|
+| Secret | `GEMINI_API_KEYS` | `AIzaKey1,AIzaKey2,AIzaKey3` |
+
+Note the **S** on the end. Commas or line breaks between them; spaces are fine.
+
+**One secret each** — easier to change one later:
+
+`GEMINI_API_KEY`, then `GEMINI_API_KEY_2`, `GEMINI_API_KEY_3` … up to
+`GEMINI_API_KEY_10`. All Secret type. The numbering starts at 2; there is no
+`_1`.
+
+Then **Deploy** (Shape B) or **redeploy** (Shape A — Pages applies new
+variables on the next deployment, so use **Retry deployment** on the latest
+one).
+
+**Why several.** Gemini's free tier is metered per key, so ten keys is ten
+times the daily quota. The proxy stays on one key until that key is genuinely
+finished — 429 quota, 403 disabled, or 400 with `API_KEY_INVALID` — then moves
+to the next and stays there. It does not rotate per request; spreading requests
+evenly would exhaust all ten on the same day instead of one.
+
+Keys from **separate Google accounts** have separate quotas. Several keys in
+one account may share that account's quota, which defeats the point.
+
+---
+
+## Part 5 — The database, for accounts and sync
+
+Skip it and the app still works completely — every word, every screen, every
+feature, kept on the device. This only adds the server copy, sign-in, and
+carrying progress to a second device.
+
+1. **Storage & Databases → D1 SQL Database → Create database.**
+   Name: `vocabx`. **Create.**
+   There are no tables to make. They are created the first time somebody signs
+   up or saves.
+
+2. Bind it:
+
+   - **Shape A:** Pages project → **Settings → Bindings** → **Add → D1
+     database**.
+   - **Shape B:** the Worker → **Settings → Bindings** → **Add → D1 database**.
 
    | Field | Value |
    |---|---|
-   | Project name | `vocabx` |
-   | Production branch | `main` |
-   | Framework preset | **None** |
-   | Build command | *leave empty* |
-   | Build output directory | `/` |
+   | Variable name | `DB` |
+   | D1 database | `vocabx` |
 
-   There is no build step. If you put anything in the build command it will run
-   and fail.
+   **`DB`, exactly, capitals included.** `db` or `Database` will bind
+   successfully and do nothing.
 
-4. **Save and Deploy.** The first deploy takes a minute or two.
-5. You get a URL like `vocabx.pages.dev`. Open it — the install page should
-   appear, and `vocabx.pages.dev/vocab/` should open the app. **Check this
-   works before adding the domain**, so that if something is wrong you know it
-   is the deploy and not the DNS.
+3. Deploy / redeploy.
 
----
+**It is free.** D1's free tier is 5 GB and 5 million reads a day; a learner's
+snapshot is a few kilobytes.
 
-## Part 3 — Attach ylarena.online
-
-1. Open the project → **Custom domains** → **Set up a custom domain**.
-2. Enter `ylarena.online` → **Continue** → **Activate domain**.
-   Because the domain is already on Cloudflare, the DNS record is created for
-   you. Nothing to copy or paste.
-3. Repeat for **`www.ylarena.online`** if you want it to work too. Cloudflare
-   redirects one to the other automatically.
-4. Wait for the status to go from *Initializing* to **Active** — usually a
-   minute or two, occasionally up to fifteen while the certificate is issued.
-
-Then:
-
-- `https://ylarena.online/` — the install page
-- `https://ylarena.online/vocab/` — the app
-
-HTTPS is automatic and free. Nothing else to configure.
-
-### Send people straight to the app (optional)
-
-If you would rather the bare domain open the app instead of the install page,
-add a file called `_redirects` at the root of the repository:
-
-```
-/    /vocab/    302
-```
-
-Do this only if you are sure — the install page is what tells someone on a
-phone how to add VocabX to their home screen, and a redirect skips it.
+**There is no password reset** — nothing is emailed, because there is no mail
+server here. A forgotten password means the saved copy is unreachable; the work
+on the device is untouched. Say so to anyone you set this up for.
 
 ---
 
-## Part 4 — The AI proxy, if you want the AI features
+## Part 6 — Check it, in one place
 
-Pages serves files; it does not run Node. `vocab/server/proxy.mjs` needs a
-host that does — Render, Railway, Fly.io or a small VPS all work, and the
-first three have a free tier.
+Open this in any browser:
 
-There are three shapes. The first needs no other account and no repository
-connection, which is why it is first.
+- **Shape A:** `https://vocabx.ylarena.online/api/health`
+- **Shape B:** `https://vocabx-proxy.mdmukul666343.workers.dev/api/health`
 
-### A — A Cloudflare Worker (recommended if the app is already on Pages)
+Four things to read:
 
-`vocab/server/worker.mjs` is the same proxy, built for Workers: the same
-prompts, the same schemas, the same Gemini client as the Node proxy, sharing
-the files rather than copying them. Workers have no Node, so it drops the
-three things that need one — serving the app's files, web push, and emailed
-feedback over SMTP. The seven AI routes and translation are all there.
+```json
+{
+  "accounts": { "rounds": 250000, "tries": 8 },
+  "providers": {
+    "gemini": { "ready": true, "keys": 10, "model": "gemini-flash-lite-latest" }
+  },
+  "sees": ["ALLOWED_ORIGIN", "DB", "GEMINI_API_KEYS", "..."]
+}
+```
 
-Free tier, no cold start, and it lives in the dashboard you already have.
+| What it says | What it means |
+|---|---|
+| `"keys": 10` | Ten keys are readable. Added five and it says one? A name is misspelled — that number exists to show you exactly this. It never shows the keys. |
+| `"gemini": { "ready": false }` | No key is readable at all. Check the environment you put it in: on Pages, Production and Preview are separate. |
+| `"accounts": false` | The database is not bound. The app hides the sign-in buttons rather than showing a form whose last step fails. Check the variable name is `DB`. |
+| `sees` lists names only | Never values. A key in the wrong field, the wrong environment, or the wrong Worker all look identical from outside — "no key set" — and this is what tells them apart. |
 
-**With no CLI and no connected repository:**
+Then open the app itself: **Settings → AI help**. The engine line says which
+engine answered and why. An answer signed *Built-in tutor* means the live
+engine could not be reached, and the reason is on the same line.
 
-1. Run `vocab/server/build-worker.sh` — it writes `dist/worker.js`, one file.
-2. Cloudflare dashboard → **Workers & Pages → Create → Start with Hello
-   World → Deploy**, then **Edit code**, and paste `dist/worker.js` over
-   what is there. Deploy.
-3. **Settings → Variables and Secrets** on the Worker:
-   - Secret **`GEMINI_API_KEY`** — your key.
-   - Variable **`ALLOWED_ORIGIN`** — `https://vocabx.ylarena.online`, no path,
-     no trailing slash. Without it the Worker answers anyone, and anyone who
-     finds the URL can spend your API credit.
-4. In the app: **Settings → AI help → Gemini → Your server** = the Worker's
-   URL (`https://vocabx-proxy.<you>.workers.dev`).
+**Shape B only:** Settings → AI help → **Your server** must hold the Worker's
+https address. **Shape A: leave it empty** — empty means "the same address this
+app came from", which is the whole point of that shape.
 
-**With the CLI**, from `vocab/server`: `npx wrangler secret put GEMINI_API_KEY`
-then `npx wrangler deploy`. `wrangler.toml` is already there.
+---
 
-### B — One host serves both
+## Part 7 — Everything else
 
-`proxy.mjs` already serves the app beside its own API — the whole of `vocab/`
-is on the same origin as `/api/...`. Deploy the repo to a Node host, point
-your domain at it, and:
+**The desktop build.** `vocabx-desktop.zip` is not deployed; it is downloaded.
+The landing page already links to it, and the packaging step put a copy inside
+the site archive at `/download/vocabx-desktop.zip`, so that button works as
+soon as the site is up. Nothing to configure.
 
-1. Set `GEMINI_API_KEY` (or `ANTHROPIC_API_KEY`).
-2. In the app: **Settings → AI help → Your server** — **leave it empty**.
+**Android.** `vocabx-android-source.zip` is a TWA wrapper — a Play Store
+shell around the hosted site. It needs Android Studio and a Play Console
+account, and it points at whatever domain you deployed above, so deploy first.
 
-That is the whole configuration. No CORS, no `ALLOWED_ORIGIN`, no second
-address to keep in step, and no way to point at the wrong one. You can drop
-Cloudflare Pages entirely, or keep it in front as a CDN.
+**`_headers`** is in the archive and Pages applies it: the typeface cached for
+a year, word packs for an hour, and `sw.js` never cached — which is the single
+most common way a PWA gets stuck on a version from last month. Under Shape A
+advanced mode bypasses `_headers`, so `_worker.js` applies the same rules
+itself.
 
-### C — Pages serves the app, a Node proxy lives elsewhere
+---
 
-Keep the Pages deployment from Parts 1–3 and host only the proxy. Then:
-
-1. Set the environment variables from `vocab/server/.env.example`. At minimum
-   `ANTHROPIC_API_KEY` (or `GEMINI_API_KEY`).
-2. Set **`ALLOWED_ORIGIN=https://ylarena.online`** — no path, no trailing
-   slash. Without it the proxy answers requests from anywhere, and anyone can
-   spend your API credit.
-3. In the app: **Settings → AI help → Your server**, and enter the **https**
-   address the proxy is reachable at.
-
-The API key stays on the proxy and never reaches the browser. That is the
-entire reason the proxy exists.
-
-### The mistake this part exists to prevent
+## The mistake this document exists to prevent
 
 `http://localhost:8787` is the address the proxy has while you are developing,
-and it is the app's default. It is **not** an address a published site can
-use: to every visitor's browser, "localhost" means their own computer, not
-yours. A deployed app pointed at it fails on every request — and it fails the
-same way for you, on the same laptop that is running the proxy, because a page
-served over https is not allowed to reach a plain-http address.
+and it is the app's fallback. It is **not** an address a published site can
+use: to every visitor's browser, "localhost" means their own computer. A
+deployed app pointed at it fails on every request — and fails the same way for
+you, on the same laptop running the proxy, because a page served over https
+may not reach a plain-http address.
 
-So the proxy has to be reachable on the public internet, over https, before
-the AI engines will answer for anybody. Until it is, the app falls back to the
-built-in tutor and says why under each answer; nothing else breaks.
+Until the proxy is reachable on the public internet over https, the app falls
+back to the built-in tutor and says why under each answer. Nothing else breaks.
 
 ---
 
-## Afterwards
-
-**Every push to `main` deploys.** Cloudflare watches the branch; there is
-nothing to run. A deploy takes about a minute, and the dashboard keeps every
-previous one, so **Rollback** on an earlier deploy undoes a bad release
-immediately.
-
-**`_headers` is already in the repository** and Cloudflare applies it. It caches
-the typeface for a year, the word packs for an hour — they keep their filenames
-when rebuilt, so caching them forever would strand people on old data — and
-tells browsers never to cache `sw.js`, which is the single most common way a
-PWA gets stuck on a version from last month.
-
-**Leave GitHub Pages alone or turn it off**, whichever you prefer. Both can
-serve the same repository at once; the canonical link now points at
-`ylarena.online`, so search engines will treat that as the real address.
-
-### If something looks wrong
+## If something looks wrong
 
 | What you see | What it usually is |
 |---|---|
-| The old version, and a hard refresh does not help | The old service worker. Open DevTools → Application → Service Workers → **Unregister**, then reload. |
-| The install page loads, `/vocab/` gives a 404 | Build output directory is not `/`. Settings → Builds & deployments. |
+| The old version, and a hard refresh does not help | The old service worker. DevTools → Application → Service Workers → **Unregister**, then reload. On a phone: close every tab of the site and reopen. |
+| The build number at the foot of Settings is not the one you deployed | Same thing — the old service worker is still serving. Unregister it. |
+| The install page loads, `/vocab/` gives a 404 | The zip was uploaded with a wrapper folder, so the site is one level down. Re-upload the archive as given; its root is the site root. |
+| Ask and the coach say the proxy is unreachable | Read the sentence after the engine's name — it says which of the four causes it is. Then check `ALLOWED_ORIGIN` matches the browser bar exactly, including `https://` and no trailing slash. |
+| Answers arrive signed "Built-in tutor" | The live engine could not be reached, so the app answered from the shipped dictionary. The reason is on the same line. |
+| Sign up and Log in are not offered | `"accounts": false` — the database is not bound, or is bound under the wrong variable name. Part 5. |
+| Everything worked, then Gemini stopped answering around the same time each day | The free daily quota. Add more keys, from separate Google accounts. Part 4. |
 | "Install" does nothing on Android | The install prompt needs HTTPS and a valid manifest. Wait for the certificate to finish issuing. |
-| Ask and the coach say the proxy is unreachable | Read the sentence after the engine's name — it says which of the four causes it is. Then Part 4, and check `ALLOWED_ORIGIN` matches the address in the browser bar exactly. |
-| Answers arrive but are signed "Built-in tutor" | The live engine could not be reached, so the app answered from the dictionary instead. The reason is on the same line. |
+
+---
+
+## Rotating a key
+
+Keys leak — into screenshots, into chat logs, into a commit. Rotating one is
+two minutes and costs nothing:
+
+1. [aistudio.google.com/apikey](https://aistudio.google.com/apikey) → delete
+   the old key, **Create API key**.
+2. Paste the new one over the old value in Variables and Secrets.
+3. Deploy, and reload `/api/health` — `keys` should be unchanged.
+
+Nothing in the app or the archive needs rebuilding. The key lives in the
+dashboard, never in the browser, and never in a file you hand to anyone.

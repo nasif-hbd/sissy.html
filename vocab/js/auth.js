@@ -24,7 +24,7 @@
  * and it is why signing in shows that it is working rather than appearing to
  * hang.
  */
-import { proxyBase, serverInfo } from './ai.js';
+import { proxyBase, proxyHere, serverInfo } from './ai.js';
 
 const TOKEN = 'vocabx.session';
 const CACHED = 'vocabx.account';
@@ -71,7 +71,7 @@ export function possible() {
   // deriveBits needs a secure context. https and the installed app both have
   // one; a page opened from the filesystem does not, and should be told so
   // rather than shown a form that cannot work.
-  return Boolean(proxyBase() && globalThis.crypto?.subtle?.deriveBits);
+  return Boolean(proxyHere() && globalThis.crypto?.subtle?.deriveBits);
 }
 
 async function post(route, payload, ms = 20_000) {

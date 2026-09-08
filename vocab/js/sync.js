@@ -21,8 +21,8 @@
  * forget.
  */
 import { Store } from './store.js';
-import { AI } from './config.js';
 import { Auth } from './auth.js';
+import { proxyBase, proxyHere } from './ai.js';
 
 const KEY = 'vocabx.device';
 
@@ -67,7 +67,7 @@ export function adoptId(id) {
  * that only ever confuses. A guest still has to ask for it.
  */
 export function enabled() {
-  if (!AI.proxyUrl) return false;
+  if (!proxyHere()) return false;
   if (Auth.isIn) return true;
   return Boolean(deviceId() && Store.state.settings.sync?.enabled);
 }
@@ -89,7 +89,7 @@ async function call(route, payload) {
   const who = whoAmI();
   if (!who) return null;
   try {
-    const res = await fetch(`${AI.proxyUrl}${route}`, {
+    const res = await fetch(`${proxyBase()}${route}`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ ...who, ...payload }),

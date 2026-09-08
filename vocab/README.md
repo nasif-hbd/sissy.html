@@ -1222,6 +1222,24 @@ the same moment, so the same card cannot be graded twice. `Space` still drives
 the whole loop — show, grade, on — and `1`–`4` take the next card once a grade
 is in, the way the Test tab already worked.
 
+**The one-origin deployment could not hold an account.** `AI.proxyUrl` is a
+fact about the deployment, and config.js has always documented the empty
+address as *the origin this app was served from* — which is what the
+one-upload Pages build is: the app and the proxy in a single archive, with
+nothing to configure. Three modules answered "is there a proxy?" by testing
+that address for truthiness, so on that build they all answered no. The AI
+still worked, because an empty base makes every route relative and a relative
+route resolves to the right place; what went missing was everything that asked
+first — the health check, accounts, and sync. The welcome screen therefore hid
+Sign up and Log in, correctly following a wrong answer, and said nothing.
+`proxyHere()` now answers that question: true when the build names an address,
+true for the empty address on any http(s) page, false only from the filesystem
+where `/api/…` is a path on disk. The packaging step had the matching hole —
+the archive carrying `_worker.js` still shipped the standalone Worker's URL
+inside it — and now empties that line for that archive only.
+`tests/origin.test.mjs` fails on the address in a boolean position anywhere in
+`js/`, because this is invisible in every build anyone develops against.
+
 **A CSS modifier that did nothing.** `.sheet__panel--form` set a gap and a
 padding-bottom, and `.sheet__panel` set both again three hundred lines further
 down the file. Equal specificity, so source order decides, so the base rule won

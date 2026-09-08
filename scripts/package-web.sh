@@ -67,6 +67,20 @@ echo "packaged $(du -h "$OUT" | cut -f1)  $(unzip -l "$OUT" | tail -1 | awk '{pr
 BUILT=vocab/server/dist/_worker.js
 if [ -f "$BUILT" ]; then
   cp "$BUILT" "$STAGE/_worker.js"
+  # The app in THIS archive talks to its own origin, so the proxy address baked
+  # into config.js is emptied for it — otherwise the one-upload deployment would
+  # still call the separate Worker, which is the one thing this variant exists
+  # to avoid. Only the staged copy is touched: the repository keeps its default,
+  # and the plain zip above was already written with it.
+  CFG="$STAGE/vocab/js/config.js" python3 -c "
+import os, pathlib, re
+p = pathlib.Path(os.environ['CFG'])
+s = p.read_text(encoding='utf-8')
+out, n = re.subn(r\"(\\n  proxyUrl: )'[^']*'\", r\"\\1''\", s, count=1)
+if n != 1:
+    raise SystemExit('could not find the proxyUrl line in the staged config.js')
+p.write_text(out, encoding='utf-8')
+"
   (cd "$STAGE" && zip -qr "$OUT_AI" . -x '.DS_Store')
   echo "packaged $(du -h "$OUT_AI" | cut -f1)  $(unzip -l "$OUT_AI" | tail -1 | awk '{print $2}') files  →  $OUT_AI"
 else

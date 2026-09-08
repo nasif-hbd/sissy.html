@@ -30,6 +30,27 @@ const cfg = () => Store.state.settings.ai;
 export const proxyBase = () => baseOf(AI.proxyUrl);
 
 /**
+ * Whether there is a server to talk to at all.
+ *
+ * The empty address is not "no server": config.js has always documented it as
+ * *the address this app was served from*, which is what a one-origin
+ * deployment wants — the app and the proxy in one upload, with nothing to
+ * configure. An empty base makes every route relative, and a relative route
+ * over http(s) resolves to that origin, so the question "is there a proxy"
+ * cannot be answered by testing the base for truthiness.
+ *
+ * It was answered that way in three places, and the cost was exact: a
+ * one-origin build got its AI (relative routes worked) and silently lost
+ * accounts, sync and the health check, because those three asked
+ * `if (!proxyBase())` and got the wrong answer.
+ *
+ * False only where a relative route cannot reach a server: a page opened from
+ * the filesystem, where `/api/…` is a path on disk.
+ */
+export const proxyHere = () =>
+  Boolean(AI.proxyUrl) || /^https?:$/.test(globalThis.location?.protocol || '');
+
+/**
  * An address, less anything that is not the address.
  *
  * The base is what the app appends its routes to, so a trailing `/api/...`
@@ -59,7 +80,7 @@ let known = null;
 export function serverInfo() {
   if (known) return known;
   const asking = (async () => {
-    if (!proxyBase()) return null;
+    if (!proxyHere()) return null;
     try {
       const res = await fetch(`${proxyBase()}${AI.routes.health}`, { signal: timeout(6000) });
       const body = await res.json();
